@@ -61,7 +61,12 @@ remains true; M0 only adds the rails.
 
 **M0 — Repository foundation and toolchain.** All five acceptance criteria demonstrated;
 see [docs/implementation/milestones/M00-foundation.md](docs/implementation/milestones/M00-foundation.md)
-for the criteria and the verification commands below for the pasted output.
+for the criteria and the verification commands below for the pasted output. Criterion 4
+("CI green on a PR with no AWS credentials configured") was demonstrated via direct pushes
+to `main` rather than an actual pull request — this repository had no collaborators or
+open PRs at M0 — but the workflow runs identical jobs on both `push` and `pull_request`
+triggers, so the substance of the criterion (CI passes end-to-end without cloud credentials)
+is verified; the PR-specific trigger path itself remains unexercised.
 
 Delivered: editable install on Python 3.12 (3.13 covered by the CI matrix, not locally
 verified — no 3.13 interpreter in the environment M0 was built in); `ruff` and `mypy`
@@ -123,7 +128,16 @@ This is the kind of defect a local `pytest`/`lint-imports` run cannot catch by c
 (gitignore doesn't affect the local working tree, only what git tracks) — it only surfaces
 on a fresh clone, which is exactly what CI is for.
 
-### Implemented ahead of its milestone (design verification, not milestone completion)
+The fourth run
+([31180564148](https://github.com/KubixDesiney/chainbreak/actions/runs/31180564148)) passed
+all ten jobs (`boundaries`, `guards`, `lint`, `types`, `security`, `schemas`, `scenarios`,
+`terraform`, `test` × {3.12, 3.13}). Known issue 5 is resolved: CI is no longer merely
+"believed correct", it has been observed green on GitHub's own runner. All four defects it
+took to get there were things a from-scratch review would have had a real chance of missing,
+too — a self-matching grep, an `EXAMPLE`-blind git-history scan, a status doc quoting its own
+forbidden string, and an unanchored gitignore rule silently eating a source package. None
+were hypothetical; each was found by the exact mechanism designed to find it, on the first
+real execution against a real clone.
 
 The following exists and passes tests, but the corresponding milestone is **not** complete
 because the milestone's full scope and acceptance criteria have not been met.
@@ -174,8 +188,8 @@ M1 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the majority of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add. CI has now run on GitHub Actions (see the M0 entry under "Completed" for the one real
-defect the first run found and the fix that followed it).
+add. CI is green on GitHub Actions across all ten jobs (see the M0 entry under "Completed"
+for the four real defects the first three runs found and the fixes that followed).
 
 Coverage targets from TESTING.md remain **not** enforced project-wide — `--cov-fail-under`
 gates exist only for the two modules M0 could gate today (SI-1 redaction, SI-5 SafetyGate),
