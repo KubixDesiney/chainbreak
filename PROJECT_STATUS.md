@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M3 complete, M4 next
+**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M4 complete, M5 next
 
 ---
 
@@ -27,7 +27,7 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 through M3 complete, M4 is the next action.** M0 made the repository
+**Implementation: M0 through M4 complete, M5 is the next action.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
@@ -35,8 +35,11 @@ invariants G-1 through G-5, canonical JSON, and root-to-leaf path analysis. M2 c
 capability layer: the binding registry, the runtime operation-allowlist that makes SI-3
 enforceable, and precondition resolution. M3 completed the scenario language: the five-stage
 validation pipeline and the compiler that turns a scenario document into a `CompiledScenario`.
-All four milestones are analysis/domain/capability/scenario work — no benchmark has executed
-and no AWS experiment has run.
+M4 completed the entry point and the gate every run must pass: layered configuration
+resolution, the `SafetyGate` (SI-5/SI-7/SI-8), the monotonic run clock (SI-7), the redaction
+log filter (SI-10), and the full `chainbreak` Typer CLI surface. All five milestones are
+analysis/domain/capability/scenario/CLI work — no benchmark has executed and no AWS
+experiment has run.
 
 ---
 
@@ -50,6 +53,7 @@ and no AWS experiment has run.
 | Capability model | Complete **and verified in code** — catalog v1.0.0/10 capabilities, registry, operation allowlist (SI-3), preconditions | [CAPABILITY_MODEL.md](CAPABILITY_MODEL.md), `capabilities/` |
 | Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 12 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
+| Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
 | Provider abstraction | Specified, not implemented | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md) |
 | AWS provider | Specified, not implemented | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md) |
 | Terraform | Module contracts written, no `.tf` implemented | `infra/terraform/**/CONTRACT.md` |
@@ -243,6 +247,85 @@ it new code) close the gap alongside the M3-proper `test_scenario_loader.py`,
 `test_scenario_compiler.py`, `test_probe_matrix.py` and `test_scenario_safety.py`.
 `scenarios/` finished at 98%.
 
+**M4 — CLI, configuration and the SafetyGate.** All five acceptance criteria demonstrated.
+Delivered: `config/settings.py` (`Settings`, `resolve_settings` — defaults → repo
+`chainbreak.toml` → user config → `CHAINBREAK_*` env → CLI overrides, later wins field by
+field, each layer contributing only what it explicitly set; `resolve_safety_envelope` wraps
+Pydantic's `ValidationError` as the domain `SafetyEnvelopeError` F2 requires);
+`config/fingerprint.py` (`fingerprint_settings`, reusing M1's canonical JSON); `core/safety.py`
+(`SafetyGate.authorize` — envelope presence, account/region/namespace checks, and cost
+estimation against a compiled plan; `estimate_cost`, verified conservative by a dedicated
+test asserting the estimate is never below true-call-count × table, S4); `core/clock.py`
+(`RunClock`, monotonic via an injectable `now_ns`, never wall-clock subtraction; the SI-7
+14400s hard ceiling is enforced structurally on `SafetyEnvelope` itself, so it cannot reach
+`authorize` in the first place); `cli/logging.py` (`RedactionFilter`, installed on the root
+logger and directly on `botocore`/`boto3`/`urllib3` for defense in depth against a library
+setting `propagate = False` on itself — SI-10); the full `cli/` Typer surface — `main.py`
+plus one module per command group (`validate`, `scenario`, `run`, `analyze`, `report`,
+`runs`+`evidence`, `infra`) — with every not-yet-implemented command exiting 2 with a named
+milestone rather than a stack trace (F4).
+
+Two gaps in `SafetyGate.authorize` surfaced only while writing tests against the milestone's
+own list of what `test_safety_gate.py` must cover ("missing envelope, wildcard account,
+disallowed region, namespace mismatch, cost over ceiling, duration over ceiling"): the
+pre-existing implementation checked only `account_id` and cost, with no way to check a
+candidate region or namespace against the envelope at all. Extended `authorize` with
+`region`/`namespace` parameters, symmetric with the existing `account_id` check — region
+against `envelope.allowed_regions`, namespace against `envelope.namespace_pattern` via
+`re.fullmatch` — and added `RegionNotAllowedError` (new) while reusing the pre-existing
+`NamespaceViolationError` (SI-2) rather than inventing a second namespace error. "Wildcard
+account" and "duration over ceiling" turned out not to need new `SafetyGate` logic at all:
+both are refused at `SafetyEnvelope` construction time by its own Pydantic validators, so
+they collapse to the same `authorize(None, ...)` path as "missing envelope" — verified
+directly rather than assumed.
+
+The non-functional requirement — `chainbreak --help` under 500ms — was not met on first
+measurement (949ms). Diagnosed via `python -X importtime` and manual timing splits: import
+cost was the suspected cause (heavy modules like `pydantic`/`jsonschema`/the compiler sitting
+at module level in `cli/validate.py` and `cli/scenario.py`, imported unconditionally by
+`cli/main.py` on every invocation including `--help`) and deferring those imports into the
+command bodies did help (949ms → ~650ms) but left the budget still missed. `-X importtime`
+against the deferred version showed the actual remaining cost was not import time at all
+(`chainbreak.cli.main` imports in ~180ms) — it was **Typer's rich-markup help renderer**,
+which drives `rich`'s full layout engine over every option/command panel at *invocation*
+time, independent of what got imported. Isolated with a minimal repro: the same Typer app
+with `rich_markup_mode=None` rendered `--help` in 2.3ms versus 270ms with rich panels on.
+Setting `rich_markup_mode=None` on the root `Typer()` app (it propagates to every sub-app)
+brought `chainbreak --help` to a stable 340–390ms. Plain `Usage:`-style help output instead
+of rich's colored panels is the tradeoff; `validate`'s own `rich.table.Table` output is
+unaffected, since that's the command's own rendering, not Typer's `--help` machinery.
+
+`test_cli_surface.py`'s bypass-flag detector (S1) uses duck typing
+(`param.param_type_name == "option"`, `hasattr(command, "commands")`) rather than
+`isinstance(cmd, click.Group)`: this environment's installed Typer (0.12+) vendors its own
+internal fork at `typer._click`, distinct from the separately-installed top-level `click`
+8.4.2 package, so `TyperGroup` does not satisfy `isinstance(..., click.Group)` against the
+wrong module — confirmed directly (`isinstance` returned `False` for every node in the real
+command tree) before switching approaches. The milestone's own negative-control instruction
+("add `--skip-safety` on a scratch branch, confirm the test fails") was both reproduced as a
+permanent, always-run fixture in `TestNegativeControlDetectorCatchesAPlantedBypassFlag` (a
+scratch Typer app with a planted `--skip-safety` option, asserted caught) and demonstrated by
+hand against the real `cli/run.py` — a `--skip-safety` option was added, `test_cli_surface.py`
+was confirmed to fail with the exact offending flag named in the assertion message, then
+reverted; `git status`/`git diff` confirmed a clean revert before continuing. `infra
+apply`/`infra destroy`'s `--auto-approve` was deliberately not flagged: it mirrors `terraform
+apply -auto-approve`'s standard non-interactive-confirmation convention (and `infra` is not
+wired to the `SafetyGate` at all yet — stub until M9), not a safety bypass; a dedicated test
+asserts the flag exists and does not match the bypass-keyword pattern, so this is a recorded
+decision, not a gap the detector missed.
+
+`cli/` had no dedicated test file before M4. Beyond the five files the milestone's own file
+list names (`test_config_layering.py`, `test_safety_gate.py`, `test_clock.py`,
+`test_logging_filter.py`, `test_cli_surface.py`), two more were added to cover ground the
+file list didn't explicitly name but the acceptance criteria do: `test_cli_commands.py`
+(acceptance criteria 1 and 5 — `chainbreak validate`'s six checks, each tested at the
+function level plus one end-to-end `CliRunner` pass against a real config and the repo's own
+scenario corpus from an isolated cwd; every not-yet-implemented command's exit-2 behavior)
+and `test_cli_scenario_command.py` (`cli/scenario.py`'s `validate`/`list` commands, which had
+real logic and only 24% incidental coverage from nothing exercising it directly).
+`core/safety.py` finished at exactly 100% (acceptance criterion 4); `cli/` finished at 90%+
+across every module except the two now-`--help`-only stub paths in `cli/main.py`.
+
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
 The following exists and passes tests, but the corresponding milestone is **not** complete
@@ -259,19 +342,19 @@ None.
 
 ### Blocked
 
-None. M4 can start immediately.
+None. M5 can start immediately.
 
 ### Not started
 
-M4 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M5 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-346 passed, 1 deselected in ~5s      (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 346 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+445 passed, 1 deselected in ~6s      (Python 3.12.7, pytest -m "unit or integration")
+1 skipped, 445 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -299,18 +382,29 @@ M4 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_scenario_safety.py` | 15 | Literal ARN/account-id/region/URL rejection (with `example`/`localhost` exempted); oversized documents; custom and `!!python/object` YAML tags rejected; invalid YAML syntax; non-mapping documents; excessive node count and nesting depth |
 | `tests/unit/test_export_schema.py` | 7 | Every registered schema export is valid draft 2020-12; `main()` writes one file per export with the default and an explicit output directory |
 | `tests/unit/test_scenario_schema_extra.py` | 40 | Every `ScenarioSpec` sub-model validator failure branch: timing/concurrency, root/agent capability declarations, session-policy source exclusivity, delegation mechanism and self-delegation checks, all five `PhaseSpec` kind requirements, all `ExpectationSpec` kind requirements, `ScenarioSpec`'s full referential-integrity sweep, negative-control id marking |
+| `tests/unit/test_config_layering.py` | 18 | All four config layers individually and combined, later-wins semantics, a partial layer never clobbering an untouched field, env tuple/int/bool coercion, a `None` CLI override not overwriting an earlier layer, `resolve_safety_envelope` success/failure, fingerprint determinism |
+| `tests/unit/test_safety_gate.py` | 16 | Missing envelope; wildcard account and duration-over-14400s both collapsing to the envelope-construction-refusal path; account/region/namespace checks (SI-2, SI-5, S1); cost within/over ceiling; `estimate_cost` conservatism (S4) against a real compiled scenario |
+| `tests/unit/test_clock.py` | 12 | `RunClock` before/at/past its deadline via an injected fake monotonic source, `elapsed_seconds`/`remaining_seconds`/`expired`, the real `time.monotonic_ns` default path, `no_offset_estimator` |
+| `tests/unit/test_logging_filter.py` | 14 | AKIA/ASIA keys, a simulated botocore DEBUG record with a JSON-quoted session token (acceptance criterion 3), key=value and JSON-quoted spellings, `install()` idempotence, third-party loggers covered even with `propagate = False` set on themselves |
+| `tests/unit/test_cli_surface.py` | 5 | S1: no option anywhere in the real command tree matches a bypass keyword; `--auto-approve` deliberately not flagged (documented exception); the negative-control detector both catches a planted `--skip-safety` fixture and stays silent on a clean one |
+| `tests/unit/test_cli_commands.py` | 28 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: all thirteen not-yet-implemented commands exit 2 with "not implemented until M\<n\>", never a stack trace |
+| `tests/unit/test_cli_scenario_command.py` | 6 | `chainbreak scenario validate`/`list` against a real scenario, a missing file, a structurally invalid document, the repo corpus, a missing directory, an empty directory |
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add (`analysis/`, `evidence/`, `core/safety.py`, the CLI). CI is green on GitHub Actions (see
-the M0 entry under "Completed" for the four real defects the first three runs found and the
-fixes that followed, and the M1 entry for its own clean first-try run); M2's and M3's
-additions have not yet had their own dedicated CI run observed at the time of this update.
+add (`analysis/`, `evidence/`). CI is green on GitHub Actions (see the M0 entry under
+"Completed" for the four real defects the first three runs found and the fixes that
+followed, and the M1 entry for its own clean first-try run); M2, M3 and M4's additions have
+not yet had their own dedicated CI run observed at the time of this update — the M4 push
+that follows this update will be the first opportunity to observe one for all three at once.
 
-Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98% (all exceed
-their TESTING.md bars — 95%, 95%, 90%, 90% respectively). `--cov-fail-under` gates for SI-1
-redaction and SI-5 SafetyGate remain inactive because those modules do not exist yet (M6, M4).
-Coverage is otherwise not enforced project-wide.
+Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
+~99%, `cli/` ~96% (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%
+respectively; `config/` and `cli/` have no stated bar in TESTING.md's per-module table).
+`core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1 redaction
+`--cov-fail-under` gate in CI remains inactive because `evidence/redaction.py` does not exist
+yet (M6); the SI-5 SafetyGate gate is now active and passing. Coverage is otherwise not
+enforced project-wide.
 
 ---
 
@@ -358,13 +452,16 @@ at M17.
 4. **`OperationAllowlist` is not wired to anything yet.** It is a complete, tested mechanism
    with no caller: the botocore `before-call` hook it is shaped for is M8's AWS adapter, and
    the fake provider that would exercise it in CI arrives at M5.
-5. **`chainbreak scenario validate` (the CLI) does not exist yet.** M3's acceptance criterion
-   1 names this command; M4 owns the CLI and was sequenced after M2/M3 in this
-   implementation, not before. Verified instead through
-   `scenarios.loader.validate_scenario`/`load_and_compile` directly, which is what the future
-   CLI command will call. `docs/implementation/milestones/M03-scenario-language.md`'s
-   verification commands assume M4 already landed; adjust them to call the loader functions
-   directly if running them before M4 exists.
+5. ~~`chainbreak scenario validate` (the CLI) does not exist yet.~~ **Resolved by M4.**
+   `cli/scenario.py`'s `validate` command wraps `scenarios.loader.validate_scenario` directly.
+   One consequence carries forward from known issue 2, worth stating explicitly here since
+   it is now user-visible rather than just a test-fixture concern: stage 4 (provider binding)
+   always resolves against an empty `BindingRegistry` today, because no provider package has
+   registered a real binding into one yet (M5 fake, M8 AWS). Running `chainbreak scenario
+   validate` against any of the repo's real, structurally valid scenarios today exits 4
+   (`EXIT_BINDING`), never 0 (`EXIT_VALID`) — this is correct current behavior, not a bug, and
+   is why `chainbreak validate`'s own "scenarios" check (F3) treats `EXIT_BINDING` as
+   informational rather than a failure until a provider exists.
 6. **No `.tf` files exist.** Only contracts. `chainbreak infra *` will not work until M9. The
    `terraform` CI job is a structural no-op against an empty tree until then and has not been
    run locally (no `terraform` binary in the M0 development environment).
@@ -377,6 +474,13 @@ at M17.
    isn't there is a no-op) but is either vestigial or defensive against a future edit. Not
    worth removing without operator sign-off, since it's a real committed scenario fixture and
    removing it changes nothing about current behavior either way.
+9. **`chainbreak --help` renders plain `Usage:`-style output, not Typer's colored rich
+   panels.** A deliberate tradeoff (M4, see the M4 entry under "Completed" for the
+   measurement): rich's panel layout engine costs ~270ms per `--help` invocation regardless
+   of import time, which alone blows the 500ms non-functional budget. `rich_markup_mode=None`
+   on the root `Typer()` app trades the visual polish for a stable 340–390ms. `validate`'s own
+   `rich.table.Table` output is unaffected — that is the command's own rendering, not Typer's
+   `--help` machinery, and still renders in color.
 
 ---
 
@@ -392,7 +496,7 @@ Recorded now so it is deliberate rather than discovered later.
 - **JSON Schemas are generated but not yet diffed in CI.** The `schemas` job now runs
   `python -m chainbreak.scenarios.export_schema schemas && git diff --exit-code schemas/` in
   every CI run; whether it correctly blocks a real drifted PR is unverified until GitHub
-  Actions runs it (see known issue 5).
+  Actions runs it against a real drift, which has not happened yet.
 - **`docs/research/` has a lab log and nothing else.** `results-v0.1.md` arrives at M17.
 
 ---
@@ -414,33 +518,38 @@ Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offl
 
 ## Current next action
 
-**Implement M4 — CLI, configuration and the SafetyGate.**
+**Implement M5 — Provider Protocol and the deterministic fake laboratory.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M4.
-Specification: [docs/implementation/milestones/M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M5.
+Specification: [docs/implementation/milestones/M05-fake-provider.md](docs/implementation/milestones/M05-fake-provider.md).
 
-M4 depends only on M1 (not M3) and builds the entry point and, more importantly, the gate
-every run must pass: `config/settings.py` (layered resolution), `config/fingerprint.py`,
-`core/safety.py` (`SafetyGate` — 100% coverage is an acceptance criterion, not a target),
-`core/clock.py`, the Typer `cli/` surface, `cli/logging.py` (redaction filter installed
-before any import that may log). The load-bearing requirement: `test_cli_surface.py` must
-introspect every command and fail if a `--force`/`--skip-*`/`--no-safety` bypass flag exists
-anywhere — demonstrated by temporarily adding one and showing the test catch it. Once M4
-lands, retire known issue 5 (the CLI-wrapper gap `scenarios.loader` currently stands in for)
-by wiring `chainbreak scenario validate` to `scenarios.loader.validate_scenario`.
+M5 depends on M3 and M4 (both now complete) and is the milestone that makes every subsequent
+analysis milestone developable offline: `providers/base/protocol.py` (the `ProviderAdapter`
+Protocol — `preflight`, `resolve_capability`, `describe_environment`, `delegate`, `probe`,
+`apply_policy_mutation`, `snapshot_policy_state`), `providers/base/types.py`,
+`providers/base/namespace.py` (`assert_namespace`, SI-2's actual enforcement point), and
+`providers/fake/` — a real authorization engine, not a stub: explicit-deny-over-explicit-
+allow-over-implicit-deny policy evaluation across identity/session/resource policy, credential
+lifetimes with a chained-role duration cap, an injectable consistency model (propagation
+delay, jitter, an oscillation mode), fault injection, and full seeding for byte-identical
+reruns. This is also the milestone that finally populates a real `BindingRegistry` outside
+tests, closing known issue 2. `tests/integration/test_provider_contract.py` is the
+load-bearing suite — both the fake and (eventually) AWS adapters must pass the same contract.
 
-Before starting, confirm M0-M3's toolchain and domain/capability/scenario layers are intact:
+Before starting, confirm M0-M4's toolchain and domain/capability/scenario/CLI layers are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 346 passed, 1 deselected
+pytest -m "unit or integration" -q                  # expect 445 passed, 1 deselected
 pytest -m aws -q                                    # expect 1 skipped
 pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
-  --cov=chainbreak.scenarios --cov-report=term-missing -m unit
-                     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%
+  --cov=chainbreak.scenarios --cov=chainbreak.config --cov=chainbreak.cli \
+  --cov-report=term-missing -m unit
+     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%, cli/ ~96%
+chainbreak --help                                   # expect < 500ms
 ```
 
 ---

@@ -73,6 +73,12 @@ class AccountNotAllowedError(SecurityInvariantError):
     machine_reason = "ACCOUNT_NOT_ALLOWED"
 
 
+class RegionNotAllowedError(SecurityInvariantError):
+    """SI-5: the target region is not in the envelope's allowlist."""
+
+    machine_reason = "REGION_NOT_ALLOWED"
+
+
 class MutationTargetForbiddenError(SecurityInvariantError):
     """SI-12: refused to mutate bootstrap or principal."""
 

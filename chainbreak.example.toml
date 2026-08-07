@@ -19,16 +19,31 @@ allowed_account_ids = ["123456789012"]
 allowed_regions = ["us-east-2"]
 
 # All benchmark-owned resources are created under this namespace so they can be
-# found and destroyed unambiguously, and so a run never touches anything else.
+# found and destroyed unambiguously, and so a run never touches anything else
+# (SI-2: an operation targeting a resource outside the namespace is refused).
 namespace_prefix = "cb"
 
 # Hard ceilings. A run that would exceed either is refused before it starts, not
-# aborted partway through (SI-7).
+# aborted partway through (SI-7 duration, SI-8 cost). max_run_duration_seconds
+# cannot exceed 14400 regardless of what is configured here -- SafetyEnvelope
+# itself refuses to construct above that value.
 max_run_duration_seconds = 1800   # <= 14400
 max_estimated_cost_usd = 1.0
 
+# Bounds how far a delegation chain the graph builder will accept before
+# refusing to construct the authorization graph (G-5 bounded depth) -- a
+# runaway chain is a defect to surface, not silently truncate.
 max_delegation_depth = 6
+
+# The default catalog ships with no DANGEROUS-severity capability at all
+# (SI-9); this flag exists for a future catalog that adds one, and such a
+# capability additionally requires this AND its own per-scenario opt-in
+# (the "double switch") before it can run.
 allow_dangerous_capabilities = false
+
+# Concurrent runs sharing a namespace can make cleanup and evidence
+# attribution ambiguous; leave this false unless run isolation (T-08) has
+# been verified for your setup.
 allow_concurrent_runs = false
 
 # Destructive operations (infra apply/destroy) prompt for confirmation unless

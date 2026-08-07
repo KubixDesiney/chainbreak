@@ -125,9 +125,17 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "T20"]
 "src/chainbreak/reporting/**" = ["T20"]
+"src/chainbreak/cli/**" = ["T20"]  # the CLI layer's whole job is printing to the terminal
 
 [tool.ruff.lint.isort]
 known-first-party = ["chainbreak"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Typer's documented API calls Option()/Argument() as the parameter default
+# itself; these are evaluated once at import time and are safe (Typer's own
+# examples use exactly this pattern), so B008 would otherwise flag every CLI
+# command's signature.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 # ---------------------------------------------------------------------------
 # mypy
