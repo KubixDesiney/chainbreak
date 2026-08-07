@@ -111,6 +111,18 @@ of "the security check catches the security-check bug report" — noted here bec
 genuinely instructive example of why these checks apply uniformly rather than trusting any
 file, including this one, to police itself.
 
+A third run then failed `boundaries` with `lint-imports` reporting `chainbreak.evidence`
+missing entirely -- not a flaky check, an actual missing file. `.gitignore`'s `evidence/`
+rule (meant for a runtime evidence-output directory) was unanchored, so it also matched
+`src/chainbreak/evidence/`, the source package, and silently excluded it from every commit
+made in this environment; it was never pushed. `git status --ignored` confirmed it was the
+only source file affected. Fixed by anchoring `evidence/`, `runs/` and `reports/` to the
+repo root (`/evidence/`, `/runs/`, `/reports/`) so they match only the top-level runtime
+output directories, and committing the previously-excluded `src/chainbreak/evidence/__init__.py`.
+This is the kind of defect a local `pytest`/`lint-imports` run cannot catch by construction
+(gitignore doesn't affect the local working tree, only what git tracks) — it only surfaces
+on a fresh clone, which is exactly what CI is for.
+
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
 The following exists and passes tests, but the corresponding milestone is **not** complete

@@ -15,6 +15,7 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.import_linter_cache/
 .coverage
 htmlcov/
 
@@ -36,13 +37,17 @@ override.tf.json
 
 # --- Evidence and run artifacts: local by default. Publishing a bundle is an
 # --- explicit, reviewed action (see REPRODUCIBILITY.md).
-runs/
-evidence/
+# Anchored to the repo root (leading /): unanchored "evidence/" previously also
+# matched src/chainbreak/evidence/, the source package, and silently dropped it
+# from every commit. Caught only when CI's import-linter reported the package
+# missing on a real clone -- see PROJECT_STATUS.md known issues.
+/runs/
+/evidence/
 *.jsonl
 *.parquet
 chainbreak.sqlite
 chainbreak.sqlite-*
-reports/
+/reports/
 
 # --- Credentials and local config: must never reach the repository.
 .env
