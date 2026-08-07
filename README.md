@@ -5,11 +5,12 @@
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
 and the authority a delegated workload *actually* holds when it executes.
 
-> **Status: 0.1.0a0 — architecture complete, M0 (repository foundation) complete, M1 next.**
-> The domain model, capability catalog and scenario corpus are implemented and verified
-> (75 passing tests), and CI now enforces lint, types, import boundaries, and security scans
-> on every push. **No benchmark has been executed and no AWS experiment has been run**,
-> so no number anywhere in this repository is a measurement.
+> **Status: 0.1.0a0 — M0 (repository foundation) and M1 (domain model + authorization
+> graph) complete, M2 next.** The domain model, divergence algorithms, capability catalog
+> and scenario corpus are implemented and verified (203 passing tests, `core/`/`graph/`
+> both ~99% coverage), and CI enforces lint, types, import boundaries, and security scans on
+> every push. **No benchmark has been executed and no AWS experiment has been run**, so no
+> number anywhere in this repository is a measurement.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.
 
 ---

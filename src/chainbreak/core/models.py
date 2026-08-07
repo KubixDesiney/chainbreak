@@ -481,6 +481,27 @@ class PathAnalysis(DomainModel):
     terminal_gain: AuthoritySet = EMPTY_AUTHORITY
 
 
+class EdgeDivergence(DomainModel):
+    """Per-edge attenuation correctness (AUTHORIZATION_MODEL 4.2).
+
+    Two baselines are computed. The *observed* baseline (``*_observed`` /
+    ``attenuation_correct``) isolates this edge's own behavior from upstream
+    drift and drives the edge verdict. The *expected* baseline
+    (``*_intended`` / ``attenuation_correct_vs_intent``) asks the same
+    question against design intent rather than reality, and is what drives
+    chain-level drift attribution rather than a single hop's verdict.
+    """
+
+    edge_id: str
+    expected_at_target_observed: AuthoritySet
+    expected_at_target_intended: AuthoritySet
+    attenuation_correct: bool
+    attenuation_correct_vs_intent: bool
+    survived_incorrectly: AuthoritySet = EMPTY_AUTHORITY
+    dropped_incorrectly: AuthoritySet = EMPTY_AUTHORITY
+    dropped_incorrectly_vs_intent: AuthoritySet = EMPTY_AUTHORITY
+
+
 class AuthorizationGraph(DomainModel):
     """Rooted DAG of identities joined by delegations. Invariants G-1..G-5."""
 

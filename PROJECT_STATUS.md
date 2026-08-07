@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M0 complete, M1 next
+**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M1 complete, M2 next
 
 ---
 
@@ -27,11 +27,12 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 complete, M1 is the next action.** M0 made the repository buildable,
-lintable, type-checkable and testable, and put CI in a state where it enforces the structural
-rules the rest of the project depends on. It does not implement any benchmark logic — the code
-that existed before M0 was written to *verify the design*, not to deliver a milestone, and that
-remains true; M0 only adds the rails.
+**Implementation: M0 and M1 complete, M2 is the next action.** M0 made the repository
+buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
+structural rules the rest of the project depends on. M1 completed the domain model and
+authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
+invariants G-1 through G-5, canonical JSON, and root-to-leaf path analysis. Both milestones
+are analysis/domain work — no benchmark has executed and no AWS experiment has run.
 
 ---
 
@@ -41,7 +42,7 @@ remains true; M0 only adds the rails.
 |---|---|---|
 | Layer map and dependency rule | Complete | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Domain model | Complete **and verified in code** | [AUTHORIZATION_MODEL.md](AUTHORIZATION_MODEL.md), `core/models.py` |
-| Authorization graph and divergence algorithms | Specified; graph invariants G-1/G-2 implemented, G-3–G-5 and divergence pending M1 | AUTHORIZATION_MODEL §2, §4 |
+| Authorization graph and divergence algorithms | Complete **and verified in code** — G-1–G-5, all section 4 algorithms, canonical JSON | AUTHORIZATION_MODEL §2, §4, `graph/`, `core/canonical.py` |
 | Capability model | Complete; catalog v1.0.0 with 10 capabilities implemented | [CAPABILITY_MODEL.md](CAPABILITY_MODEL.md) |
 | Scenario language v1alpha1 | Complete; schema implemented, 12 scenarios validate | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md) |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
@@ -139,16 +140,38 @@ forbidden string, and an unanchored gitignore rule silently eating a source pack
 were hypothetical; each was found by the exact mechanism designed to find it, on the first
 real execution against a real clone.
 
+**M1 — Domain model and authorization graph.** All five acceptance criteria demonstrated.
+Delivered: `graph/builder.py` (G-3 monotone intent with the negative-control downgrade path,
+G-4 catalog-closure half — the provider-binding half is explicitly M3's, see known issue 2 —
+G-5 bounded depth; G-1/G-2 already lived on `AuthorizationGraph` since before M0);
+`graph/divergence.py` (`edge_divergence`, `first_divergence`, `classify_drift` — all four
+drift classes including `CORRECTED`, table-driven and verified against a naive
+misclassification); `graph/paths.py` (`analyze_path`/`analyze_all_paths`, set- and
+cardinality-monotonicity computed separately over measured pairs only); `core/canonical.py`
+(sorted-key JSON, UTC ISO-8601 microsecond timestamps, verified identical across two
+independent subprocess interpreters, not just two calls); `EdgeDivergence` added to
+`core/models.py` alongside the pre-existing `DivergencePoint`/`PathAnalysis`. The
+AUTHORIZATION_MODEL.md section 7 worked example is reproduced exactly as a shared pytest
+fixture (`tests/conftest.py::worked_example_graph`) and used across the divergence, path and
+first-divergence test files rather than duplicated in each.
+
+Coverage forced a wider pass than M1's own file list: TESTING.md's acceptance bar
+(`core/` and `graph/` both ≥95%, enforced per-package not globally) was 86% and 99%
+respectively before M1 touched anything, because `core/secrets.py` (SI-1's primary
+enforcement point) and most of `core/ids.py` had no dedicated test file, and roughly 50
+validator/property branches across `core/models.py` were untested. None of that is M1's own
+new code, but the acceptance criterion is a hard bar on the whole package, not just what a
+milestone added, so `tests/unit/test_secrets.py`, `tests/unit/test_ids.py` and
+`tests/unit/test_domain_models_extra.py` were added alongside the M1-proper files. `core/`
+finished at ~99.5%, `graph/` at ~99%.
+
+### Implemented ahead of its milestone (design verification, not milestone completion)
+
 The following exists and passes tests, but the corresponding milestone is **not** complete
 because the milestone's full scope and acceptance criteria have not been met.
 
 | Component | Belongs to | State |
 |---|---|---|
-| `core/enums.py` — 20 enums | M1 | Complete |
-| `core/errors.py` — 24 domain exceptions | M1 | Complete |
-| `core/ids.py` — ULID (monotonic), salted digests | M1 | Complete |
-| `core/secrets.py` — `SecretMaterial`, `TemporaryCredential` | M1/M6 | Complete; SI-1 layer 1 enforced |
-| `core/models.py` — 40+ domain models | M1 | Complete; graph invariants G-1, G-2 enforced |
 | `capabilities/catalog.yaml` — v1.0.0, 10 capabilities | M2 | Complete |
 | `capabilities/loader.py` — load, validate, resolve | M2 | Partial: registry, guard, preconditions pending |
 | `scenarios/schema.py` — full v1alpha1 Pydantic model | M3 | Complete |
@@ -164,19 +187,19 @@ None.
 
 ### Blocked
 
-None. M1 can start immediately.
+None. M2 can start immediately.
 
 ### Not started
 
-M1 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M2 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-75 passed, 1 deselected in 2.71s      (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 75 deselected in 0.28s     (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+203 passed, 1 deselected in ~4s      (Python 3.12.7, pytest -m "unit or integration")
+1 skipped, 203 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -185,15 +208,25 @@ M1 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/scenarios/test_scenario_corpus.py` | 28 | Every scenario validates; capability closure (G-4); negative controls are correctly located and marked; all six defect kinds covered; all five families present |
 | `tests/unit/test_import_boundaries.py` | 6 | ARCH-1: core imports nothing internal, graph imports only core, boto3 confined to `providers/aws/`, AWS service strings confined to `providers/` and `AWS_PROVIDER_SPEC.md`, plus two planted-violation negative controls |
 | `tests/aws/test_placeholder.py` | 1 (skipped by default) | F5: proves the `aws`/`e2e` marker gate in `tests/conftest.py` actually skips, and actually un-gates under `CHAINBREAK_ALLOW_AWS_TESTS=1` |
+| `tests/unit/test_divergence.py` | 17 | Per-edge divergence (both observed- and expected-baseline variants), the section 7 worked example reproduced exactly, `classify_drift` table including `CORRECTED`, `edge_divergence`'s unmeasured-endpoint guards |
+| `tests/unit/test_first_divergence.py` | 10 | Single-node graphs, an unmeasured node reported rather than skipped, branching graphs analyzed independently, both M1-spec negative controls (hop-3-gain-propagates, hop-4-corrects) |
+| `tests/unit/test_graph_invariants.py` | 9 | G-1 (cycle among non-root nodes) through G-5, each with a violating fixture naming the invariant, plus the G-3 negative-control downgrade path |
+| `tests/unit/test_paths.py` | 6 | `PathAnalysis` over the worked example, single-node graphs, a non-monotone chain, an unmeasured node excluded from (not breaking) monotonicity, branching graphs |
+| `tests/unit/test_canonical.py` | 15 | Sorted keys, fixed float formatting, `AuthoritySet` and nested-model rendering, UTC ISO-8601 with microseconds, naive-datetime rejection, identical output across two independent subprocess interpreters |
+| `tests/unit/test_secrets.py` | 17 | Every `SecretMaterial` serialization path (pickle, Pydantic), `reveal`/`digest`/`constant_time_equals`, `TemporaryCredential.scrub()` irreversibility |
+| `tests/unit/test_ids.py` | 15 | Every prefixed ID constructor, salting, ULID monotonicity including a simulated clock-backwards (NTP) step |
+| `tests/unit/test_domain_models_extra.py` | 39 | Remaining `core/models.py` validators and properties (see the M1 entry under "Completed") |
 
-**Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the majority of the
+**Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add. CI is green on GitHub Actions across all ten jobs (see the M0 entry under "Completed"
-for the four real defects the first three runs found and the fixes that followed).
+add (`analysis/`, `capabilities/` registry-guard-preconditions, `scenarios/` beyond schema
+and safety). CI is green on GitHub Actions (see the M0 entry under "Completed" for the four
+real defects the first three runs found and the fixes that followed); M1's additions have not
+yet had their own dedicated CI run observed at the time of this update.
 
-Coverage targets from TESTING.md remain **not** enforced project-wide — `--cov-fail-under`
-gates exist only for the two modules M0 could gate today (SI-1 redaction, SI-5 SafetyGate),
-and both are currently inactive because the modules they cover do not exist yet (M6, M4).
+Coverage: `core/` ~99.5%, `graph/` ~99% (both exceed the 95% bar; M1 acceptance criterion 4).
+`--cov-fail-under` gates for SI-1 redaction and SI-5 SafetyGate remain inactive because those
+modules do not exist yet (M6, M4). Coverage is otherwise not enforced project-wide.
 
 ---
 
@@ -227,9 +260,13 @@ at M17.
 2. **`capabilities/loader.py` is partial.** `registry.py`, `guard.py` and `preconditions.py`
    are specified in M2 but not written; `resolve_bindings` therefore has no real bindings to
    resolve against.
-3. **Graph invariants G-3, G-4 and G-5 are specified but only partially enforced.** G-1 and
-   G-2 are enforced in `AuthorizationGraph`; G-4 is currently checked by the corpus test
-   rather than by the compiler. M3 moves it.
+3. **G-4's provider-binding half is not enforced by `graph/builder.py`.** M1 enforces the
+   catalog-membership half of G-4 (every capability named resolves in the loaded
+   `CapabilityCatalog`) because that only needs a core type; "has a binding in the active
+   provider" needs `capabilities.loader.resolve_bindings`, which `graph/` may not import
+   (ARCH-1: graph imports only core). That half remains the scenario compiler's job, M3. G-1
+   through G-3 and G-5 are fully enforced (`AuthorizationGraph` for G-1/G-2, `graph/builder.py`
+   for G-3/G-5).
 4. **No `.tf` files exist.** Only contracts. `chainbreak infra *` will not work until M9. The
    `terraform` CI job is a structural no-op against an empty tree until then and has not been
    run locally (no `terraform` binary in the M0 development environment).
@@ -273,24 +310,30 @@ Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offl
 
 ## Current next action
 
-**Implement M1 — domain model and authorization graph.**
+**Implement M2 — capability model and catalog.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M1.
-Specification: [docs/implementation/milestones/M01-domain-model.md](docs/implementation/milestones/M01-domain-model.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M2.
+Specification: [docs/implementation/milestones/M02-capability-model.md](docs/implementation/milestones/M02-capability-model.md).
 
-M1 completes the divergence algorithms and graph invariants G-3–G-5 (known issue 3 above);
-`core/` and much of `graph/`'s target surface already exist from pre-M0 design verification
-work, so M1 is substantially about finishing what is there, not starting from nothing.
+M2 completes the capability layer: `capabilities/registry.py` (per-provider binding
+registry), `capabilities/guard.py` (`OperationAllowlist`, the runtime mechanism that makes
+SI-3 enforceable rather than aspirational), `capabilities/preconditions.py`. `catalog.yaml`
+and `loader.py`'s `load_catalog`/`resolve_bindings`/`validate_binding`/`assert_no_dangerous`
+already exist and pass tests (known issue 2); M2 is substantially about finishing what is
+there. Completing this also lets a future milestone close the G-4 provider-binding gap
+(known issue 3).
 
-Before starting, confirm M0's toolchain is intact:
+Before starting, confirm M0+M1's toolchain and domain layer are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 75 passed, 1 deselected
+pytest -m "unit or integration" -q                  # expect 203 passed, 1 deselected
 pytest -m aws -q                                    # expect 1 skipped
+pytest --cov=chainbreak.core --cov=chainbreak.graph --cov-report=term-missing -m unit
+                                                     # expect core/ ~99.5%, graph/ ~99%
 ```
 
 ---
