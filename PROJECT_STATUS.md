@@ -523,8 +523,9 @@ on the first try — all 10 jobs, including the SI-5 SafetyGate coverage gate ac
 the first time (it had sat inactive, gated on `test_safety_gate.py` not existing, since M0)
 and passing at 100% ([run 31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428)).
 That run was also the first to observe M2 and M3's own additions, which had not yet had a
-dedicated run at the time either was completed. M5's push has not yet had a dedicated CI run
-observed at the time of this update — the push that follows it will be the first opportunity.
+dedicated run at the time either was completed. The M5 push was also observed green on the
+first try — all 10 jobs
+([run 31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287)).
 
 Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
 ~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7% (all exceed their
