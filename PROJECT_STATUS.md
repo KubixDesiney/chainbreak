@@ -98,14 +98,18 @@ accidentally regardless, since it needs a human to supply `confirm: APPLY` insid
 CI was then observed running for real on GitHub Actions after the push (run
 [31179401063](https://github.com/KubixDesiney/chainbreak/actions/runs/31179401063)). Seven
 of eight jobs went green on the first run; `security` failed on a check that had not been
-exercised locally with real git history: `git log -p --all | grep -qE '(AKIA|ASIA)[0-9A-Z]{16}'`
-has no `tests/`/`EXAMPLE` exemption, so it self-triggered on the synthetic
-`ASIAEXAMPLEEXAMPLE00` fixture in `tests/unit/test_domain_contract.py` the moment that file
-was committed (and therefore entered history). Fixed by applying the same `grep -v
-'EXAMPLE'` exemption the working-tree check already uses, in a follow-up commit. This is the
-kind of defect that is inherently impossible to catch without a real commit history to
-grep — noted here rather than silently folded into the M0 diff, per the "record known issues
-when they are created" rule.
+exercised locally with real git history: the AWS-key-shaped-string regex, run against
+`git log -p --all`, has no `EXAMPLE` exemption, so it self-triggered the moment the synthetic
+test fixture at [tests/unit/test_domain_contract.py:101](tests/unit/test_domain_contract.py)
+(a fake `ASIA`-prefixed session credential used to prove `SecretMaterial` never renders its
+value) entered history. Fixed by applying the same `grep -v 'EXAMPLE'` exemption the
+working-tree check already uses, in a follow-up commit. That fix commit's own message
+reproduced the literal fixture value in prose outside `tests/`, which the *working-tree*
+variant of the same check (rightly) has zero tolerance for — caught by the second CI run,
+fixed by describing the fixture instead of quoting it (this paragraph included). Two rounds
+of "the security check catches the security-check bug report" — noted here because it is a
+genuinely instructive example of why these checks apply uniformly rather than trusting any
+file, including this one, to police itself.
 
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
