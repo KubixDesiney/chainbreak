@@ -1,0 +1,246 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chainbreak"
+version = "0.1.0a0"
+description = "An empirical benchmark for authorization behavior in delegated and agentic cloud systems"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "CHAINBREAK contributors" }]
+keywords = ["security", "iam", "authorization", "aws", "sts", "delegation", "benchmark"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Information Technology",
+  "Topic :: Security",
+  "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+  "pydantic>=2.7,<3",
+  "typer>=0.12,<1",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+  "jsonschema>=4.22",
+  "platformdirs>=4.2",
+]
+
+[project.optional-dependencies]
+aws = [
+  "boto3>=1.34",
+  "botocore>=1.34",
+]
+report = [
+  "jinja2>=3.1",
+  "plotly>=5.22",
+]
+analysis = [
+  "pyarrow>=16.0",
+]
+dev = [
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "pytest-asyncio>=0.23",
+  "freezegun>=1.5",
+  "moto[sts,s3,iam,dynamodb,lambda,sqs]>=5.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "types-PyYAML",
+  "boto3-stubs[s3,sts,iam,dynamodb,lambda,sqs]",
+  "import-linter>=2.0",
+  "bandit>=1.7",
+  "pip-audit>=2.7",
+]
+
+[project.scripts]
+chainbreak = "chainbreak.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/KubixDesiney/chainbreak"
+Documentation = "https://github.com/KubixDesiney/chainbreak/blob/main/ARCHITECTURE.md"
+Issues = "https://github.com/KubixDesiney/chainbreak/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chainbreak"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "unit: pure logic, no I/O, no cloud, no network (default CI layer)",
+  "integration: full scenario execution against the deterministic fake provider",
+  "aws: requires a real, operator-owned AWS benchmark account (never runs in default CI)",
+  "e2e: provisions and destroys real infrastructure; long-running and billable",
+  "slow: takes more than 5 seconds",
+]
+# AWS and e2e layers are opt-in only.
+# CI runs: pytest -m "unit or integration"
+
+[tool.coverage.run]
+branch = true
+source = ["src/chainbreak"]
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@overload",
+]
+
+# ---------------------------------------------------------------------------
+# ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",    # pycodestyle / pyflakes
+  "I",              # isort
+  "N",              # pep8-naming
+  "UP",             # pyupgrade
+  "B",              # bugbear
+  "A",              # builtins shadowing
+  "C4",             # comprehensions
+  "DTZ",            # naive datetime usage -- important: all timestamps must be tz-aware
+  "T20",            # no print() outside reporting layer
+  "SIM",
+  "PTH",
+  "RUF",
+  "S",              # bandit
+]
+ignore = [
+  "S101",  # assert is allowed in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "T20"]
+"src/chainbreak/reporting/**" = ["T20"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["chainbreak"]
+
+# ---------------------------------------------------------------------------
+# mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+disallow_any_generics = true
+plugins = ["pydantic.mypy"]
+files = ["src/chainbreak"]
+
+[[tool.mypy.overrides]]
+module = ["plotly.*", "moto.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# import-linter -- enforces ARCH-1, the layer dependency rule
+# (ARCHITECTURE.md section 2). A violation here is a build failure.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "chainbreak"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "ARCH-1: result layers may only import downward"
+type = "layers"
+layers = [
+  "chainbreak.cli",
+  "chainbreak.reporting",
+  "chainbreak.scoring",
+  "chainbreak.analysis",
+  "chainbreak.evidence",
+  "chainbreak.observation",
+  "chainbreak.execution",
+  "chainbreak.delegation",
+  "chainbreak.graph",
+  "chainbreak.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "ARCH-1: provider adapters depend only on providers.base"
+type = "layers"
+layers = [
+  "chainbreak.providers.aws | chainbreak.providers.fake",
+  "chainbreak.providers.base",
+]
+
+[[tool.importlinter.contracts]]
+name = "ARCH-1: scenarios depends only on capabilities and core"
+type = "layers"
+layers = [
+  "chainbreak.scenarios",
+  "chainbreak.capabilities",
+  "chainbreak.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "ARCH-1: core imports nothing from chainbreak"
+type = "forbidden"
+source_modules = ["chainbreak.core"]
+forbidden_modules = [
+  "chainbreak.cli",
+  "chainbreak.config",
+  "chainbreak.scenarios",
+  "chainbreak.capabilities",
+  "chainbreak.graph",
+  "chainbreak.delegation",
+  "chainbreak.providers",
+  "chainbreak.execution",
+  "chainbreak.observation",
+  "chainbreak.evidence",
+  "chainbreak.analysis",
+  "chainbreak.scoring",
+  "chainbreak.reporting",
+]
+
+[[tool.importlinter.contracts]]
+name = "ARCH-1: graph imports only core"
+type = "forbidden"
+source_modules = ["chainbreak.graph"]
+forbidden_modules = [
+  "chainbreak.cli",
+  "chainbreak.config",
+  "chainbreak.scenarios",
+  "chainbreak.capabilities",
+  "chainbreak.delegation",
+  "chainbreak.providers",
+  "chainbreak.execution",
+  "chainbreak.observation",
+  "chainbreak.evidence",
+  "chainbreak.analysis",
+  "chainbreak.scoring",
+  "chainbreak.reporting",
+]
+
+[[tool.importlinter.contracts]]
+name = "ARCH-1: boto3 is confined to providers.aws"
+type = "forbidden"
+source_modules = [
+  "chainbreak.cli",
+  "chainbreak.config",
+  "chainbreak.core",
+  "chainbreak.capabilities",
+  "chainbreak.scenarios",
+  "chainbreak.graph",
+  "chainbreak.delegation",
+  "chainbreak.providers.base",
+  "chainbreak.providers.fake",
+  "chainbreak.execution",
+  "chainbreak.observation",
+  "chainbreak.evidence",
+  "chainbreak.analysis",
+  "chainbreak.scoring",
+  "chainbreak.reporting",
+]
+forbidden_modules = ["boto3", "botocore"]

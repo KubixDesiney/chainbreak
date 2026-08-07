@@ -1,0 +1,154 @@
+# CHAINBREAK capability catalog
+#
+# Provider-neutral units of authority. This file names NO cloud provider, NO
+# action string, and NO resource. Provider bindings live in the provider
+# packages (see CAPABILITY_MODEL.md section 4).
+#
+# Renaming an id is a MAJOR version bump: evidence bundles reference these ids.
+# Adding a capability is a MINOR bump and requires a binding in every provider
+# plus a fake-provider binding so it can be exercised in CI (CAP-1).
+#
+# The catalog is small on purpose. Every capability multiplies the probe
+# matrix, which multiplies run time, cost, and the number of things that can be
+# silently wrong.
+
+version: "1.0.0"
+
+capabilities:
+  # -- object storage -------------------------------------------------------
+  - id: objectstore.read
+    title: Read a benchmark marker object
+    description: >
+      Retrieve a known benchmark marker object and confirm the returned bytes
+      match the expected digest. Success requires content verification, not
+      merely the absence of an exception, because on some providers a missing
+      object and a denied read are indistinguishable.
+    probe_kind: READ_MARKER
+    sensitivity: BENIGN_READ
+    idempotent: true
+    mutates_state: false
+    requires_precondition: [objectstore.marker_present]
+    permitted_action_families: [objectstore.read]
+
+  - id: objectstore.write
+    title: Write a run-scoped scratch object
+    description: >
+      Create an object under the run-scoped scratch prefix and confirm it is
+      readable afterwards. Run-scoping is what structurally prevents cross-run
+      contamination (threat T-08).
+    probe_kind: WRITE_SCRATCH
+    sensitivity: BENIGN_WRITE
+    idempotent: false
+    mutates_state: true
+    permitted_action_families: [objectstore.write]
+
+  - id: objectstore.list
+    title: Enumerate the benchmark marker prefix
+    description: >
+      List objects under the benchmark marker prefix. The precondition
+      guarantees at least one key exists, so an empty result is a denial signal
+      rather than an ambiguous success.
+    probe_kind: LIST_PREFIX
+    sensitivity: BENIGN_READ
+    idempotent: true
+    mutates_state: false
+    requires_precondition: [objectstore.marker_present]
+    permitted_action_families: [objectstore.list]
+
+  # -- key/value ------------------------------------------------------------
+  - id: keyvalue.read
+    title: Read a benchmark marker item
+    description: >
+      Read a known marker item with a strongly consistent read and confirm its
+      digest. A strongly consistent read is required so that replication lag is
+      not mistaken for an authorization outcome.
+    probe_kind: READ_MARKER
+    sensitivity: BENIGN_READ
+    idempotent: true
+    mutates_state: false
+    requires_precondition: [keyvalue.marker_present]
+    permitted_action_families: [keyvalue.read]
+
+  - id: keyvalue.write
+    title: Write a run-scoped scratch item
+    description: >
+      Put an item under a run-scoped partition key with a short expiry, then
+      confirm it by reading it back.
+    probe_kind: WRITE_SCRATCH
+    sensitivity: BENIGN_WRITE
+    idempotent: false
+    mutates_state: true
+    permitted_action_families: [keyvalue.write]
+
+  # -- compute --------------------------------------------------------------
+  - id: function.invoke
+    title: Invoke the benchmark no-op function
+    description: >
+      Synchronously invoke a function that performs no work and returns a fixed
+      payload containing a nonce. A function-level fault is distinguished from
+      an authorization denial by the response shape, not by the status code.
+    probe_kind: INVOKE_NOOP
+    sensitivity: BENIGN_INVOKE
+    idempotent: true
+    mutates_state: false
+    requires_precondition: [function.alive]
+    permitted_action_families: [function.invoke]
+
+  # -- queue ----------------------------------------------------------------
+  - id: queue.send
+    title: Enqueue a benchmark message
+    description: >
+      Send a message carrying a run-scoped nonce to the benchmark queue.
+    probe_kind: WRITE_SCRATCH
+    sensitivity: BENIGN_WRITE
+    idempotent: false
+    mutates_state: true
+    requires_precondition: [queue.present]
+    permitted_action_families: [queue.send]
+
+  - id: queue.receive
+    title: Receive from the benchmark queue
+    description: >
+      Attempt a receive with zero visibility timeout. An empty result still
+      demonstrates authority: the API call itself succeeded. Do not "fix" this
+      to require a message.
+    probe_kind: READ_MARKER
+    sensitivity: BENIGN_READ
+    idempotent: true
+    mutates_state: false
+    requires_precondition: [queue.present]
+    permitted_action_families: [queue.receive]
+
+  # -- identity -------------------------------------------------------------
+  - id: identity.whoami
+    title: Resolve own identity
+    description: >
+      The control capability. Granted to every identity in every scenario and
+      not deniable by an identity policy on the reference provider. Its failure
+      means the apparatus is broken -- credentials, network, or endpoint -- so
+      the matrix is discarded rather than recorded as a wave of denials.
+    probe_kind: SELF_DESCRIBE
+    sensitivity: BENIGN_READ
+    idempotent: true
+    mutates_state: false
+    is_control: true
+    permitted_action_families: [identity.describe]
+
+  - id: identity.delegate
+    title: Delegate authority to the next hop
+    description: >
+      Assume the next-hop benchmark identity. Modelling delegation as a
+      first-class capability is what lets CHAINBREAK ask whether an identity
+      retained the ability to delegate further even though its hop intended to
+      grant only read access -- a consequential real-world drift pattern.
+    probe_kind: DELEGATE
+    sensitivity: DELEGATION
+    idempotent: true
+    mutates_state: false
+    permitted_action_families: [identity.delegate]
+
+# Deliberately absent: any delete, destroy, IAM mutation, key decryption, or
+# credential-issuing capability beyond identity.delegate. A destructive default
+# would make the marginal case -- a probe targeting the wrong resource --
+# unsafe. Dangerous capabilities require a separate catalog file and a double
+# opt-in (SI-9).

@@ -1,0 +1,92 @@
+# CHAINBREAK AWS experiment workflow
+#
+# SAFETY (threat T-12):
+#   - workflow_dispatch ONLY. Never triggered by push or pull_request.
+#   - Bound to the `aws-benchmark` GitHub environment, which must be configured
+#     with required reviewers.
+#   - OIDC role assumption. NO static access keys, ever.
+#   - Infrastructure destroy runs in an always() step.
+#
+# This workflow spends real money (< $1 per run) and creates real IAM identities
+# in the operator's benchmark account. It exists so experiment runs are
+# reproducible and logged, not for convenience.
+
+name: AWS experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Scenario path, or 'suite' for the full set"
+        required: true
+        default: scenarios/scope-attenuation/basic.yaml
+      block_id:
+        description: "Experiment block id (control C-7: distribute timing trials across blocks)"
+        required: true
+      confirm:
+        description: "Type APPLY to confirm real infrastructure will be created"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write        # required for OIDC; nothing else
+
+jobs:
+  experiment:
+    if: ${{ github.event.inputs.confirm == 'APPLY' }}
+    runs-on: ubuntu-latest
+    environment: aws-benchmark       # required reviewers configured here
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.9.8" }
+      - run: pip install -e ".[dev,aws,report,analysis]"
+
+      - name: Assume the benchmark role via OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ secrets.CHAINBREAK_BENCHMARK_ROLE_ARN }}
+          aws-region: ${{ vars.CHAINBREAK_REGION }}
+
+      # SI-6: this fails closed if the assumed account is not allowlisted.
+      - name: Preflight
+        run: chainbreak validate --json
+
+      - name: Apply benchmark infrastructure
+        run: chainbreak infra apply aws-sandbox --auto-approve
+
+      - name: Run experiment
+        env:
+          CHAINBREAK_BLOCK_ID: ${{ github.event.inputs.block_id }}
+        run: |
+          if [ "${{ github.event.inputs.scenario }}" = "suite" ]; then
+            for f in $(find scenarios -name '*.yaml'); do chainbreak run "$f"; done
+          else
+            chainbreak run "${{ github.event.inputs.scenario }}"
+          fi
+
+      - name: Analyze and export scrubbed evidence
+        run: |
+          chainbreak runs list --json
+          chainbreak analyze --latest
+          chainbreak evidence export --latest --public --archive -o artifacts/
+
+      # Always destroy, even if the experiment failed. An orphaned benchmark
+      # account is the most likely real cost risk (T-06).
+      - name: Destroy infrastructure
+        if: always()
+        run: chainbreak infra destroy aws-sandbox --auto-approve
+
+      - name: Verify nothing remains
+        if: always()
+        run: chainbreak infra verify-clean
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chainbreak-evidence-${{ github.event.inputs.block_id }}
+          path: artifacts/
+          retention-days: 30

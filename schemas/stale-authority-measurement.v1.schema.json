@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "OutcomeClass": {
+      "description": "Classification of a single probe attempt.\n\nOnly ``ALLOWED`` contributes to observed authority (AUTH-1). Every\n``ERROR_*`` value excludes the cell from the authority set *and* from the\ndenial set -- it is an absence of measurement, not a negative measurement.",
+      "enum": [
+        "ALLOWED",
+        "DENIED_EXPLICIT",
+        "DENIED_IMPLICIT",
+        "DENIED_UNATTRIBUTED",
+        "ERROR_RESOURCE_MISSING",
+        "ERROR_TRANSIENT",
+        "ERROR_INFRASTRUCTURE",
+        "INDETERMINATE"
+      ],
+      "title": "OutcomeClass",
+      "type": "string"
+    },
+    "StaleAuthorityClass": {
+      "description": "Classification of execution-time authority state. See AUTHORIZATION_MODEL 5.2.",
+      "enum": [
+        "CURRENT_AUTHORITY",
+        "STALE_AUTHORITY_LIVE_CREDENTIAL",
+        "EXPIRED_CREDENTIAL_HONORED",
+        "CREDENTIAL_EXPIRED",
+        "SESSION_SCOPE_CACHED",
+        "INDETERMINATE"
+      ],
+      "title": "StaleAuthorityClass",
+      "type": "string"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/stale-authority-measurement.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Execution-time authority classification, including the paired fresh-credential outcome that disambiguates it. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "capability_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "classification": {
+      "$ref": "#/$defs/StaleAuthorityClass"
+    },
+    "credential_expired_at_execution": {
+      "title": "Credential Expired At Execution",
+      "type": "boolean"
+    },
+    "deferral_seconds": {
+      "minimum": 0,
+      "title": "Deferral Seconds",
+      "type": "number"
+    },
+    "identity_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Identity Id",
+      "type": "string"
+    },
+    "paired_fresh_credential_outcome": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OutcomeClass"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The paired fresh-credential probe. Without it, an ALLOWED at t_exec is ambiguous between 'change never propagated' and 'old credential retained authority'."
+    },
+    "stale_window_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stale Window Seconds"
+    }
+  },
+  "required": [
+    "identity_id",
+    "capability_id",
+    "classification",
+    "deferral_seconds",
+    "credential_expired_at_execution"
+  ],
+  "title": "StaleAuthorityMeasurement",
+  "type": "object"
+}

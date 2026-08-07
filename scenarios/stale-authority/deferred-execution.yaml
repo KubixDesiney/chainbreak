@@ -1,0 +1,122 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: stale-authority-deferred-execution
+  version: 1.0.0
+  family: stale-authority
+  title: Deferred execution on a pre-mutation credential, with a paired fresh credential
+  description: >
+    A credential is issued at t0, a policy change is applied at tM, and the
+    capability is exercised at t_exec using the credential minted at t0. The
+    same capability is then immediately exercised with a freshly minted
+    credential. The pair is the measurement: without it, an ALLOWED at t_exec
+    is ambiguous between "the policy change never propagated" and "the old
+    credential retained old authority". Stale authority on a live bearer token
+    is documented behavior; the measurement of interest is the window duration.
+  authors: [operator]
+  tags: [timing, deferred, paired-credential]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1
+    timing_sensitive: true
+    concurrency: 1
+    max_duration_seconds: 1200
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-c
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      # Comfortably exceeds the deferral interval so that expiry is not a
+      # confound. The credential-expiry case is a separate scenario.
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-c]
+
+    - name: revoke
+      kind: MUTATE
+      mutation:
+        target_identity: agent-c
+        kind: ATTACH_INLINE_DENY
+        denies:
+          - objectstore.read
+        record_receipt: true
+
+    # The waiting is the experiment. No keepalive, no refresh.
+    - name: defer
+      kind: WAIT
+      wait_seconds: 120
+
+    - name: deferred-old-credential
+      kind: DEFERRED_EXECUTION
+      target_identity: agent-c
+      credential_source: phase:after-delegation
+      targets: [agent-c]
+
+    # Immediately afterwards, the same capability with a fresh credential.
+    # This disambiguates the result.
+    - name: paired-fresh-credential
+      kind: PROBE
+      targets: [agent-c]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-c
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - keyvalue.read
+        - identity.delegate

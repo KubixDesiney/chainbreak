@@ -1,0 +1,44 @@
+# CHAINBREAK aws-sandbox environment
+#
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored; this
+# example is not. Never put a real account id in the example file.
+#
+# REQUIREMENT: this must be a DEDICATED AWS account with no production
+# workloads. See SECURITY.md, "Operator responsibilities".
+
+# The account this configuration is allowed to apply to. The plan FAILS if the
+# caller's account differs -- an operator pointed at the wrong account should
+# never reach a diff that looks appliable.
+expected_account_id = "000000000000"
+
+region = "eu-west-1"
+
+# Any string. Included in the namespace hash so two operators (or two
+# workspaces) in one account cannot collide on resource names.
+namespace_salt = "change-me"
+
+# Who may assume the bootstrap and principal roles. Prefer an SSO permission-set
+# role or a CI OIDC role over an IAM user.
+operator_principal_arns = [
+  # "arn:aws:iam::000000000000:role/AWSReservedSSO_YourPermissionSet_abc123"
+]
+
+# Budgets alarm. Not a hard cap -- AWS Budgets alerts, it does not block. The
+# hard bound is the preflight cost estimate (SI-8) plus the run duration
+# ceiling (SI-7).
+budget_limit_usd          = 5
+budget_notification_email = ""
+
+# Provision the deliberately-defective roles the negative controls need.
+# Keep this TRUE for real experiment blocks: a negative control run against
+# different infrastructure than the scenarios it validates proves less.
+enable_negative_controls = true
+
+# Provider-side corroboration. Off by default; data events are billed per event.
+enable_cloudtrail   = false
+enable_data_events  = false
+
+# Storage bounds. Keep these short: they are what limits cost on an orphaned
+# bucket if a destroy is ever missed.
+scratch_expiry_days = 1
+log_retention_days  = 1

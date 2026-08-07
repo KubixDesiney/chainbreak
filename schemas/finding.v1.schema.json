@@ -1,0 +1,221 @@
+{
+  "$defs": {
+    "Confidence": {
+      "description": "Ordered confidence levels. Aggregation uses ``min``, never a mean.",
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INSUFFICIENT"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "DriftClass": {
+      "description": "How a node's divergence relates to its parent's.",
+      "enum": [
+        "ORIGINATED",
+        "PROPAGATED",
+        "AMPLIFIED",
+        "CORRECTED"
+      ],
+      "title": "DriftClass",
+      "type": "string"
+    },
+    "FindingEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "event_refs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Event Refs",
+          "type": "array"
+        },
+        "observation_refs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Observation Refs",
+          "type": "array"
+        },
+        "policy_state_refs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Policy State Refs",
+          "type": "array"
+        }
+      },
+      "title": "FindingEvidence",
+      "type": "object"
+    },
+    "FindingType": {
+      "description": "See AUTHORIZATION_MODEL.md section 6 for the predicate behind each.",
+      "enum": [
+        "EXPECTED_BEHAVIOR",
+        "AUTHORITY_EXPANSION",
+        "AUTHORITY_SURVIVAL",
+        "AUTHORITY_NARROWING",
+        "DELEGATION_DRIFT",
+        "REVOCATION_DELAY",
+        "NO_TRANSITION_OBSERVED",
+        "STALE_AUTHORITY",
+        "EXPIRED_CREDENTIAL_ACCEPTED",
+        "SILENT_NARROWING",
+        "LIFETIME_CAPPED",
+        "INCONCLUSIVE",
+        "EXECUTION_ERROR",
+        "CONFIGURATION_ERROR",
+        "DETECTOR_FAILURE"
+      ],
+      "title": "FindingType",
+      "type": "string"
+    },
+    "SeverityHint": {
+      "description": "Deliberately a *hint*: CHAINBREAK does not know the operator's risk context.",
+      "enum": [
+        "INFORMATIONAL",
+        "REVIEW",
+        "INVESTIGATE"
+      ],
+      "title": "SeverityHint",
+      "type": "string"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/finding.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A conclusion derived from observations. Observation and security interpretation are separate fields and are rendered under separate headings (ADR-006). Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "caveats": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Caveats",
+      "type": "array"
+    },
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "confidence_rationale": {
+      "default": "",
+      "title": "Confidence Rationale",
+      "type": "string"
+    },
+    "delta": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Delta",
+      "type": "object"
+    },
+    "drift_class": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DriftClass"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "edge_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Edge Id"
+    },
+    "evidence": {
+      "$ref": "#/$defs/FindingEvidence"
+    },
+    "expected_state": {
+      "additionalProperties": true,
+      "title": "Expected State",
+      "type": "object"
+    },
+    "finding_id": {
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "hop_index": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Hop Index"
+    },
+    "identity_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Identity Id"
+    },
+    "observation": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Observation",
+      "type": "string"
+    },
+    "observed_state": {
+      "additionalProperties": true,
+      "title": "Observed State",
+      "type": "object"
+    },
+    "security_interpretation": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Security Interpretation",
+      "type": "string"
+    },
+    "severity_hint": {
+      "$ref": "#/$defs/SeverityHint"
+    },
+    "subject_kind": {
+      "pattern": "^(identity|edge|path|task|credential|run)$",
+      "title": "Subject Kind",
+      "type": "string"
+    },
+    "type": {
+      "$ref": "#/$defs/FindingType"
+    }
+  },
+  "required": [
+    "finding_id",
+    "type",
+    "severity_hint",
+    "confidence",
+    "subject_kind",
+    "observation"
+  ],
+  "title": "Finding",
+  "type": "object"
+}

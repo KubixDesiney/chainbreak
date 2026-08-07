@@ -1,0 +1,44 @@
+# CHAINBREAK example configuration.
+#
+# Copy to chainbreak.toml at the repository root (or ~/.config/chainbreak/config.toml)
+# and fill in real values. This file is never read automatically -- it is a template.
+#
+# Layering (later overrides earlier), per ARCHITECTURE.md section 3.2:
+#   defaults -> chainbreak.toml (repo) -> ~/.config/chainbreak/config.toml
+#            -> CHAINBREAK_* environment variables -> CLI flags
+#
+# A run without a fully resolved safety envelope is refused (SI-5). There is no
+# default account, region, or namespace -- every field below is deliberately
+# something you must supply, not something CHAINBREAK guesses.
+
+[safety]
+# Explicit 12-digit AWS account IDs only. No wildcards, ever (SI-6).
+allowed_account_ids = ["123456789012"]
+
+# Regions the benchmark is permitted to touch.
+allowed_regions = ["us-east-2"]
+
+# All benchmark-owned resources are created under this namespace so they can be
+# found and destroyed unambiguously, and so a run never touches anything else.
+namespace_prefix = "cb"
+
+# Hard ceilings. A run that would exceed either is refused before it starts, not
+# aborted partway through (SI-7).
+max_run_duration_seconds = 1800   # <= 14400
+max_estimated_cost_usd = 1.0
+
+max_delegation_depth = 6
+allow_dangerous_capabilities = false
+allow_concurrent_runs = false
+
+# Destructive operations (infra apply/destroy) prompt for confirmation unless
+# this is explicitly disabled, e.g. for a scripted CI experiment run.
+require_confirmation_for_apply = true
+
+[provider]
+# "fake" needs no AWS account and is the default for every milestone before M8.
+default = "fake"
+
+[reporting]
+output_dir = "runs"
+formats = ["terminal", "markdown"]

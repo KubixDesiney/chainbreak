@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "AuthoritySet": {
+      "additionalProperties": false,
+      "description": "A canonically ordered set of capability IDs.\n\nSet algebra lives here rather than in the graph package so that every layer\n-- compiler, executor, analyzer, reporter -- performs identical operations\nwith identical ordering guarantees.",
+      "properties": {
+        "capabilities": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "title": "AuthoritySet",
+      "type": "object"
+    },
+    "OutcomeClass": {
+      "description": "Classification of a single probe attempt.\n\nOnly ``ALLOWED`` contributes to observed authority (AUTH-1). Every\n``ERROR_*`` value excludes the cell from the authority set *and* from the\ndenial set -- it is an absence of measurement, not a negative measurement.",
+      "enum": [
+        "ALLOWED",
+        "DENIED_EXPLICIT",
+        "DENIED_IMPLICIT",
+        "DENIED_UNATTRIBUTED",
+        "ERROR_RESOURCE_MISSING",
+        "ERROR_TRANSIENT",
+        "ERROR_INFRASTRUCTURE",
+        "INDETERMINATE"
+      ],
+      "title": "OutcomeClass",
+      "type": "string"
+    },
+    "TaskStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "FAILED"
+      ],
+      "title": "TaskStatus",
+      "type": "string"
+    },
+    "TaskStepOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Capability Id",
+          "type": "string"
+        },
+        "outcome_class": {
+          "$ref": "#/$defs/OutcomeClass"
+        },
+        "succeeded": {
+          "title": "Succeeded",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "capability_id",
+        "succeeded",
+        "outcome_class"
+      ],
+      "title": "TaskStepOutcome",
+      "type": "object"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/task-outcome.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Result of a workload execution under constrained authority. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "identity_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Identity Id",
+      "type": "string"
+    },
+    "output_marker_verified_independently": {
+      "description": "Verified by the bootstrap identity, not trusted from the worker's report.",
+      "title": "Output Marker Verified Independently",
+      "type": "boolean"
+    },
+    "output_marker_written": {
+      "title": "Output Marker Written",
+      "type": "boolean"
+    },
+    "redelegation_attempts": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Redelegation Attempts",
+      "type": "integer"
+    },
+    "reported_insufficient_authority": {
+      "title": "Reported Insufficient Authority",
+      "type": "boolean"
+    },
+    "status": {
+      "$ref": "#/$defs/TaskStatus"
+    },
+    "step_outcomes": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TaskStepOutcome"
+      },
+      "title": "Step Outcomes",
+      "type": "array"
+    },
+    "steps_attempted": {
+      "minimum": 0,
+      "title": "Steps Attempted",
+      "type": "integer"
+    },
+    "steps_succeeded": {
+      "minimum": 0,
+      "title": "Steps Succeeded",
+      "type": "integer"
+    },
+    "steps_total": {
+      "minimum": 0,
+      "title": "Steps Total",
+      "type": "integer"
+    },
+    "substituted_capabilities": {
+      "$ref": "#/$defs/AuthoritySet",
+      "default": {
+        "capabilities": []
+      }
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "worker": {
+      "title": "Worker",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "identity_id",
+    "worker",
+    "status",
+    "steps_total",
+    "steps_attempted",
+    "steps_succeeded",
+    "reported_insufficient_authority",
+    "output_marker_written",
+    "output_marker_verified_independently"
+  ],
+  "title": "TaskOutcome",
+  "type": "object"
+}

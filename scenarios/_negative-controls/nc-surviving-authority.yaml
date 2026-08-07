@@ -1,0 +1,105 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: nc-surviving-authority
+  version: 1.0.0
+  family: scope-attenuation
+  title: Negative control -- inherited capability survives a hop that should remove it
+  description: >
+    Validates the AUTHORITY_SURVIVAL detector, which is an edge-level rather
+    than node-level check. Hop-2's intended capability set omits
+    function.invoke, but the target role's own policy retains it, so the
+    capability survives a hop designed to drop it. Distinct from
+    nc-scope-expansion: expansion is measured against the node's derived
+    expectation, survival against the edge's intent.
+  authors: [operator]
+  tags: [negative-control, survival, edge-level]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: negative-control-survival
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 600
+    probe_universe: scenario
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_survival_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-a, agent-b]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-b
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - function.invoke
+        - identity.delegate
+
+  negative_control:
+    kind: SURVIVING_AUTHORITY
+    rationale: >
+      Hop-2 intends to drop function.invoke, but agent-b's role policy retains
+      it, so the capability survives the attenuation boundary. CHAINBREAK must
+      report AUTHORITY_SURVIVAL on edge hop-2. A detector that only performs
+      node-level comparison will miss this whenever the node's derived
+      expectation happens to coincide with the observed set.
+    expect_finding:
+      type: AUTHORITY_SURVIVAL
+      identity: agent-b
+      capabilities: [function.invoke]
+      min_confidence: MEDIUM
+    suppress_graph_check: [G-3]

@@ -1,0 +1,1032 @@
+{
+  "$defs": {
+    "BenchmarkFamily": {
+      "enum": [
+        "scope-attenuation",
+        "delegation-drift",
+        "revocation",
+        "stale-authority",
+        "silent-narrowing"
+      ],
+      "title": "BenchmarkFamily",
+      "type": "string"
+    },
+    "CompletionContract": {
+      "additionalProperties": false,
+      "properties": {
+        "must_not_redelegate": {
+          "default": true,
+          "title": "Must Not Redelegate",
+          "type": "boolean"
+        },
+        "must_not_substitute": {
+          "default": true,
+          "title": "Must Not Substitute",
+          "type": "boolean"
+        },
+        "must_report_partial": {
+          "default": true,
+          "title": "Must Report Partial",
+          "type": "boolean"
+        }
+      },
+      "title": "CompletionContract",
+      "type": "object"
+    },
+    "Confidence": {
+      "description": "Ordered confidence levels. Aggregation uses ``min``, never a mean.",
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INSUFFICIENT"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "CredentialSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "requested_lifetime_seconds": {
+          "default": 900,
+          "maximum": 43200,
+          "minimum": 900,
+          "title": "Requested Lifetime Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "CredentialSpec",
+      "type": "object"
+    },
+    "DelegationMechanism": {
+      "description": "How authority is transferred across an edge.",
+      "enum": [
+        "DIRECT_ROLE_ASSUMPTION",
+        "ROLE_CHAIN",
+        "SESSION_POLICY_SCOPED",
+        "ROLE_CHAIN_WITH_SESSION_POLICY",
+        "RESOURCE_POLICY_GRANT",
+        "FEDERATED_TOKEN",
+        "WORKLOAD_IDENTITY"
+      ],
+      "title": "DelegationMechanism",
+      "type": "string"
+    },
+    "DelegationSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "credential": {
+          "$ref": "#/$defs/CredentialSpec"
+        },
+        "from": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "From",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "intended_capabilities": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Intended Capabilities",
+          "type": "array"
+        },
+        "mechanism": {
+          "$ref": "#/$defs/DelegationMechanism"
+        },
+        "session_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Name"
+        },
+        "session_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionPolicySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Session Tags",
+          "type": "object"
+        },
+        "to": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "mechanism",
+        "intended_capabilities"
+      ],
+      "title": "DelegationSpec",
+      "type": "object"
+    },
+    "Execution": {
+      "additionalProperties": false,
+      "properties": {
+        "concurrency": {
+          "default": 4,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "max_duration_seconds": {
+          "default": 900,
+          "maximum": 14400,
+          "minimum": 10,
+          "title": "Max Duration Seconds",
+          "type": "integer"
+        },
+        "probe_universe": {
+          "default": "scenario",
+          "enum": [
+            "declared",
+            "scenario",
+            "catalog"
+          ],
+          "title": "Probe Universe",
+          "type": "string"
+        },
+        "timing_sensitive": {
+          "default": false,
+          "title": "Timing Sensitive",
+          "type": "boolean"
+        },
+        "trials": {
+          "default": 3,
+          "maximum": 25,
+          "minimum": 1,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "title": "Execution",
+      "type": "object"
+    },
+    "ExpectationSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Allow",
+          "type": "array"
+        },
+        "capability": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capability"
+        },
+        "deny": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Deny",
+          "type": "array"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identity"
+        },
+        "justification": {
+          "default": "",
+          "title": "Justification",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "node_authority",
+            "attenuation_monotone",
+            "no_first_divergence",
+            "revocation_within",
+            "task_contract"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "max_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Seconds"
+        },
+        "mode": {
+          "default": "set",
+          "enum": [
+            "set",
+            "cardinality"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "title": "Path",
+          "type": "array"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
+        "severity": {
+          "default": "informational",
+          "enum": [
+            "informational",
+            "assertive"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "task": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ExpectationSpec",
+      "type": "object"
+    },
+    "ExpectedFindingSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identity"
+        },
+        "min_confidence": {
+          "$ref": "#/$defs/Confidence",
+          "default": "MEDIUM"
+        },
+        "type": {
+          "$ref": "#/$defs/FindingType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ExpectedFindingSpec",
+      "type": "object"
+    },
+    "FindingType": {
+      "description": "See AUTHORIZATION_MODEL.md section 6 for the predicate behind each.",
+      "enum": [
+        "EXPECTED_BEHAVIOR",
+        "AUTHORITY_EXPANSION",
+        "AUTHORITY_SURVIVAL",
+        "AUTHORITY_NARROWING",
+        "DELEGATION_DRIFT",
+        "REVOCATION_DELAY",
+        "NO_TRANSITION_OBSERVED",
+        "STALE_AUTHORITY",
+        "EXPIRED_CREDENTIAL_ACCEPTED",
+        "SILENT_NARROWING",
+        "LIFETIME_CAPPED",
+        "INCONCLUSIVE",
+        "EXECUTION_ERROR",
+        "CONFIGURATION_ERROR",
+        "DETECTOR_FAILURE"
+      ],
+      "title": "FindingType",
+      "type": "string"
+    },
+    "IdentitySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capabilities"
+        },
+        "expect_capabilities": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expect Capabilities"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "provider_binding": {
+          "$ref": "#/$defs/ProviderBinding"
+        },
+        "role": {
+          "enum": [
+            "root",
+            "agent"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "provider_binding"
+      ],
+      "title": "IdentitySpec",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "authors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors",
+          "type": "array"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 20,
+          "title": "Description",
+          "type": "string"
+        },
+        "family": {
+          "$ref": "#/$defs/BenchmarkFamily"
+        },
+        "id": {
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Tags",
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 8,
+          "title": "Title",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "family",
+        "title",
+        "description"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "MutationKind": {
+      "description": "Controlled policy changes. Each is a level of the revocation-mechanism variable.",
+      "enum": [
+        "ATTACH_INLINE_DENY",
+        "REMOVE_INLINE_POLICY",
+        "REPLACE_INLINE_POLICY",
+        "UPDATE_TRUST_POLICY",
+        "REVOKE_OLDER_SESSIONS",
+        "DELETE_SESSION_POLICY_SCOPE"
+      ],
+      "title": "MutationKind",
+      "type": "string"
+    },
+    "MutationSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "denies": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Denies",
+          "type": "array"
+        },
+        "grants": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Grants",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/MutationKind"
+        },
+        "record_receipt": {
+          "default": true,
+          "title": "Record Receipt",
+          "type": "boolean"
+        },
+        "target_identity": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Target Identity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_identity",
+        "kind"
+      ],
+      "title": "MutationSpec",
+      "type": "object"
+    },
+    "NegativeControlKind": {
+      "description": "Injected defects. See SCENARIO_SPECIFICATION.md section 8.",
+      "enum": [
+        "INTENT_EXCEEDS_PARENT",
+        "SURVIVING_AUTHORITY",
+        "NON_MONOTONE_CHAIN",
+        "NO_REVOCATION",
+        "SILENT_SUCCESS",
+        "STALE_CREDENTIAL_REUSE"
+      ],
+      "title": "NegativeControlKind",
+      "type": "string"
+    },
+    "NegativeControlSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "expect_finding": {
+          "$ref": "#/$defs/ExpectedFindingSpec"
+        },
+        "kind": {
+          "$ref": "#/$defs/NegativeControlKind"
+        },
+        "rationale": {
+          "maxLength": 2000,
+          "minLength": 40,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "suppress_graph_check": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Suppress Graph Check",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "rationale",
+        "expect_finding"
+      ],
+      "title": "NegativeControlSpec",
+      "type": "object"
+    },
+    "PhaseKind": {
+      "description": "Scenario phase types, in execution-plan order.",
+      "enum": [
+        "PROBE",
+        "MUTATE",
+        "POLL",
+        "WAIT",
+        "DEFERRED_EXECUTION",
+        "TASK",
+        "SNAPSHOT"
+      ],
+      "title": "PhaseKind",
+      "type": "string"
+    },
+    "PhaseSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capability"
+        },
+        "credential_source": {
+          "anyOf": [
+            {
+              "pattern": "^phase:[a-z][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Source"
+        },
+        "interval_ms": {
+          "default": 500,
+          "maximum": 60000,
+          "minimum": 100,
+          "title": "Interval Ms",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/PhaseKind"
+        },
+        "max_duration_seconds": {
+          "default": 300,
+          "maximum": 14400,
+          "minimum": 1,
+          "title": "Max Duration Seconds",
+          "type": "integer"
+        },
+        "mutation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MutationSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "stability_count": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Stability Count",
+          "type": "integer"
+        },
+        "stop_on": {
+          "default": "STABLE_DENIAL",
+          "enum": [
+            "STABLE_DENIAL",
+            "STABLE_ALLOW",
+            "TIMEOUT"
+          ],
+          "title": "Stop On",
+          "type": "string"
+        },
+        "target_identity": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Identity"
+        },
+        "targets": {
+          "default": [],
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "task": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task"
+        },
+        "wait_seconds": {
+          "default": 0,
+          "maximum": 14400,
+          "minimum": 0,
+          "title": "Wait Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "PhaseSpec",
+      "type": "object"
+    },
+    "Provider": {
+      "description": "Provider identifiers. v0.1 ships ``aws`` and ``fake``.",
+      "enum": [
+        "aws",
+        "fake"
+      ],
+      "title": "Provider",
+      "type": "string"
+    },
+    "ProviderBinding": {
+      "additionalProperties": false,
+      "description": "Indirection only: names a Terraform output, never an ARN.",
+      "properties": {
+        "terraform_output": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Terraform Output",
+          "type": "string"
+        }
+      },
+      "required": [
+        "terraform_output"
+      ],
+      "title": "ProviderBinding",
+      "type": "object"
+    },
+    "Requires": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_version": {
+          "default": ">=0.1.0",
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "catalog_version": {
+          "default": ">=1.0.0,<2.0.0",
+          "title": "Catalog Version",
+          "type": "string"
+        },
+        "infrastructure_profile": {
+          "default": "standard",
+          "title": "Infrastructure Profile",
+          "type": "string"
+        }
+      },
+      "title": "Requires",
+      "type": "object"
+    },
+    "ScenarioSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "delegations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DelegationSpec"
+          },
+          "maxItems": 32,
+          "title": "Delegations",
+          "type": "array"
+        },
+        "execution": {
+          "$ref": "#/$defs/Execution"
+        },
+        "expectations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ExpectationSpec"
+          },
+          "maxItems": 64,
+          "title": "Expectations",
+          "type": "array"
+        },
+        "identities": {
+          "items": {
+            "$ref": "#/$defs/IdentitySpec"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Identities",
+          "type": "array"
+        },
+        "negative_control": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NegativeControlSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "phases": {
+          "items": {
+            "$ref": "#/$defs/PhaseSpec"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Phases",
+          "type": "array"
+        },
+        "provider": {
+          "$ref": "#/$defs/Provider"
+        },
+        "requires": {
+          "$ref": "#/$defs/Requires"
+        },
+        "tasks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TaskSpec"
+          },
+          "maxItems": 16,
+          "title": "Tasks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "provider",
+        "identities",
+        "phases"
+      ],
+      "title": "ScenarioSpec",
+      "type": "object"
+    },
+    "SessionPolicySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "derive_from": {
+          "anyOf": [
+            {
+              "const": "intended_capabilities",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "intended_capabilities",
+          "title": "Derive From"
+        },
+        "inline_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inline Ref"
+        }
+      },
+      "title": "SessionPolicySpec",
+      "type": "object"
+    },
+    "TaskSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_contract": {
+          "$ref": "#/$defs/CompletionContract"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "identity": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Identity",
+          "type": "string"
+        },
+        "requires_capabilities": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Requires Capabilities",
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/TaskStepSpec"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "worker": {
+          "default": "deterministic.sequential",
+          "maxLength": 64,
+          "title": "Worker",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "identity",
+        "requires_capabilities",
+        "steps"
+      ],
+      "title": "TaskSpec",
+      "type": "object"
+    },
+    "TaskStepSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "on_failure": {
+          "default": "continue",
+          "enum": [
+            "continue",
+            "abort",
+            "retry"
+          ],
+          "title": "On Failure",
+          "type": "string"
+        },
+        "use": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Use",
+          "type": "string"
+        }
+      },
+      "required": [
+        "use"
+      ],
+      "title": "TaskStepSpec",
+      "type": "object"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/scenario.v1alpha1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Declarative authorization experiment definition. Semantic checks (graph invariants G-1..G-5) and safety checks (SI-11) are not expressible in JSON Schema and are enforced by the loader; passing this schema is necessary but not sufficient. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "apiVersion": {
+      "const": "chainbreak.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "kind": {
+      "const": "Scenario",
+      "default": "Scenario",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "spec": {
+      "$ref": "#/$defs/ScenarioSpec"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "metadata",
+    "spec"
+  ],
+  "title": "ScenarioDocument",
+  "type": "object"
+}

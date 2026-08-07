@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# CHAINBREAK .gitignore
+# Security note: several entries here are load-bearing, not cosmetic.
+# Terraform state and evidence bundles can contain environment-identifying data.
+# ---------------------------------------------------------------------------
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Terraform: NEVER commit state. State contains resource identifiers and
+# --- may contain sensitive attributes. See THREAT_MODEL.md T-04.
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# --- Evidence and run artifacts: local by default. Publishing a bundle is an
+# --- explicit, reviewed action (see REPRODUCIBILITY.md).
+runs/
+evidence/
+*.jsonl
+*.parquet
+chainbreak.sqlite
+chainbreak.sqlite-*
+reports/
+
+# --- Credentials and local config: must never reach the repository.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials
+aws_credentials
+.aws/
+chainbreak.local.toml
+!chainbreak.example.toml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json

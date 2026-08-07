@@ -1,0 +1,351 @@
+{
+  "$defs": {
+    "DenialAttribution": {
+      "description": "Why the provider said no, when it discloses that.",
+      "enum": [
+        "EXPLICIT_DENY",
+        "IMPLICIT_NO_ALLOW",
+        "SESSION_POLICY",
+        "TRUST_POLICY",
+        "RESOURCE_POLICY",
+        "PERMISSION_BOUNDARY",
+        "UNDISCLOSED"
+      ],
+      "title": "DenialAttribution",
+      "type": "string"
+    },
+    "OutcomeClass": {
+      "description": "Classification of a single probe attempt.\n\nOnly ``ALLOWED`` contributes to observed authority (AUTH-1). Every\n``ERROR_*`` value excludes the cell from the authority set *and* from the\ndenial set -- it is an absence of measurement, not a negative measurement.",
+      "enum": [
+        "ALLOWED",
+        "DENIED_EXPLICIT",
+        "DENIED_IMPLICIT",
+        "DENIED_UNATTRIBUTED",
+        "ERROR_RESOURCE_MISSING",
+        "ERROR_TRANSIENT",
+        "ERROR_INFRASTRUCTURE",
+        "INDETERMINATE"
+      ],
+      "title": "OutcomeClass",
+      "type": "string"
+    },
+    "PlanPhase": {
+      "description": "Named points in a run at which authority may be measured.",
+      "enum": [
+        "BASELINE",
+        "POST_DELEGATION",
+        "PRE_MUTATION",
+        "POST_MUTATION",
+        "DEFERRED_EXECUTION",
+        "POST_EXPIRY",
+        "FINAL"
+      ],
+      "title": "PlanPhase",
+      "type": "string"
+    },
+    "ProbeKind": {
+      "description": "The shape of test that demonstrates a capability.\n\nOpen by convention: adding a member requires a probe implementation in every\nprovider adapter or an explicit unsupported declaration (CAP-1).",
+      "enum": [
+        "READ_MARKER",
+        "WRITE_SCRATCH",
+        "LIST_PREFIX",
+        "INVOKE_NOOP",
+        "SELF_DESCRIBE",
+        "DELEGATE"
+      ],
+      "title": "ProbeKind",
+      "type": "string"
+    },
+    "ProbeOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "denial_attribution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DenialAttribution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "disambiguation_path": {
+          "default": "",
+          "description": "Names the exact classifier branch that fired, so a later correction can find every affected observation.",
+          "title": "Disambiguation Path",
+          "type": "string"
+        },
+        "message_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message Digest"
+        },
+        "message_redacted": {
+          "default": "",
+          "title": "Message Redacted",
+          "type": "string"
+        },
+        "outcome_class": {
+          "$ref": "#/$defs/OutcomeClass"
+        },
+        "provider_error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Error Code"
+        },
+        "provider_status_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Status Code"
+        },
+        "request_id_hash": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id Hash"
+        }
+      },
+      "required": [
+        "outcome_class"
+      ],
+      "title": "ProbeOutcome",
+      "type": "object"
+    },
+    "ProbeRequestRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Binding Actions",
+          "type": "array"
+        },
+        "parameters_fingerprint": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Parameters Fingerprint",
+          "type": "string"
+        },
+        "probe_kind": {
+          "$ref": "#/$defs/ProbeKind"
+        },
+        "target_namespace": {
+          "pattern": "^cb-[0-9a-f]{8}$",
+          "title": "Target Namespace",
+          "type": "string"
+        },
+        "target_ref_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Target Ref Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "probe_kind",
+        "binding_actions",
+        "target_ref_hash",
+        "target_namespace",
+        "parameters_fingerprint"
+      ],
+      "title": "ProbeRequestRecord",
+      "type": "object"
+    },
+    "ProbeTiming": {
+      "additionalProperties": false,
+      "description": "All interval arithmetic uses monotonic nanoseconds. Wall clock is context only.",
+      "properties": {
+        "attempt_number": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Attempt Number",
+          "type": "integer"
+        },
+        "clock_offset_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clock Offset Ms"
+        },
+        "monotonic_end_ns": {
+          "title": "Monotonic End Ns",
+          "type": "integer"
+        },
+        "monotonic_start_ns": {
+          "title": "Monotonic Start Ns",
+          "type": "integer"
+        },
+        "retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "wall_start": {
+          "format": "date-time",
+          "title": "Wall Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "monotonic_start_ns",
+        "monotonic_end_ns",
+        "wall_start"
+      ],
+      "title": "ProbeTiming",
+      "type": "object"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/observation.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One probe attempt. The atom of the evidence model. Contains no secret material and no unhashed provider identifier (EV-1, T-13). Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "capability_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "credential_age_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Credential Age Ms"
+    },
+    "credential_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Credential Id"
+    },
+    "identity_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Identity Id",
+      "type": "string"
+    },
+    "identity_ref_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Identity Ref Hash",
+      "type": "string"
+    },
+    "notes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "observation_id": {
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/ProbeOutcome"
+    },
+    "phase": {
+      "$ref": "#/$defs/PlanPhase"
+    },
+    "preconditions_verified": {
+      "title": "Preconditions Verified",
+      "type": "boolean"
+    },
+    "probe_matrix_id": {
+      "title": "Probe Matrix Id",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/ProbeRequestRecord"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 0,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "timing": {
+      "$ref": "#/$defs/ProbeTiming"
+    },
+    "trial": {
+      "exclusiveMinimum": 0,
+      "title": "Trial",
+      "type": "integer"
+    },
+    "trial_count": {
+      "exclusiveMinimum": 0,
+      "title": "Trial Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "observation_id",
+    "run_id",
+    "sequence",
+    "phase",
+    "probe_matrix_id",
+    "identity_id",
+    "identity_ref_hash",
+    "capability_id",
+    "trial",
+    "trial_count",
+    "request",
+    "timing",
+    "outcome",
+    "preconditions_verified"
+  ],
+  "title": "Observation",
+  "type": "object"
+}

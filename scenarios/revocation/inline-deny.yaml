@@ -1,0 +1,136 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: revocation-inline-deny
+  version: 1.0.0
+  family: revocation
+  title: Propagation interval for an explicit inline deny on a live session
+  description: >
+    Establishes that objectstore.read is effective for agent-b, applies an
+    explicit inline deny to agent-b's role, and polls serially until a stable
+    denial. Reports the transition as an interval bounded by the polling
+    period, never as a scalar. A nonzero interval is the expected result: IAM
+    is documented as eventually consistent, and characterizing the distribution
+    is the contribution, not discovering that it is positive.
+  authors: [operator]
+  tags: [timing, inline-deny, serial]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1          # repetition here is polling, not trial repetition
+    timing_sensitive: true
+    concurrency: 1     # required: concurrency destroys the timing measurement
+    max_duration_seconds: 900
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    # Confirm the capability is present. You cannot measure the revocation of
+    # authority that was never there.
+    - name: confirm-present
+      kind: PROBE
+      targets: [agent-b]
+
+    # Establish a stable pre-mutation baseline and warm the connection pool so
+    # the first post-mutation poll is not systematically slower.
+    - name: warm-baseline
+      kind: POLL
+      target_identity: agent-b
+      capability: objectstore.read
+      interval_ms: 500
+      max_duration_seconds: 30
+      stop_on: STABLE_ALLOW
+      stability_count: 3
+
+    - name: revoke
+      kind: MUTATE
+      mutation:
+        target_identity: agent-b
+        kind: ATTACH_INLINE_DENY
+        denies:
+          - objectstore.read
+        record_receipt: true
+
+    - name: poll-transition
+      kind: POLL
+      target_identity: agent-b
+      capability: objectstore.read
+      interval_ms: 500
+      max_duration_seconds: 300
+      stop_on: STABLE_DENIAL
+      stability_count: 3
+
+    - name: final
+      kind: PROBE
+      targets: [agent-b]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-b
+      phase: confirm-present
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - keyvalue.read
+        - identity.delegate
+
+    # Informational by default. CHAINBREAK does not know what a "correct"
+    # propagation time is and will not assert one without justification.
+    - kind: revocation_within
+      identity: agent-b
+      capability: objectstore.read
+      max_seconds: 60
+      severity: informational

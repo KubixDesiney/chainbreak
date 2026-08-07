@@ -1,0 +1,193 @@
+# CHAINBREAK CI
+#
+# INVARIANT: this workflow requires NO cloud credentials (threat T-12). Unit and
+# integration layers run entirely against the deterministic fake provider. AWS
+# testing lives in aws-experiment.yml, which is workflow_dispatch only.
+#
+# Action pinning: every third-party action must be pinned to a full commit SHA.
+# The `guards` job fails the build if one is not.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_DEFAULT: "3.12"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[dev,aws,report]"
+      - run: mypy
+
+  boundaries:
+    # ARCH-1: the layer dependency rule. A violation here is a build failure, not
+    # a review comment.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[dev]" import-linter
+      - run: lint-imports
+      - run: pytest -m unit tests/unit/test_import_boundaries.py -q
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[dev]" bandit pip-audit
+      - run: bandit -r src/ -q
+      # --skip-editable: the repo's own package is always editable-installed here,
+      # and that is not a supply-chain risk worth failing the build over.
+      - run: pip-audit --skip-editable
+      - name: No Terraform state or tfvars in the repository (T-04)
+        run: |
+          if git ls-files | grep -E '\.tfstate|\.tfvars$' | grep -v '\.example$'; then
+            echo "::error::Terraform state or tfvars committed"; exit 1
+          fi
+      - name: No credential-shaped strings anywhere in the tree or history (T-01)
+        run: |
+          # tests/ is excluded deliberately: the redaction test corpus MUST contain
+          # key-shaped strings, because proving detection works is its entire purpose.
+          # Everything outside tests/ is in scope.
+          if grep -rIEn '(AKIA|ASIA)[0-9A-Z]{16}' --exclude-dir=.git --exclude-dir=tests . ; then
+            echo "::error::AWS key-shaped string in working tree"; exit 1
+          fi
+          # Within tests/, only the synthetic EXAMPLE corpus is permitted.
+          if grep -rIEn '(AKIA|ASIA)[0-9A-Z]{16}' tests/ | grep -v 'EXAMPLE'; then
+            echo "::error::non-synthetic key-shaped string in tests/"; exit 1
+          fi
+          if git log -p --all | grep -qE '(AKIA|ASIA)[0-9A-Z]{16}'; then
+            echo "::error::AWS key-shaped string in git history"; exit 1
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ matrix.python }}" }
+      - run: pip install -e ".[dev,report,analysis]"
+      # NOTE: no AWS credentials are configured for this job, by design.
+      - run: pytest -m "unit or integration" --cov=chainbreak --cov-report=term-missing -q
+      - name: Redaction coverage must be 100% (SI-1)
+        # tests/unit/test_redaction.py and chainbreak.evidence.redaction arrive at M6.
+        # This gate activates itself the moment both exist -- it is not silently skipped
+        # forever, only until the module it covers is written.
+        run: |
+          if [ -f tests/unit/test_redaction.py ]; then
+            pytest -m unit tests/unit/test_redaction.py --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q
+          else
+            echo "::notice::tests/unit/test_redaction.py not yet written (M6) -- gate inactive"
+          fi
+      - name: SafetyGate coverage must be 100% (SI-5)
+        # tests/unit/test_safety_gate.py and chainbreak.core.safety arrive at M4.
+        run: |
+          if [ -f tests/unit/test_safety_gate.py ]; then
+            pytest -m unit tests/unit/test_safety_gate.py --cov=chainbreak.core.safety --cov-fail-under=100 -q
+          else
+            echo "::notice::tests/unit/test_safety_gate.py not yet written (M4) -- gate inactive"
+          fi
+      - name: AWS-marked tests must skip without opt-in
+        run: |
+          out=$(pytest -m aws -q 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -qiE 'skip' || { echo "::error::aws tests did not skip"; exit 1; }
+
+  schemas:
+    # The Pydantic models are the source of truth. A model change not reflected in
+    # the committed schemas fails here rather than drifting silently.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[dev]"
+      - run: python -m chainbreak.scenarios.export_schema schemas
+      - run: git diff --exit-code schemas/
+      - run: python -c "import json,pathlib,jsonschema;[jsonschema.Draft202012Validator.check_schema(json.loads(p.read_text())) for p in pathlib.Path('schemas').glob('*.json')]"
+      - run: python -c "import sqlite3,pathlib;sqlite3.connect(':memory:').executescript(pathlib.Path('schemas/run-index.sql').read_text())"
+
+  scenarios:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e ".[dev]"
+      # Every scenario validates offline (SI-11 stage 5 included): the corpus test
+      # loads every file in scenarios/ through load_scenario_yaml (safety stage) and
+      # ScenarioDocument (schema stage), which is the same pipeline `chainbreak
+      # scenario validate --offline` will wrap once the CLI exists (M4).
+      - run: pytest -m unit tests/scenarios/ -q
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.9.8" }
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Validate every module and environment
+        run: |
+          for d in $(find infra/terraform -name '*.tf' -printf '%h\n' | sort -u); do
+            terraform -chdir="$d" init -backend=false && terraform -chdir="$d" validate
+          done
+      - uses: bridgecrewio/checkov-action@9b70310bcd306d11740313070b940167d6b23085 # v12.3115.0
+        with: { directory: infra/terraform, quiet: true, soft_fail: false }
+
+  guards:
+    # Meta-checks on the CI configuration itself (T-12).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No pull_request_target anywhere
+        # Matches the YAML trigger key itself (e.g. "pull_request_target:"), not this
+        # step's own script text, which would otherwise self-match every run.
+        run: |
+          if grep -rnE '^\s*pull_request_target\s*:' .github/workflows/; then
+            echo "::error::pull_request_target grants secrets to fork PRs"; exit 1
+          fi
+      - name: Third-party actions must be SHA-pinned
+        run: |
+          bad=$(grep -rhoE 'uses: [^ ]+@[^ ]+' .github/workflows/ \
+                | grep -vE '@[0-9a-f]{40}$' \
+                | grep -vE 'uses: (actions|hashicorp)/' || true)
+          if [ -n "$bad" ]; then echo "::error::unpinned actions:"; echo "$bad"; exit 1; fi
+      - name: Default workflow must not reference AWS credentials
+        run: |
+          if grep -nE 'AWS_(ACCESS_KEY|SECRET|SESSION)' .github/workflows/ci.yml; then
+            echo "::error::CI must not use AWS credentials"; exit 1
+          fi

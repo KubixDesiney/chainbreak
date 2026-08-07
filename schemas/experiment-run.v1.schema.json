@@ -1,0 +1,285 @@
+{
+  "$defs": {
+    "BenchmarkFamily": {
+      "enum": [
+        "scope-attenuation",
+        "delegation-drift",
+        "revocation",
+        "stale-authority",
+        "silent-narrowing"
+      ],
+      "title": "BenchmarkFamily",
+      "type": "string"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_catalog_version": {
+          "title": "Capability Catalog Version",
+          "type": "string"
+        },
+        "chainbreak_version": {
+          "title": "Chainbreak Version",
+          "type": "string"
+        },
+        "config_fingerprint": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "git_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Commit"
+        },
+        "git_dirty": {
+          "default": false,
+          "title": "Git Dirty",
+          "type": "boolean"
+        },
+        "infrastructure_fingerprint": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Infrastructure Fingerprint"
+        },
+        "provider": {
+          "$ref": "#/$defs/Provider"
+        },
+        "provider_adapter_version": {
+          "title": "Provider Adapter Version",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chainbreak_version",
+        "capability_catalog_version",
+        "provider",
+        "provider_adapter_version",
+        "python_version",
+        "config_fingerprint"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Provider": {
+      "description": "Provider identifiers. v0.1 ships ``aws`` and ``fake``.",
+      "enum": [
+        "aws",
+        "fake"
+      ],
+      "title": "Provider",
+      "type": "string"
+    },
+    "RunStatus": {
+      "enum": [
+        "RUNNING",
+        "COMPLETED",
+        "ABORTED_TIMEOUT",
+        "ABORTED_SAFETY",
+        "ABORTED_ERROR"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "SafetyEnvelope": {
+      "additionalProperties": false,
+      "description": "The resolved safety envelope. A run without one is refused (SI-5).",
+      "properties": {
+        "allow_concurrent_runs": {
+          "default": false,
+          "title": "Allow Concurrent Runs",
+          "type": "boolean"
+        },
+        "allow_dangerous_capabilities": {
+          "default": false,
+          "title": "Allow Dangerous Capabilities",
+          "type": "boolean"
+        },
+        "allowed_account_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Account Ids",
+          "type": "array"
+        },
+        "allowed_regions": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Regions",
+          "type": "array"
+        },
+        "max_delegation_depth": {
+          "default": 6,
+          "exclusiveMinimum": 0,
+          "title": "Max Delegation Depth",
+          "type": "integer"
+        },
+        "max_estimated_cost_usd": {
+          "default": 1.0,
+          "minimum": 0,
+          "title": "Max Estimated Cost Usd",
+          "type": "number"
+        },
+        "max_run_duration_seconds": {
+          "default": 1800,
+          "exclusiveMinimum": 0,
+          "title": "Max Run Duration Seconds",
+          "type": "integer"
+        },
+        "namespace": {
+          "pattern": "^cb-[0-9a-f]{8}$",
+          "title": "Namespace",
+          "type": "string"
+        },
+        "namespace_pattern": {
+          "title": "Namespace Pattern",
+          "type": "string"
+        }
+      },
+      "required": [
+        "allowed_account_ids",
+        "allowed_regions",
+        "namespace",
+        "namespace_pattern"
+      ],
+      "title": "SafetyEnvelope",
+      "type": "object"
+    },
+    "ScenarioRef": {
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "title": "Api Version",
+          "type": "string"
+        },
+        "compiled_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Compiled Hash",
+          "type": "string"
+        },
+        "family": {
+          "$ref": "#/$defs/BenchmarkFamily"
+        },
+        "id": {
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "family",
+        "api_version",
+        "compiled_hash"
+      ],
+      "title": "ScenarioRef",
+      "type": "object"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/experiment-run.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Run identity, provenance and safety envelope. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "block_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Block Id"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "envelope": {
+      "$ref": "#/$defs/SafetyEnvelope"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scenario": {
+      "$ref": "#/$defs/ScenarioRef"
+    },
+    "seeds": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Seeds",
+      "type": "object"
+    },
+    "status": {
+      "$ref": "#/$defs/RunStatus"
+    },
+    "warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "created_at",
+    "status",
+    "scenario",
+    "provenance",
+    "envelope"
+  ],
+  "title": "ExperimentRun",
+  "type": "object"
+}

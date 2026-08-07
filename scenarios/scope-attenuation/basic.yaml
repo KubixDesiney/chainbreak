@@ -1,0 +1,139 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: scope-attenuation-basic
+  version: 1.0.0
+  family: scope-attenuation
+  title: Two-hop session-policy attenuation with a full-universe probe matrix
+  description: >
+    Agent A holds three capability groups. Hop 2 intends to delegate only
+    objectstore.read via a session policy. The probe matrix covers every
+    capability named in the scenario, not only the expected ones, because
+    authority expansion cannot be detected by testing only for authority you
+    expect to find. Establishes that the apparatus is trustworthy before the
+    harder families run.
+  authors: [operator]
+  tags: [two-hop, session-policy, baseline]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 600
+    probe_universe: scenario
+    concurrency: 4
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - keyvalue.write
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+      expect_capabilities:
+        - objectstore.read
+        - objectstore.write
+        - keyvalue.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+      expect_capabilities:
+        - objectstore.read
+        - identity.whoami
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - objectstore.write
+        - keyvalue.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 900
+
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]
+
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-a, agent-b]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-a
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - objectstore.write
+        - keyvalue.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+      deny:
+        - objectstore.list
+        - keyvalue.write
+
+    - kind: node_authority
+      identity: agent-b
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      # The deny list is what makes expansion detectable. It is mandatory.
+      deny:
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - keyvalue.write
+        - function.invoke
+        - identity.delegate
+
+    - kind: attenuation_monotone
+      path: [principal, agent-a, agent-b]
+      mode: set
+
+    - kind: no_first_divergence
+      path: [principal, agent-a, agent-b]

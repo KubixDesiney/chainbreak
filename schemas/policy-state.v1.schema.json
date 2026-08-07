@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "PolicyFingerprint": {
+      "additionalProperties": false,
+      "properties": {
+        "document_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Document Sha256",
+          "type": "string"
+        },
+        "has_explicit_deny": {
+          "title": "Has Explicit Deny",
+          "type": "boolean"
+        },
+        "name_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Name Hash",
+          "type": "string"
+        },
+        "policy_kind": {
+          "$ref": "#/$defs/PolicyKind"
+        },
+        "statement_count": {
+          "minimum": 0,
+          "title": "Statement Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_kind",
+        "name_hash",
+        "document_sha256",
+        "statement_count",
+        "has_explicit_deny"
+      ],
+      "title": "PolicyFingerprint",
+      "type": "object"
+    },
+    "PolicyKind": {
+      "enum": [
+        "IDENTITY_INLINE",
+        "IDENTITY_MANAGED",
+        "TRUST",
+        "SESSION",
+        "RESOURCE",
+        "PERMISSION_BOUNDARY"
+      ],
+      "title": "PolicyKind",
+      "type": "string"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/policy-state.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Policy fingerprints at a point in time. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "identity_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Identity Id",
+      "type": "string"
+    },
+    "monotonic_ns": {
+      "title": "Monotonic Ns",
+      "type": "integer"
+    },
+    "policies": {
+      "items": {
+        "$ref": "#/$defs/PolicyFingerprint"
+      },
+      "title": "Policies",
+      "type": "array"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "taken_at": {
+      "format": "date-time",
+      "title": "Taken At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "identity_id",
+    "taken_at",
+    "monotonic_ns",
+    "policies"
+  ],
+  "title": "PolicyStateSnapshot",
+  "type": "object"
+}

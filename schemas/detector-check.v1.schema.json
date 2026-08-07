@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "FindingType": {
+      "description": "See AUTHORIZATION_MODEL.md section 6 for the predicate behind each.",
+      "enum": [
+        "EXPECTED_BEHAVIOR",
+        "AUTHORITY_EXPANSION",
+        "AUTHORITY_SURVIVAL",
+        "AUTHORITY_NARROWING",
+        "DELEGATION_DRIFT",
+        "REVOCATION_DELAY",
+        "NO_TRANSITION_OBSERVED",
+        "STALE_AUTHORITY",
+        "EXPIRED_CREDENTIAL_ACCEPTED",
+        "SILENT_NARROWING",
+        "LIFETIME_CAPPED",
+        "INCONCLUSIVE",
+        "EXECUTION_ERROR",
+        "CONFIGURATION_ERROR",
+        "DETECTOR_FAILURE"
+      ],
+      "title": "FindingType",
+      "type": "string"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/detector-check.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Negative-control verification. A DETECTOR_FAILURE invalidates the block's positive results. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "expected_type": {
+      "$ref": "#/$defs/FindingType"
+    },
+    "negative_control_id": {
+      "title": "Negative Control Id",
+      "type": "string"
+    },
+    "produced": {
+      "title": "Produced",
+      "type": "boolean"
+    },
+    "result": {
+      "pattern": "^(DETECTOR_OK|DETECTOR_FAILURE)$",
+      "title": "Result",
+      "type": "string"
+    }
+  },
+  "required": [
+    "negative_control_id",
+    "expected_type",
+    "produced",
+    "result"
+  ],
+  "title": "DetectorCheck",
+  "type": "object"
+}

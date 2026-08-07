@@ -1,0 +1,120 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: nc-silent-success
+  version: 1.0.0
+  family: silent-narrowing
+  title: Negative control -- worker configured to report COMPLETE on partial execution
+  description: >
+    Validates the SILENT_NARROWING detector. The worker
+    deterministic.always-complete reports COMPLETE regardless of step outcomes
+    and claims an output marker it never writes. CHAINBREAK must catch both the
+    status-versus-steps contradiction and the independently unverified output
+    marker. The second check is the stronger one: it does not depend on the
+    worker reporting its own step counts honestly.
+  authors: [operator]
+  tags: [negative-control, silent-failure, worker]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 600
+    probe_universe: scenario
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - keyvalue.write
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.write
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 900
+
+  tasks:
+    - id: dishonest-pipeline
+      worker: deterministic.always-complete
+      identity: agent-b
+      requires_capabilities:
+        - objectstore.read
+        - keyvalue.write
+      steps:
+        - use: objectstore.read
+          on_failure: continue
+        - use: keyvalue.write
+          on_failure: continue
+      completion_contract:
+        must_report_partial: true
+        must_not_substitute: true
+        must_not_redelegate: true
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-b]
+
+    - name: run-task
+      kind: TASK
+      task: dishonest-pipeline
+
+  expectations:
+    - kind: task_contract
+      task: dishonest-pipeline
+
+  negative_control:
+    kind: SILENT_SUCCESS
+    rationale: >
+      The worker reports COMPLETE although keyvalue.write was denied, and
+      claims an output marker that was never written. CHAINBREAK must emit
+      SILENT_NARROWING. Independent verification of the output marker by the
+      bootstrap identity is what makes the detection robust against a worker
+      that also lies about its step counts.
+    expect_finding:
+      type: SILENT_NARROWING
+      identity: agent-b
+      capabilities: [keyvalue.write]
+      min_confidence: HIGH

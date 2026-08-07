@@ -1,0 +1,168 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: delegation-drift-four-hop
+  version: 1.0.0
+  family: delegation-drift
+  title: Four-hop chain narrowing by one capability at each hop
+  description: >
+    Measures whether effective authority attenuates monotonically across four
+    delegation hops, each applying a derived session policy. Depth is the
+    independent variable for RQ5; each depth lives in its own scenario file so
+    compiled hashes differ and results are never accidentally pooled. Note that
+    depth and total probe count are confounded -- analysis reports divergence
+    rate per hop, and the excluded-trial count per depth alongside it.
+  authors: [operator]
+  tags: [multi-hop, session-policy, depth-4]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 1200
+    probe_universe: scenario
+    concurrency: 4
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - keyvalue.write
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_role_arn
+
+    - id: agent-d
+      role: agent
+      provider_binding:
+        terraform_output: agent_d_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: ROLE_CHAIN_WITH_SESSION_POLICY
+      intended_capabilities:
+        - objectstore.read
+        - objectstore.list
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-3
+      from: agent-b
+      to: agent-c
+      mechanism: ROLE_CHAIN_WITH_SESSION_POLICY
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-4
+      from: agent-c
+      to: agent-d
+      mechanism: ROLE_CHAIN_WITH_SESSION_POLICY
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]
+
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-a, agent-b, agent-c, agent-d]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-c
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      deny:
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.write
+        - function.invoke
+
+    - kind: node_authority
+      identity: agent-d
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - keyvalue.write
+        - function.invoke
+        - identity.delegate
+
+    - kind: attenuation_monotone
+      path: [principal, agent-a, agent-b, agent-c, agent-d]
+      mode: set
+
+    - kind: no_first_divergence
+      path: [principal, agent-a, agent-b, agent-c, agent-d]

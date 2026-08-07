@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "CategoryStatus": {
+      "description": "A description of the measurement, not a grade. CONSISTENT does not mean 'secure'.",
+      "enum": [
+        "CONSISTENT",
+        "DIVERGENT",
+        "PARTIAL",
+        "NOT_MEASURED",
+        "DETECTOR_FAILED"
+      ],
+      "title": "CategoryStatus",
+      "type": "string"
+    },
+    "Confidence": {
+      "description": "Ordered confidence levels. Aggregation uses ``min``, never a mean.",
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INSUFFICIENT"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "Interval": {
+      "additionalProperties": false,
+      "description": "A measurement with explicit uncertainty. There is no bare-scalar variant.",
+      "properties": {
+        "high": {
+          "title": "High",
+          "type": "number"
+        },
+        "low": {
+          "title": "Low",
+          "type": "number"
+        },
+        "point": {
+          "title": "Point",
+          "type": "number"
+        },
+        "unit": {
+          "default": "s",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "low",
+        "point",
+        "high"
+      ],
+      "title": "Interval",
+      "type": "object"
+    },
+    "Measurement": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capability Id"
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "identity_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identity Id"
+        },
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "n": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "N",
+          "type": "integer"
+        },
+        "value": {
+          "$ref": "#/$defs/Interval"
+        }
+      },
+      "required": [
+        "metric",
+        "value",
+        "confidence"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "ScoringCategory": {
+      "description": "Six independent categories. There is no composite score (ADR-010).",
+      "enum": [
+        "DELEGATION_INTEGRITY",
+        "SCOPE_ATTENUATION",
+        "REVOCATION_RESPONSIVENESS",
+        "AUTHORITY_FRESHNESS",
+        "FAILURE_TRANSPARENCY",
+        "CREDENTIAL_HYGIENE"
+      ],
+      "title": "ScoringCategory",
+      "type": "string"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/category-result.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Per-category result. There is no composite score (ADR-010). Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "category": {
+      "$ref": "#/$defs/ScoringCategory"
+    },
+    "caveats": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Caveats",
+      "type": "array"
+    },
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "coverage": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Coverage",
+      "type": "number"
+    },
+    "finding_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Finding Ids",
+      "type": "array"
+    },
+    "measurements": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Measurement"
+      },
+      "title": "Measurements",
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/CategoryStatus"
+    }
+  },
+  "required": [
+    "category",
+    "status",
+    "coverage",
+    "confidence"
+  ],
+  "title": "CategoryResult",
+  "type": "object"
+}

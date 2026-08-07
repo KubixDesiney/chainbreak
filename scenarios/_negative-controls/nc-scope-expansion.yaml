@@ -1,0 +1,105 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: nc-scope-expansion
+  version: 1.0.0
+  family: scope-attenuation
+  title: Negative control -- agent holds a capability its hop never delegated
+  description: >
+    Validates the AUTHORITY_EXPANSION detector. Agent B's role carries an
+    inline permission policy granting keyvalue.read, which hop-2 does not
+    delegate. The defect is injected through the role's own identity policy
+    rather than through the session policy, because session policies intersect
+    and cannot grant -- injecting it there would produce no observable effect
+    and would validate nothing.
+  authors: [operator]
+  tags: [negative-control, expansion]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: negative-control-expansion
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 600
+    probe_universe: scenario
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_expansion_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-a, agent-b]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-b
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - keyvalue.read
+        - identity.delegate
+
+  negative_control:
+    kind: INTENT_EXCEEDS_PARENT
+    rationale: >
+      Agent B's role is provisioned with an inline policy granting keyvalue.read
+      that hop-2 never intended to delegate, simulating a misconfigured role.
+      CHAINBREAK must detect this as AUTHORITY_EXPANSION at agent-b. If it does
+      not, the expansion detector is not working and every scope-attenuation
+      and delegation-drift result in the same block is unvalidated.
+    expect_finding:
+      type: AUTHORITY_EXPANSION
+      identity: agent-b
+      capabilities: [keyvalue.read]
+      min_confidence: MEDIUM
+    suppress_graph_check: [G-3]

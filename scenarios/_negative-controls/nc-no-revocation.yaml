@@ -1,0 +1,123 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: nc-no-revocation
+  version: 1.0.0
+  family: revocation
+  title: Negative control -- mutation applied to an identity that is not under test
+  description: >
+    Validates that the revocation harness reports an honest negative rather
+    than manufacturing a transition. The inline deny is applied to agent-a
+    while agent-b is polled, so nothing should ever revoke. The correct result
+    is NO_TRANSITION_OBSERVED with the window length stated. A reported
+    transition here would mean the poller is reading state it should not be
+    reading, or that denials from an unrelated source are being attributed to
+    the mutation.
+  authors: [operator]
+  tags: [negative-control, timing, honest-negative]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1
+    timing_sensitive: true
+    concurrency: 1
+    max_duration_seconds: 600
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: confirm-present
+      kind: PROBE
+      targets: [agent-b]
+
+    - name: warm-baseline
+      kind: POLL
+      target_identity: agent-b
+      capability: objectstore.read
+      interval_ms: 500
+      max_duration_seconds: 30
+      stop_on: STABLE_ALLOW
+      stability_count: 3
+
+    - name: revoke-wrong-identity
+      kind: MUTATE
+      mutation:
+        target_identity: agent-a
+        kind: ATTACH_INLINE_DENY
+        denies:
+          - objectstore.read
+        record_receipt: true
+
+    - name: poll-transition
+      kind: POLL
+      target_identity: agent-b
+      capability: objectstore.read
+      interval_ms: 500
+      max_duration_seconds: 120
+      stop_on: TIMEOUT
+      stability_count: 3
+
+  negative_control:
+    kind: NO_REVOCATION
+    rationale: >
+      The mutation targets agent-a while agent-b is polled, so no transition
+      should occur for the polled identity. CHAINBREAK must report
+      NO_TRANSITION_OBSERVED with the window length rather than inventing a
+      transition or reporting a pass. Note that agent-b's session policy is
+      derived from hop-2 and agent-b's own role is untouched, so the deny on
+      agent-a cannot reach it.
+    expect_finding:
+      type: NO_TRANSITION_OBSERVED
+      identity: agent-b
+      capabilities: [objectstore.read]
+      min_confidence: MEDIUM

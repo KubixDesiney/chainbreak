@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "Interval": {
+      "additionalProperties": false,
+      "description": "A measurement with explicit uncertainty. There is no bare-scalar variant.",
+      "properties": {
+        "high": {
+          "title": "High",
+          "type": "number"
+        },
+        "low": {
+          "title": "Low",
+          "type": "number"
+        },
+        "point": {
+          "title": "Point",
+          "type": "number"
+        },
+        "unit": {
+          "default": "s",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "low",
+        "point",
+        "high"
+      ],
+      "title": "Interval",
+      "type": "object"
+    },
+    "MutationKind": {
+      "description": "Controlled policy changes. Each is a level of the revocation-mechanism variable.",
+      "enum": [
+        "ATTACH_INLINE_DENY",
+        "REMOVE_INLINE_POLICY",
+        "REPLACE_INLINE_POLICY",
+        "UPDATE_TRUST_POLICY",
+        "REVOKE_OLDER_SESSIONS",
+        "DELETE_SESSION_POLICY_SCOPE"
+      ],
+      "title": "MutationKind",
+      "type": "string"
+    }
+  },
+  "$id": "https://chainbreak.dev/schemas/revocation-measurement.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A revocation transition measurement. Always an interval, never a scalar. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "properties": {
+    "capability_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "identity_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Identity Id",
+      "type": "string"
+    },
+    "mutation_kind": {
+      "$ref": "#/$defs/MutationKind"
+    },
+    "mutation_receipt_confirmed": {
+      "title": "Mutation Receipt Confirmed",
+      "type": "boolean"
+    },
+    "non_monotonic": {
+      "default": false,
+      "title": "Non Monotonic",
+      "type": "boolean"
+    },
+    "notes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "poll_count": {
+      "minimum": 0,
+      "title": "Poll Count",
+      "type": "integer"
+    },
+    "poll_interval_ms": {
+      "exclusiveMinimum": 0,
+      "title": "Poll Interval Ms",
+      "type": "integer"
+    },
+    "transition_observed": {
+      "title": "Transition Observed",
+      "type": "boolean"
+    },
+    "transition_window": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Interval"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "window_length_s": {
+      "minimum": 0,
+      "title": "Window Length S",
+      "type": "number"
+    }
+  },
+  "required": [
+    "identity_id",
+    "capability_id",
+    "mutation_kind",
+    "transition_observed",
+    "poll_interval_ms",
+    "poll_count",
+    "window_length_s",
+    "mutation_receipt_confirmed"
+  ],
+  "title": "RevocationMeasurement",
+  "type": "object"
+}

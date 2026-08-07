@@ -1,0 +1,127 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: nc-non-monotone-chain
+  version: 1.0.0
+  family: delegation-drift
+  title: Negative control -- hop n+1 broader than hop n
+  description: >
+    Validates the DELEGATION_DRIFT detector and the set-monotonicity check.
+    Agent C's role grants keyvalue.write, which neither agent-B nor any earlier
+    hop holds, so the chain gains authority as it descends. Deliberately makes
+    set monotonicity fail while cardinality monotonicity could plausibly hold,
+    which is the case a naive cardinality-only implementation gets wrong.
+  authors: [operator]
+  tags: [negative-control, drift, monotonicity]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: negative-control-nonmonotone
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 900
+    probe_universe: scenario
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - keyvalue.write
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_nonmonotone_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-3
+      from: agent-b
+      to: agent-c
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-a, agent-b, agent-c]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-c
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - keyvalue.read
+        - keyvalue.write
+        - identity.delegate
+
+    - kind: attenuation_monotone
+      path: [principal, agent-a, agent-b, agent-c]
+      mode: set
+
+  negative_control:
+    kind: NON_MONOTONE_CHAIN
+    rationale: >
+      Agent C's role grants keyvalue.write, which no ancestor in the chain
+      holds, so effective authority increases at hop 3. CHAINBREAK must report
+      DELEGATION_DRIFT with first divergence at hop 3 and must fail the
+      set-monotonicity check. Cardinality alone may not move, which is exactly
+      why set monotonicity is the property that matters.
+    expect_finding:
+      type: DELEGATION_DRIFT
+      identity: agent-c
+      capabilities: [keyvalue.write]
+      min_confidence: MEDIUM
+    suppress_graph_check: [G-3]
