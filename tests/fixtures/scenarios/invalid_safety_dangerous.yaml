@@ -1,0 +1,45 @@
+# Exit 5 (safety, SI-9): a structurally and semantically valid one-hop
+# scenario. assert_no_dangerous() gates on the *catalog* containing any
+# DANGEROUS capability at all, not on what this scenario references -- the
+# shipped catalog has none (M2 acceptance criterion 4), so this fixture is
+# compiled against a synthetic test catalog that does.
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: invalid-safety-dangerous
+  version: 1.0.0
+  family: scope-attenuation
+  title: Otherwise-valid fixture used to exercise the exit-5 safety path
+  description: >
+    Valid scenario compiled against a catalog containing a DANGEROUS
+    capability, exercising stage 5's double-switch gate (SI-9).
+  authors: [operator]
+
+spec:
+  provider: aws
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]

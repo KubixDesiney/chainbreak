@@ -1,0 +1,49 @@
+# Exit 3 (semantic): agent-a's declared expect_capabilities disagrees with
+# its derived expected authority (principal.expected & hop-1.intended =
+# {objectstore.read}, but expect_capabilities also claims keyvalue.read,
+# which hop-1 never intended). F2's own negative control.
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: invalid-semantic
+  version: 1.0.0
+  family: scope-attenuation
+  title: Semantically invalid fixture -- expect_capabilities disagreement
+  description: >
+    agent-a's redundant expect_capabilities declaration contradicts the
+    intersection-derived expected authority, exercising the exit-3 path
+    (F2's compile-time agreement check).
+  authors: [operator]
+
+spec:
+  provider: aws
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - keyvalue.read
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+      expect_capabilities:
+        - objectstore.read
+        - keyvalue.read
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]

@@ -1,0 +1,46 @@
+# Exit 4 (provider binding): a structurally and semantically valid one-hop
+# scenario. The invalidity comes from the *registry* the test compiles it
+# against (empty, or missing a capability) -- there is nothing to inject
+# into the document itself, since "no binding exists" is a fact about the
+# provider, not about the scenario.
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: invalid-binding
+  version: 1.0.0
+  family: scope-attenuation
+  title: Otherwise-valid fixture used to exercise the exit-4 binding path
+  description: >
+    Valid scenario compiled with an empty or partial BindingRegistry to
+    exercise stage 4 (CAP-1: an unresolvable capability is a compile error,
+    never a silent skip).
+  authors: [operator]
+
+spec:
+  provider: aws
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]

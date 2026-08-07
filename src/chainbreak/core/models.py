@@ -41,6 +41,7 @@ from chainbreak.core.enums import (
     FindingType,
     MutationKind,
     OutcomeClass,
+    PhaseKind,
     PlanPhase,
     PolicyKind,
     ProbeKind,
@@ -881,6 +882,86 @@ class CategoryResult(DomainModel):
                 f"{self.category}: coverage {self.coverage:.2f} < 0.7 must be reported as PARTIAL"
             )
         return self
+
+
+# ---------------------------------------------------------------------------
+# Scenario compilation output (SCENARIO_SPECIFICATION.md section 10)
+# ---------------------------------------------------------------------------
+
+
+class ProbeMatrix(DomainModel):
+    """The cartesian product {identity} x {capabilities under test} at one
+    scenario phase, plus scheduling metadata (AUTHORIZATION_MODEL.md section 3)."""
+
+    matrix_id: str
+    phase_name: str
+    identities: tuple[IdentityId, ...] = Field(min_length=1)
+    capabilities: AuthoritySet
+    trials: PositiveInt = 3
+
+
+class PlanStep(DomainModel):
+    """One entry in the compiler's fully ordered execution plan.
+
+    ``auto_inserted`` distinguishes a compiler-injected ``SNAPSHOT`` (F4) from
+    a phase the scenario author actually wrote.
+    """
+
+    order: NonNegativeInt
+    phase_name: str
+    kind: PhaseKind
+    auto_inserted: bool = False
+
+
+class SynthesizedPolicy(DomainModel):
+    """A provider-neutral session-policy artifact (F7).
+
+    The real, provider-specific policy document does not exist until the
+    provider adapter does (AWS: M8); this is the size-checked, fingerprinted
+    placeholder the compiler produces from a capability set alone.
+    """
+
+    identity_id: IdentityId
+    edge_id: str | None = None
+    capabilities: AuthoritySet
+    document_size_bytes: NonNegativeInt
+    fingerprint: Sha256Digest
+
+
+class CompileWarning(DomainModel):
+    """A downgraded invariant or an informational expectation, surfaced
+    rather than silently dropped (F6)."""
+
+    code: str
+    message: str
+    identity_id: IdentityId | None = None
+    edge_id: str | None = None
+
+
+class CompiledExpectedFinding(DomainModel):
+    """A negative control's declared expectation, carried into the compiled
+    artifact so the harness can assert it after a run (F6)."""
+
+    type: FindingType
+    identity_id: IdentityId | None = None
+    capabilities: AuthoritySet = EMPTY_AUTHORITY
+    min_confidence: Confidence = Confidence.MEDIUM
+
+
+class CompiledScenario(DomainModel):
+    """Output of ``scenarios/compiler.py`` (SCENARIO_SPECIFICATION.md section 10)."""
+
+    compiled_hash: Sha256Digest
+    scenario_id: ScenarioId
+    scenario_version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
+    catalog_version: str
+    adapter_version: str
+    graph: AuthorizationGraph
+    probe_matrices: tuple[ProbeMatrix, ...]
+    plan: tuple[PlanStep, ...]
+    policy_artifacts: tuple[SynthesizedPolicy, ...] = ()
+    warnings: tuple[CompileWarning, ...] = ()
+    expected_finding: CompiledExpectedFinding | None = None
 
 
 # ---------------------------------------------------------------------------

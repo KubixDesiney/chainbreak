@@ -1,0 +1,24 @@
+# Exit 2 (structural): trials is out of the declared range (1-25), and
+# spec.identities is empty (min_length=1). Pydantic construction fails on both.
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: invalid-structural
+  version: 1.0.0
+  family: scope-attenuation
+  title: Structurally invalid fixture -- must fail stage 2
+  description: >
+    Deliberately violates Pydantic field constraints (trials out of range,
+    no identities) to exercise the exit-2 path in the loader's stage 2.
+  authors: [operator]
+
+spec:
+  provider: aws
+  execution:
+    trials: 999
+  identities: []
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]

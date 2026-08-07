@@ -12,7 +12,9 @@ import os
 
 import pytest
 
-from chainbreak.core.enums import DelegationMechanism, PlanPhase
+from chainbreak.capabilities.loader import load_catalog
+from chainbreak.capabilities.registry import BindingRegistry
+from chainbreak.core.enums import DelegationMechanism, PlanPhase, Provider
 from chainbreak.core.models import (
     AuthoritySet,
     AuthorizationGraph,
@@ -20,6 +22,7 @@ from chainbreak.core.models import (
     ExpectedAuthority,
     IdentityNode,
     ObservedAuthority,
+    ProviderCapabilityBinding,
 )
 
 _OPT_IN_ENV_VAR = "CHAINBREAK_ALLOW_AWS_TESTS"
@@ -149,3 +152,29 @@ def worked_example_graph() -> AuthorizationGraph:
         _edge("hop-4", "agent-c", "agent-d", _OS_READ),
     )
     return AuthorizationGraph(nodes=nodes, edges=edges)
+
+
+@pytest.fixture
+def synthetic_aws_registry() -> BindingRegistry:
+    """A BindingRegistry covering every shipped-catalog capability under AWS.
+
+    No real AWS binding exists in this repository yet (M8); this is the
+    synthetic stand-in M2/M3 tests use to compile a real ``provider: aws``
+    scenario, the same way M2's own test_capability_catalog.py resolved the
+    catalog against a synthetic FAKE-provider binding set rather than a real
+    one.
+    """
+    catalog = load_catalog()
+    registry = BindingRegistry()
+    for capability in catalog.capabilities:
+        registry.register(
+            ProviderCapabilityBinding(
+                capability_id=capability.id,
+                provider=Provider.AWS,
+                actions=(f"aws:{capability.id}",),
+                resource_template="arn:aws:test:::{namespace}/" + capability.id,
+                probe_kind=capability.probe_kind,
+                preconditions=capability.requires_precondition,
+            )
+        )
+    return registry

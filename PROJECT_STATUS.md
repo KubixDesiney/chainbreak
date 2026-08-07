@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M2 complete, M3 next
+**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M3 complete, M4 next
 
 ---
 
@@ -27,14 +27,16 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0, M1 and M2 complete, M3 is the next action.** M0 made the repository
+**Implementation: M0 through M3 complete, M4 is the next action.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
 invariants G-1 through G-5, canonical JSON, and root-to-leaf path analysis. M2 completed the
 capability layer: the binding registry, the runtime operation-allowlist that makes SI-3
-enforceable, and precondition resolution. All three milestones are analysis/domain/capability
-work — no benchmark has executed and no AWS experiment has run.
+enforceable, and precondition resolution. M3 completed the scenario language: the five-stage
+validation pipeline and the compiler that turns a scenario document into a `CompiledScenario`.
+All four milestones are analysis/domain/capability/scenario work — no benchmark has executed
+and no AWS experiment has run.
 
 ---
 
@@ -46,7 +48,7 @@ work — no benchmark has executed and no AWS experiment has run.
 | Domain model | Complete **and verified in code** | [AUTHORIZATION_MODEL.md](AUTHORIZATION_MODEL.md), `core/models.py` |
 | Authorization graph and divergence algorithms | Complete **and verified in code** — G-1–G-5, all section 4 algorithms, canonical JSON | AUTHORIZATION_MODEL §2, §4, `graph/`, `core/canonical.py` |
 | Capability model | Complete **and verified in code** — catalog v1.0.0/10 capabilities, registry, operation allowlist (SI-3), preconditions | [CAPABILITY_MODEL.md](CAPABILITY_MODEL.md), `capabilities/` |
-| Scenario language v1alpha1 | Complete; schema implemented, 12 scenarios validate | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md) |
+| Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 12 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
 | Provider abstraction | Specified, not implemented | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md) |
 | AWS provider | Specified, not implemented | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md) |
@@ -201,6 +203,46 @@ M2-proper files, `test_capability_catalog.py`, `test_binding_validator.py` and
 catalog entirely, a `DANGEROUS`-capability binding, the restricted YAML loader's tag
 rejection) as well as testing the new modules. `capabilities/` finished at 100%.
 
+**M3 — Scenario language, validation and compiler.** All five acceptance criteria
+demonstrated. Delivered: `scenarios/loader.py` (`validate_scenario`/`load_and_compile`,
+orchestrating all five stages with their documented exit codes 0/2/3/4/5; stage 1's JSON
+Schema check is generated in-memory from `ScenarioDocument.model_json_schema()` rather than
+read from `schemas/`, so the loader has no runtime dependency on that directory existing
+outside a repository checkout); `scenarios/compiler.py` (expected-authority derivation by
+intersection with the redundant-`expect_capabilities` agreement check naming both values on
+mismatch — F2; probe matrix construction honoring `declared`/`scenario`/`catalog` universes
+with `identity.whoami` always included — F3; wires M1's `graph/builder.py` and M2's
+`BindingRegistry`/`resolve_bindings` together, which is what actually closes the G-4
+provider-binding gap known issue 3 has tracked since M1 — for scenarios compiled against a
+populated registry); `scenarios/plan.py` (`SNAPSHOT` auto-inserted before and after every
+`MUTATE` — F4); `scenarios/policy_synthesis.py` (size-checked, fingerprinted placeholder
+policy artifacts against AWS's documented 2048-byte inline-session-policy ceiling — F7,
+out-of-scope real policy JSON deferred to M8 by design). `core/models.py` gains
+`CompiledScenario`, `ProbeMatrix`, `PlanStep`, `SynthesizedPolicy`, `CompileWarning`,
+`CompiledExpectedFinding`.
+
+A genuine finding, not a design choice: the milestone's own negative-controls section claims
+compiling `nc-scope-expansion.yaml` produces a G-3 warning that disappears if
+`suppress_graph_check` is removed. Empirically, neither is true — the scenario's *declared*
+delegation graph never violates G-3 in the first place (hop-2's intended capabilities are
+already a subset of agent-a's derived expected authority); the defect it validates is
+injected at the infrastructure level (an inline IAM policy on agent-b's role, per the
+scenario's own description), which is invisible to compile-time graph analysis by
+construction. `suppress_graph_check` is implemented and independently verified to work (a
+hand-built G-3-violating fixture proves the downgrade-to-warning path in
+`tests/unit/test_scenario_loader.py`); it simply isn't exercised by this particular shipped
+scenario. Acceptance criterion 4 ("nc-* scenarios compile with warnings, not errors") is
+satisfied on the "not errors" half for all six; none carry a warning, which is correct given
+where their defects actually live.
+
+`scenarios/` was at 83% before M3 touched anything (schema.py 79%, export_schema.py 0% —
+exercised only via a CI subprocess that pytest-cov can't see into) against a 90% bar.
+`test_export_schema.py` and `test_scenario_schema_extra.py` (roughly thirty untested
+Pydantic validator branches — every failure mode in every `ScenarioSpec` sub-model, none of
+it new code) close the gap alongside the M3-proper `test_scenario_loader.py`,
+`test_scenario_compiler.py`, `test_probe_matrix.py` and `test_scenario_safety.py`.
+`scenarios/` finished at 98%.
+
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
 The following exists and passes tests, but the corresponding milestone is **not** complete
@@ -208,12 +250,8 @@ because the milestone's full scope and acceptance criteria have not been met.
 
 | Component | Belongs to | State |
 |---|---|---|
-| `scenarios/schema.py` — full v1alpha1 Pydantic model | M3 | Complete |
-| `scenarios/safety.py` — SI-11 stage 5 + restricted loader | M3 | Complete |
-| `scenarios/export_schema.py` | M3 | Complete |
-| `schemas/*.json` — 11 generated schemas | M3/M6 | Complete, all valid draft 2020-12 |
+| `schemas/*.json` — 11 generated schemas | M6 | Complete, all valid draft 2020-12 |
 | `schemas/run-index.sql` | M6 | Complete, applies cleanly |
-| 12 scenario files | M3/M10–M14 | Complete and validating |
 
 ### In progress
 
@@ -221,19 +259,19 @@ None.
 
 ### Blocked
 
-None. M3 can start immediately.
+None. M4 can start immediately.
 
 ### Not started
 
-M3 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M4 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-248 passed, 1 deselected in ~2s      (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 248 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+346 passed, 1 deselected in ~5s      (Python 3.12.7, pytest -m "unit or integration")
+1 skipped, 346 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -255,18 +293,24 @@ M3 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_operation_allowlist.py` | 8 | `OperationAllowlist` raises on an out-of-band operation even when the probe body raised nothing, and even when it raised something else first |
 | `tests/unit/test_catalog_safety.py` | 9 | SI-9's config+CLI double switch (all four combinations), the restricted YAML loader rejecting an unknown tag and a non-mapping document |
 | `tests/unit/test_preconditions.py` | 7 | `PreconditionRegistry` register/resolve/verify/verify_all, duplicate rejection, the provisioning identity is what gets passed to the verifier |
+| `tests/unit/test_scenario_loader.py` | 21 | All 12 shipped scenarios compile; each of the four invalid fixtures yields its documented exit code (2/3/4/5); an orphaned (never-delegated-to) identity; `load_and_compile`'s exception and success paths |
+| `tests/unit/test_scenario_compiler.py` | 8 | `compiled_hash` determinism across two calls and two independent subprocess interpreters, and that it changes with catalog version; F2 expected-authority derivation against the worked example; auto-inserted `SNAPSHOT`s around a real `MUTATE` phase; one `SynthesizedPolicy` per delegation; negative controls compile without errors |
+| `tests/unit/test_probe_matrix.py` | 7 | `identity.whoami` in every universe; the `scenario` universe includes capabilities a node must *not* hold (the point of the default); `declared` is per-target-identity; `catalog` is everything; one matrix per `PROBE`/`DEFERRED_EXECUTION` phase; trials from the execution block |
+| `tests/unit/test_scenario_safety.py` | 15 | Literal ARN/account-id/region/URL rejection (with `example`/`localhost` exempted); oversized documents; custom and `!!python/object` YAML tags rejected; invalid YAML syntax; non-mapping documents; excessive node count and nesting depth |
+| `tests/unit/test_export_schema.py` | 7 | Every registered schema export is valid draft 2020-12; `main()` writes one file per export with the default and an explicit output directory |
+| `tests/unit/test_scenario_schema_extra.py` | 40 | Every `ScenarioSpec` sub-model validator failure branch: timing/concurrency, root/agent capability declarations, session-policy source exclusivity, delegation mechanism and self-delegation checks, all five `PhaseSpec` kind requirements, all `ExpectationSpec` kind requirements, `ScenarioSpec`'s full referential-integrity sweep, negative-control id marking |
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add (`analysis/`, `scenarios/` beyond schema and safety, `evidence/`). CI is green on GitHub
-Actions (see the M0 entry under "Completed" for the four real defects the first three runs
-found and the fixes that followed, and the M1 entry for its own clean first-try run); M2's
+add (`analysis/`, `evidence/`, `core/safety.py`, the CLI). CI is green on GitHub Actions (see
+the M0 entry under "Completed" for the four real defects the first three runs found and the
+fixes that followed, and the M1 entry for its own clean first-try run); M2's and M3's
 additions have not yet had their own dedicated CI run observed at the time of this update.
 
-Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100% (all exceed their TESTING.md
-bars — 95%, 95%, 90% respectively). `--cov-fail-under` gates for SI-1 redaction and SI-5
-SafetyGate remain inactive because those modules do not exist yet (M6, M4). Coverage is
-otherwise not enforced project-wide.
+Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98% (all exceed
+their TESTING.md bars — 95%, 95%, 90%, 90% respectively). `--cov-fail-under` gates for SI-1
+redaction and SI-5 SafetyGate remain inactive because those modules do not exist yet (M6, M4).
+Coverage is otherwise not enforced project-wide.
 
 ---
 
@@ -297,27 +341,42 @@ at M17.
    dependency bounds are the only supply-chain control today; `pip-audit` runs in CI but a
    compromised transitive release between audits is still possible. Not blocking M1; should
    land before M8 pulls in `boto3`.
-2. **`BindingRegistry` and `PreconditionRegistry` are empty at runtime.** M2 built the
-   mechanism (register/resolve, duplicate rejection, per-provider filtering); no provider
-   package has registered a real AWS or fake binding or verifier into it yet, because no
-   provider package exists yet (M5 fake, M8 AWS). `resolve_bindings` therefore has nothing to
-   resolve against outside tests until then.
-3. **G-4's provider-binding half is not enforced by `graph/builder.py`.** M1 enforces the
-   catalog-membership half of G-4 (every capability named resolves in the loaded
-   `CapabilityCatalog`) because that only needs a core type; "has a binding in the active
-   provider" needs `capabilities.loader.resolve_bindings` plus a populated `BindingRegistry`
-   (both exist now, M2), but `graph/` may not import `capabilities/` at all (ARCH-1: graph
-   imports only core). That half remains the scenario compiler's job, M3. G-1 through G-3 and
-   G-5 are fully enforced (`AuthorizationGraph` for G-1/G-2, `graph/builder.py` for G-3/G-5).
+2. **`BindingRegistry` and `PreconditionRegistry` are empty at runtime, outside tests.** M2
+   built the mechanism; M3's compiler now genuinely calls `resolve_bindings` against whatever
+   registry it is given (closing known issue 3 below), but no *production* provider package
+   has registered a real AWS or fake binding into one yet, because no provider package exists
+   yet (M5 fake, M8 AWS). Tests use `tests/conftest.py::synthetic_aws_registry`, a synthetic
+   stand-in covering all 10 shipped capabilities under `Provider.AWS` — the same pattern M2's
+   own tests used for a synthetic FAKE-provider set. Compiling any real scenario today
+   requires supplying a populated registry explicitly; there is no default that works.
+3. ~~G-4's provider-binding half is not enforced.~~ **Resolved by M3.** `scenarios/compiler.py`
+   calls `resolve_bindings` (M2) against the graph `graph/builder.py` (M1) already built,
+   which is what full G-4 enforcement actually needed — a component able to import both
+   `graph/` and `capabilities/`, which neither of those packages may do to each other
+   (ARCH-1). All of G-1 through G-5 are now enforced for any scenario compiled against a
+   populated registry (known issue 2 above is what "populated" depends on).
 4. **`OperationAllowlist` is not wired to anything yet.** It is a complete, tested mechanism
    with no caller: the botocore `before-call` hook it is shaped for is M8's AWS adapter, and
    the fake provider that would exercise it in CI arrives at M5.
-5. **No `.tf` files exist.** Only contracts. `chainbreak infra *` will not work until M9. The
+5. **`chainbreak scenario validate` (the CLI) does not exist yet.** M3's acceptance criterion
+   1 names this command; M4 owns the CLI and was sequenced after M2/M3 in this
+   implementation, not before. Verified instead through
+   `scenarios.loader.validate_scenario`/`load_and_compile` directly, which is what the future
+   CLI command will call. `docs/implementation/milestones/M03-scenario-language.md`'s
+   verification commands assume M4 already landed; adjust them to call the loader functions
+   directly if running them before M4 exists.
+6. **No `.tf` files exist.** Only contracts. `chainbreak infra *` will not work until M9. The
    `terraform` CI job is a structural no-op against an empty tree until then and has not been
    run locally (no `terraform` binary in the M0 development environment).
-6. **`make` itself is not available in the M0 development environment.** `Makefile` targets
+7. **`make` itself is not available in the M0 development environment.** `Makefile` targets
    were verified by running the commands each target wraps directly, not via `make lint`
    etc. Low risk (the targets are one-line wrappers) but genuinely unexercised.
+8. **`nc-scope-expansion.yaml` carries a `suppress_graph_check: [G-3]` that the compiler
+   never actually needs.** Its declared graph never violates G-3 (see the M3 entry under
+   "Completed" for the full analysis); the field is harmless (downgrading a violation that
+   isn't there is a no-op) but is either vestigial or defensive against a future edit. Not
+   worth removing without operator sign-off, since it's a real committed scenario fixture and
+   removing it changes nothing about current behavior either way.
 
 ---
 
@@ -355,35 +414,33 @@ Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offl
 
 ## Current next action
 
-**Implement M3 — scenario language, validation and compiler.**
+**Implement M4 — CLI, configuration and the SafetyGate.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M3.
-Specification: [docs/implementation/milestones/M03-scenario-language.md](docs/implementation/milestones/M03-scenario-language.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M4.
+Specification: [docs/implementation/milestones/M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md).
 
-M3 completes the five-stage validation pipeline and the compiler: `scenarios/loader.py`
-(orchestrates all five stages, collecting every failure in a stage before stopping),
-`scenarios/compiler.py` (`ScenarioDocument` → `CompiledScenario`, using `graph/builder.py`
-from M1 and a populated `BindingRegistry` from M2 to finally close the G-4 provider-binding
-half — known issue 3), `scenarios/policy_synthesis.py`, `scenarios/plan.py`. Acceptance
-criterion 1 ("`chainbreak scenario validate` exits 0 for each shipped scenario") names a CLI
-command that does not exist yet — M4 owns the CLI and depends only on M1, so it may land
-before or after M3 depending on execution order. If M4 has not landed when M3 is
-implemented, verify criterion 1 through `scenarios.loader.load_and_compile` directly (the
-milestone's own third verification command already does this) and note the CLI-wrapper gap
-as a known issue, the same pattern M0 used for the same tension.
+M4 depends only on M1 (not M3) and builds the entry point and, more importantly, the gate
+every run must pass: `config/settings.py` (layered resolution), `config/fingerprint.py`,
+`core/safety.py` (`SafetyGate` — 100% coverage is an acceptance criterion, not a target),
+`core/clock.py`, the Typer `cli/` surface, `cli/logging.py` (redaction filter installed
+before any import that may log). The load-bearing requirement: `test_cli_surface.py` must
+introspect every command and fail if a `--force`/`--skip-*`/`--no-safety` bypass flag exists
+anywhere — demonstrated by temporarily adding one and showing the test catch it. Once M4
+lands, retire known issue 5 (the CLI-wrapper gap `scenarios.loader` currently stands in for)
+by wiring `chainbreak scenario validate` to `scenarios.loader.validate_scenario`.
 
-Before starting, confirm M0+M1+M2's toolchain and domain/capability layers are intact:
+Before starting, confirm M0-M3's toolchain and domain/capability/scenario layers are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 248 passed, 1 deselected
+pytest -m "unit or integration" -q                  # expect 346 passed, 1 deselected
 pytest -m aws -q                                    # expect 1 skipped
 pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
-  --cov-report=term-missing -m unit
-                                     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%
+  --cov=chainbreak.scenarios --cov-report=term-missing -m unit
+                     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%
 ```
 
 ---
