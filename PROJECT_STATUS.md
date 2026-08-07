@@ -394,9 +394,12 @@ M5 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
 add (`analysis/`, `evidence/`). CI is green on GitHub Actions (see the M0 entry under
 "Completed" for the four real defects the first three runs found and the fixes that
-followed, and the M1 entry for its own clean first-try run); M2, M3 and M4's additions have
-not yet had their own dedicated CI run observed at the time of this update — the M4 push
-that follows this update will be the first opportunity to observe one for all three at once.
+followed, and the M1 entry for its own clean first-try run). The M4 push was observed green
+on the first try — all 10 jobs, including the SI-5 SafetyGate coverage gate activating for
+the first time (it had sat inactive, gated on `test_safety_gate.py` not existing, since M0)
+and passing at 100% ([run 31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428)).
+This is also the first CI run to observe M2 and M3's own additions, which had not yet had a
+dedicated run at the time either was completed.
 
 Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
 ~99%, `cli/` ~96% (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%
