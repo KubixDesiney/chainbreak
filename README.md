@@ -6,13 +6,16 @@ CHAINBREAK measures the gap between the authority a security policy *intended* t
 and the authority a delegated workload *actually* holds when it executes.
 
 > **Status: 0.1.0a0 — M0 (repository foundation), M1 (domain model + authorization graph),
-> M2 (capability model + catalog), M3 (scenario language + compiler) and M4 (CLI,
-> configuration and the SafetyGate) complete, M5 next.**
+> M2 (capability model + catalog), M3 (scenario language + compiler), M4 (CLI, configuration
+> and the SafetyGate) and M5 (provider Protocol + deterministic fake laboratory) complete,
+> M6 next.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
-> configuration resolution, the SafetyGate, and the full `chainbreak` CLI are implemented
-> and verified (445 passing tests; `core/` and `graph/` ~99% coverage, `capabilities/` 100%,
-> `scenarios/` ~98%, `core/safety.py` exactly 100%), and CI enforces lint, types, import
+> configuration resolution, the SafetyGate, the full `chainbreak` CLI, and a real deterministic
+> fake authorization engine (policy evaluation, session lifetimes, an injectable consistency
+> model, all 10 capability bindings) are implemented and verified (576 passing tests; `core/`
+> and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%, `core/safety.py` exactly
+> 100%, `providers/base/` 100%, `providers/fake/` ~99.7%), and CI enforces lint, types, import
 > boundaries, and security scans on every push. **No benchmark has been executed and no AWS
 > experiment has been run**, so no number anywhere in this repository is a measurement.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.

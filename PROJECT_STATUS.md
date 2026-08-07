@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M4 complete, M5 next
+**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M5 complete, M6 next
 
 ---
 
@@ -27,7 +27,7 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 through M4 complete, M5 is the next action.** M0 made the repository
+**Implementation: M0 through M5 complete, M6 is the next action.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
@@ -37,9 +37,14 @@ enforceable, and precondition resolution. M3 completed the scenario language: th
 validation pipeline and the compiler that turns a scenario document into a `CompiledScenario`.
 M4 completed the entry point and the gate every run must pass: layered configuration
 resolution, the `SafetyGate` (SI-5/SI-7/SI-8), the monotonic run clock (SI-7), the redaction
-log filter (SI-10), and the full `chainbreak` Typer CLI surface. All five milestones are
-analysis/domain/capability/scenario/CLI work — no benchmark has executed and no AWS
-experiment has run.
+log filter (SI-10), and the full `chainbreak` Typer CLI surface. M5 completed the provider
+Protocol and a real, deterministic fake authorization engine — real explicit-deny-over-allow
+policy evaluation with session-policy intersection, credential lifetime capping, an injectable
+consistency model that can reproduce a genuine non-monotonic revocation transition, and bindings
+for all 10 catalog capabilities — proven byte-for-byte reproducible across independent processes
+from a single seed. All six milestones are
+analysis/domain/capability/scenario/CLI/provider-laboratory work — no benchmark has executed
+and no AWS experiment has run.
 
 ---
 
@@ -54,7 +59,8 @@ experiment has run.
 | Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 12 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
 | Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
-| Provider abstraction | Specified, not implemented | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md) |
+| Provider abstraction | Complete **and verified in code** — `ProviderAdapter` Protocol, live wire types, `assert_namespace` (SI-2) | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md), `providers/base/` |
+| Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 12 scenarios walk without crashing | ARCHITECTURE §3.9, `providers/fake/` |
 | AWS provider | Specified, not implemented | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md) |
 | Terraform | Module contracts written, no `.tf` implemented | `infra/terraform/**/CONTRACT.md` |
 | Scoring | Specified, not implemented | [SCORING_MODEL.md](SCORING_MODEL.md) |
@@ -326,6 +332,114 @@ real logic and only 24% incidental coverage from nothing exercising it directly)
 `core/safety.py` finished at exactly 100% (acceptance criterion 4); `cli/` finished at 90%+
 across every module except the two now-`--help`-only stub paths in `cli/main.py`.
 
+**M5 — Provider Protocol and the deterministic fake laboratory.** All five acceptance criteria
+demonstrated. Delivered: `providers/base/protocol.py` (`ProviderAdapter`, a `typing.Protocol` —
+structural conformance, no shared base class, so neither `providers/fake` nor the future
+`providers/aws` imports the other, matching the layered contract import-linter enforces);
+`providers/base/types.py` (the *live* wire types one adapter call takes/returns —
+`PreflightReport`, `EnvironmentDescriptor`, `DelegationRequest`/`DelegationResult`,
+`ProbeRequest`/`ProbeResult` — deliberately distinct from the evidence-layer records already in
+`core/models.py`; `ProbeResult` reuses `ProbeOutcome`/`ProbeTiming` wholesale rather than
+duplicating their fields, and `DelegationResult` is a plain frozen dataclass, not a
+`DomainModel`, because it carries a live `TemporaryCredential` that must never be pydantic-
+serialized); `providers/base/namespace.py` (`assert_namespace`, SI-2's actual enforcement
+point — substring containment against the run's namespace, called before every probe and
+delegation).
+
+`providers/fake/` is a real authorization engine, not a stub, matching F2-F8: `engine.py`
+(`PolicyEngine` — explicit deny > explicit allow > implicit deny, session policy intersecting
+never granting, resource policy able to grant across the intersection, the documented AWS
+asymmetry); `session.py` (`SessionStore` — the chained-role 3600s duration cap, so
+`CredentialRecord.lifetime_capped` is exercisable offline; credential ids and key material
+drawn from a per-store seeded RNG, never `core.ids.new_ulid()`, which reads the wall clock and
+would break F6 reproducibility); `consistency.py` (`ConsistencyModel`/`MutationVisibility` — a
+virtual clock nothing in the fake ever sleeps against, propagation delay with seeded jitter,
+and an oscillation mode that produces a genuinely non-monotonic visibility sequence, not just a
+slow single flip); `bindings.py`/`probes.py` (one binding and one outcome-construction path per
+capability, sharing the policy engine — `identity.whoami`'s control-capability exemption and a
+failed-precondition's `ERROR_INFRASTRUCTURE` classification are both handled here, never as a
+denial); `adapter.py` (`FakeProviderAdapter`, wiring all of the above behind the Protocol; the
+one piece of state that lives here rather than in `engine.py` is the *pending mutation
+transition* per identity — while a consistency-model window is open, `probe()` evaluates
+against a captured pre-mutation snapshot via `PolicyEngine.evaluate_against`, not the
+already-updated authoritative state, which is what lets `snapshot_policy_state` (the
+bootstrap's fast confirmed read) and an agent's own `probe()` (subject to `propagation_delay_ms`
+longer) disagree correctly during the window); `profiles.py` (`deterministic`/`eventual`/
+`hostile`, F8).
+
+Three things worth recording as genuine findings, not just design choices:
+
+1. **A real bug, caught by the session's own smoke test before any test file existed for it.**
+   `SessionStore.issue` originally minted its own `IdentityRef` (`fake:{account}:{identity_id}`,
+   no namespace embedded) independently of `adapter._make_ref` (which does embed the namespace).
+   Once `probe()`'s namespace assertion was tightened to check the *request's* declared
+   namespace instead of a tautological check against the adapter's own namespace (see finding 2
+   below), every probe against a delegated identity started failing `NamespaceViolationError`
+   for a namespace that was in fact correct — the ref itself was simply built with a different,
+   inconsistent shape. Fixed by making the adapter the single source of truth for ref
+   construction: `SessionStore.issue` now takes a pre-built `identity_ref` parameter rather than
+   minting its own, and no longer needs `account_ref`/`region` fields at all.
+2. **The original namespace checks in both `probe()` and `delegate()` were tautological.**
+   Each compared a value built from `self.namespace` against `self.namespace` itself — always
+   true, catching nothing, ever. `probe()` now checks the caller-supplied `ProbeRequest.namespace`
+   (a real, independent field) against the adapter's own namespace; `delegate()` checks the
+   *caller's* (`request.source_identity`) ref rather than the target ref it is about to mint
+   itself (which is in-namespace by construction and therefore nothing to check). Both fixes
+   were verified with a direct reproduction — a request carrying a foreign namespace or a
+   foreign account's ref — before any formal test existed, then locked in by
+   `test_out_of_namespace_probe_refused_before_any_evaluation` and
+   `test_out_of_namespace_delegation_refused` in the contract suite.
+3. **A correctness bug in the pending-transition lifecycle, caught only once an oscillation
+   test was written against the actual scheduled flip points rather than a fixed sampling
+   grid.** `_decide_outcome` originally deleted `_pending[identity_id]` the first time
+   `MutationVisibility.is_visible()` returned `True` — correct for a simple delayed transition,
+   wrong for an oscillating one: the first `True` sample is a mid-window flip, not the final
+   settled state, so deleting the pending entry there permanently stranded every later probe on
+   authoritative (post-mutation) state regardless of whether the schedule called for a flip back.
+   A grid-sampled test at 100ms resolution passed by accident (it happened not to land on a
+   second flip for the seed used); rewriting the test to sample at the schedule's own recorded
+   `oscillation_flips_ms` exposed the bug immediately. Fixed by only clearing the pending entry
+   once `at_ms >= settle_at_ms` (fully, unconditionally settled), never merely because
+   `is_visible()` happened to return `True`.
+
+Two of M5's own artifacts are written as if a later milestone had already landed, the same
+pattern M3's `nc-scope-expansion.yaml` finding established a precedent for:
+
+- The verification command `chainbreak run scenarios/scope-attenuation/basic.yaml --provider
+  fake --seed 1729` cannot run: `execution/orchestrator.py` (the actual run loop) is M10's
+  deliverable, not M5's, per `docs/implementation/MILESTONES.md`'s own dependency graph and
+  M10's milestone file naming it explicitly. `cli/run.py` remains M4's documented stub.
+- The negative controls ("assert the eventual analysis reports `AUTHORITY_EXPANSION`"; "assert
+  the measured transition window contains 2000ms") both name analysis (M7) and a poller (M12)
+  that do not exist yet.
+
+Rather than skip these, each was verified at the layer that actually exists today:
+`tests/integration/test_fake_scenario_compatibility.py` compiles all 12 real scenarios (reusing
+`synthetic_aws_registry`, the same synthetic-binding pattern M2/M3 tests already established)
+and walks every identity, delegation edge and probe matrix through the fake adapter for all
+three profiles — 36 parametrized cases, all crash-free, closing acceptance criterion 4 at the
+provider layer M10's future orchestrator will call into.
+`tests/unit/test_fake_provider.py::TestNegativeControlMechanisms` demonstrates the over-grant,
+propagation-delay and oscillation mechanisms directly against the adapter, with an explicit note
+that full classification (`AUTHORITY_EXPANSION`, `NON_MONOTONIC_TRANSITION`) is M7's/M12's job,
+not M5's.
+
+Acceptance criterion 3 (same seed ⇒ identical evidence) is proven in
+`tests/unit/test_fake_determinism.py`: a realistic multi-step sequence — delegation through a
+session-scoped credential, probes across all 10 capabilities, a policy mutation, probes again,
+a snapshot — run against two independently constructed adapters with the same seed produces a
+byte-identical canonical-JSON hash of the full observation stream, and (following the same
+rigor `test_scenario_compiler.py` established for `compiled_hash`) identically across two
+separate Python interpreter processes, not just two in-process calls.
+
+`providers/base/` and `providers/fake/` had no dedicated tests before M5 (the packages did not
+exist). `providers/base/` finished at 100%; `providers/fake/` at ~99.7% (both well above the
+90% acceptance bar) — `providers/base/protocol.py`'s Protocol method stubs are marked
+`# pragma: no cover` (a structural interface with `...` bodies is never meant to execute, the
+same category `raise NotImplementedError`/`@overload` already get excluded for) and additionally
+proven structurally sound via `@runtime_checkable` plus `isinstance(FakeProviderAdapter(),
+ProviderAdapter)`.
+
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
 The following exists and passes tests, but the corresponding milestone is **not** complete
@@ -342,19 +456,19 @@ None.
 
 ### Blocked
 
-None. M5 can start immediately.
+None. M6 can start immediately.
 
 ### Not started
 
-M5 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-445 passed, 1 deselected in ~6s      (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 445 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+576 passed, 1 deselected in ~11s     (Python 3.12.7, pytest -m "unit or integration")
+1 skipped, 576 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -389,6 +503,16 @@ M5 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_cli_surface.py` | 5 | S1: no option anywhere in the real command tree matches a bypass keyword; `--auto-approve` deliberately not flagged (documented exception); the negative-control detector both catches a planted `--skip-safety` fixture and stays silent on a clean one |
 | `tests/unit/test_cli_commands.py` | 28 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: all thirteen not-yet-implemented commands exit 2 with "not implemented until M\<n\>", never a stack trace |
 | `tests/unit/test_cli_scenario_command.py` | 6 | `chainbreak scenario validate`/`list` against a real scenario, a missing file, a structurally invalid document, the repo corpus, a missing directory, an empty directory |
+| `tests/unit/test_namespace_guard.py` | 7 | `assert_namespace` exact/embedded/lookalike/empty-ref cases, error context carries both `namespace` and `ref` |
+| `tests/unit/test_fake_policy_engine.py` | 16 | F2's full evaluation order: identity allow alone, explicit deny beating identity and session allow, session intersection never granting, resource policy granting across the intersection, `replace`/`apply_allow`/`remove_allow`, `evaluate_against` against an explicit snapshot with no registered identity at all |
+| `tests/unit/test_fake_consistency.py` | 15 | Immediate/delayed/oscillating visibility, the 2000ms transition-window negative control, jitter staying within configured bounds, oscillation genuinely non-monotonic (a value reappears `True` after `False`), determinism (same seed -> identical schedule, different seed -> different jitter), `VirtualClock` never moving backwards |
+| `tests/unit/test_fake_session.py` | 13 | Uncapped mechanisms unaffected, `ROLE_CHAIN`/`ROLE_CHAIN_WITH_SESSION_POLICY` capped at 3600s and reported (`lifetime_capped`), `max_session_duration_s` ceiling, credential liveness before/after expiry and after `revoke`, identical credentials from two independently constructed stores with the same seed |
+| `tests/unit/test_fake_profiles.py` | 4 | `deterministic`/`eventual`/`hostile` each carry their documented parameters |
+| `tests/unit/test_fake_provider.py` | 21 | `isinstance` against the `@runtime_checkable` Protocol; preflight region/namespace failure; unknown-capability resolution; throttle and transient fault injection; a revoked session denied on its next probe; all six `MutationKind` branches including the two built-in negative controls; the pending-transition lifecycle (in-flight, settled, folded-into-a-second-mutation); the three named negative controls (over-grant, propagation-delay bracketed to 1ms, oscillation) |
+| `tests/unit/test_fake_probes.py` | 2 | A missing precondition marker produces `ERROR_INFRASTRUCTURE`, never a denial; a capability the identity policy grants but the session narrowed away is attributed `SESSION_POLICY`, not `IMPLICIT_NO_ALLOW` |
+| `tests/unit/test_fake_determinism.py` | 4 | Acceptance criterion 3: a realistic multi-step sequence hashes identically for the same seed, differently for a different seed, identically across three independent in-process runs, and identically across two separate Python interpreter processes |
+| `tests/integration/test_provider_contract.py` | 12 | The adapter-agnostic shared contract suite: preflight account check, namespace refused before any evaluation (probe and delegate), every capability classifies allow/deny correctly, the control capability never denied, delegation metadata carries no secret, mutation returns a confirmed receipt, protected-identity mutation refused, lifetime capping reported, snapshot fingerprints stable and change after a mutation |
+| `tests/integration/test_fake_scenario_compatibility.py` | 37 | Acceptance criterion 4: every one of the 12 real shipped scenarios, compiled for real and walked (register, delegate along every edge, probe every matrix cell) through all three fake profiles, crash-free (36 parametrized cases) plus a corpus-count guard |
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
@@ -398,16 +522,18 @@ followed, and the M1 entry for its own clean first-try run). The M4 push was obs
 on the first try — all 10 jobs, including the SI-5 SafetyGate coverage gate activating for
 the first time (it had sat inactive, gated on `test_safety_gate.py` not existing, since M0)
 and passing at 100% ([run 31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428)).
-This is also the first CI run to observe M2 and M3's own additions, which had not yet had a
-dedicated run at the time either was completed.
+That run was also the first to observe M2 and M3's own additions, which had not yet had a
+dedicated run at the time either was completed. M5's push has not yet had a dedicated CI run
+observed at the time of this update — the push that follows it will be the first opportunity.
 
 Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
-~99%, `cli/` ~96% (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%
-respectively; `config/` and `cli/` have no stated bar in TESTING.md's per-module table).
-`core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1 redaction
-`--cov-fail-under` gate in CI remains inactive because `evidence/redaction.py` does not exist
-yet (M6); the SI-5 SafetyGate gate is now active and passing. Coverage is otherwise not
-enforced project-wide.
+~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7% (all exceed their
+TESTING.md bars, where one is stated — 95%, 95%, 90%, 90% respectively; `config/`, `cli/` and
+`providers/` have no stated bar in TESTING.md's per-module table, so M5's own 90% acceptance
+criterion is the one actually gating `providers/`). `core/safety.py` is exactly 100%, its own
+acceptance criterion. The SI-1 redaction `--cov-fail-under` gate in CI remains inactive because
+`evidence/redaction.py` does not exist yet (M6); the SI-5 SafetyGate gate is active and
+passing. Coverage is otherwise not enforced project-wide.
 
 ---
 
@@ -438,23 +564,29 @@ at M17.
    dependency bounds are the only supply-chain control today; `pip-audit` runs in CI but a
    compromised transitive release between audits is still possible. Not blocking M1; should
    land before M8 pulls in `boto3`.
-2. **`BindingRegistry` and `PreconditionRegistry` are empty at runtime, outside tests.** M2
-   built the mechanism; M3's compiler now genuinely calls `resolve_bindings` against whatever
-   registry it is given (closing known issue 3 below), but no *production* provider package
-   has registered a real AWS or fake binding into one yet, because no provider package exists
-   yet (M5 fake, M8 AWS). Tests use `tests/conftest.py::synthetic_aws_registry`, a synthetic
-   stand-in covering all 10 shipped capabilities under `Provider.AWS` — the same pattern M2's
-   own tests used for a synthetic FAKE-provider set. Compiling any real scenario today
-   requires supplying a populated registry explicitly; there is no default that works.
+2. ~~`BindingRegistry` and `PreconditionRegistry` are empty at runtime, outside tests.~~
+   **Half-resolved by M5, for the fake provider.** `providers/fake/bindings.py` and
+   `providers/fake/probes.py` register real, production bindings and precondition verifiers
+   for all 10 catalog capabilities into `FakeProviderAdapter.bindings`/`.preconditions` at
+   construction time — not a test fixture, the actual adapter callers will use. The AWS half
+   remains open until M8: compiling a real `provider: aws` scenario still requires supplying
+   `tests/conftest.py::synthetic_aws_registry` (or an equivalent), since no production AWS
+   binding exists yet.
 3. ~~G-4's provider-binding half is not enforced.~~ **Resolved by M3.** `scenarios/compiler.py`
    calls `resolve_bindings` (M2) against the graph `graph/builder.py` (M1) already built,
    which is what full G-4 enforcement actually needed — a component able to import both
    `graph/` and `capabilities/`, which neither of those packages may do to each other
    (ARCH-1). All of G-1 through G-5 are now enforced for any scenario compiled against a
    populated registry (known issue 2 above is what "populated" depends on).
-4. **`OperationAllowlist` is not wired to anything yet.** It is a complete, tested mechanism
-   with no caller: the botocore `before-call` hook it is shaped for is M8's AWS adapter, and
-   the fake provider that would exercise it in CI arrives at M5.
+4. ~~`OperationAllowlist` is not wired to anything yet.~~ **Resolved by M5.**
+   `providers/fake/adapter.py`'s `probe()` wraps every call in `OperationAllowlist`, recording
+   the binding's declared action(s) — the first real (non-test) caller since M2 built the
+   mechanism. The AWS adapter's botocore `before-call` hook (M8) remains the other intended
+   caller and is still unbuilt; the fake's own call pattern always records exactly its own
+   binding's actions, so today's wiring cannot itself observe a *cross-capability* mismatch
+   (a caller passing a binding for one capability alongside a different declared
+   `capability_id`) — worth a defensive assertion if that ever turns out to matter in
+   practice, not added now since it is out of M5's scope.
 5. ~~`chainbreak scenario validate` (the CLI) does not exist yet.~~ **Resolved by M4.**
    `cli/scenario.py`'s `validate` command wraps `scenarios.loader.validate_scenario` directly.
    One consequence carries forward from known issue 2, worth stating explicitly here since
@@ -484,6 +616,13 @@ at M17.
    on the root `Typer()` app trades the visual polish for a stable 340–390ms. `validate`'s own
    `rich.table.Table` output is unaffected — that is the command's own rendering, not Typer's
    `--help` machinery, and still renders in color.
+10. **`chainbreak run` still exits 2 (M4's stub); `execution/orchestrator.py` does not exist.**
+    M5's own verification command (`chainbreak run scenarios/scope-attenuation/basic.yaml
+    --provider fake --seed 1729`) names a command that is not implementable until M10, per
+    `docs/implementation/MILESTONES.md`'s dependency graph and M10's own file list
+    (`execution/orchestrator.py`, `execution/matrix.py`, `execution/delegation.py`). See the
+    M5 entry under "Completed" for how acceptance criteria 3 and 4 were verified instead, at
+    the provider layer that exists today.
 
 ---
 
@@ -521,37 +660,39 @@ Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offl
 
 ## Current next action
 
-**Implement M5 — Provider Protocol and the deterministic fake laboratory.**
+**Implement M6 — Evidence pipeline, redaction and sealing.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M5.
-Specification: [docs/implementation/milestones/M05-fake-provider.md](docs/implementation/milestones/M05-fake-provider.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M6.
+Specification: [docs/implementation/milestones/M06-evidence-pipeline.md](docs/implementation/milestones/M06-evidence-pipeline.md).
 
-M5 depends on M3 and M4 (both now complete) and is the milestone that makes every subsequent
-analysis milestone developable offline: `providers/base/protocol.py` (the `ProviderAdapter`
-Protocol — `preflight`, `resolve_capability`, `describe_environment`, `delegate`, `probe`,
-`apply_policy_mutation`, `snapshot_policy_state`), `providers/base/types.py`,
-`providers/base/namespace.py` (`assert_namespace`, SI-2's actual enforcement point), and
-`providers/fake/` — a real authorization engine, not a stub: explicit-deny-over-explicit-
-allow-over-implicit-deny policy evaluation across identity/session/resource policy, credential
-lifetimes with a chained-role duration cap, an injectable consistency model (propagation
-delay, jitter, an oscillation mode), fault injection, and full seeding for byte-identical
-reruns. This is also the milestone that finally populates a real `BindingRegistry` outside
-tests, closing known issue 2. `tests/integration/test_provider_contract.py` is the
-load-bearing suite — both the fake and (eventually) AWS adapters must pass the same contract.
+M6 depends on M5 (complete) and is the highest-stakes milestone for SI-1 and EV-1: produce
+sealed, schema-valid, secret-free evidence bundles, and make redaction structurally impossible
+to bypass. `evidence/writer.py` (append-only JSONL streams, flushed per record so an aborted
+run yields usable partial evidence — F2), `evidence/redaction.py` (the single choke point
+every record passes through — this is what activates the SI-1 `--cov-fail-under=100` gate in
+CI, currently inactive since the file does not exist), `evidence/manifest.py` (per-artifact
+SHA-256 plus a root over sorted `name:hash` pairs — F3), `evidence/index.py` (SQLite run
+index), `evidence/reader.py` (bounded, streaming, schema-validated ingest of a possibly-
+untrusted bundle), `evidence/export.py` (`--public` scrub with a printed diff — F6). Once M6
+lands, `chainbreak runs list|show|reindex` and `chainbreak evidence export` (M4's stubs) have
+something real to wrap.
 
-Before starting, confirm M0-M4's toolchain and domain/capability/scenario/CLI layers are intact:
+Before starting, confirm M0-M5's toolchain and domain/capability/scenario/CLI/provider layers
+are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 445 passed, 1 deselected
+pytest -m "unit or integration" -q                  # expect 576 passed, 1 deselected
 pytest -m aws -q                                    # expect 1 skipped
 pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
   --cov=chainbreak.scenarios --cov=chainbreak.config --cov=chainbreak.cli \
+  --cov=chainbreak.providers.base --cov=chainbreak.providers.fake \
   --cov-report=term-missing -m unit
-     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%, cli/ ~96%
+     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%,
+     # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%
 chainbreak --help                                   # expect < 500ms
 ```
 
