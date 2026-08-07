@@ -85,7 +85,10 @@ jobs:
           if grep -rIEn '(AKIA|ASIA)[0-9A-Z]{16}' tests/ | grep -v 'EXAMPLE'; then
             echo "::error::non-synthetic key-shaped string in tests/"; exit 1
           fi
-          if git log -p --all | grep -qE '(AKIA|ASIA)[0-9A-Z]{16}'; then
+          # Same EXAMPLE exemption as the tests/ check above: the synthetic corpus is
+          # committed, so it is necessarily in history too. A real leaked key would not
+          # coincidentally read "...EXAMPLE..." immediately after the AKIA/ASIA prefix.
+          if git log -p --all | grep -E '(AKIA|ASIA)[0-9A-Z]{16}' | grep -v 'EXAMPLE' | grep -q .; then
             echo "::error::AWS key-shaped string in git history"; exit 1
           fi
 

@@ -90,12 +90,22 @@ guarded to activate automatically the moment those files exist. The `chainbreak 
 validate --offline` CLI step was replaced with a comment pointing at
 `tests/scenarios/test_scenario_corpus.py`, which already exercises the same
 load-and-validate pipeline the CLI will wrap once it exists (M4) — no coverage was lost.
-The `terraform` job and the AWS-credentialed steps in `aws-experiment.yml` could not be
-exercised locally (no `terraform` or `make` binary in the M0 development environment) and
-were reasoned through instead of run; both are believed correct (terraform job is a no-op
-on a `.tf`-free tree, `aws-experiment.yml` cannot execute without a human supplying
-`confirm: APPLY` in the `aws-benchmark` environment) but are unverified until a real GitHub
-Actions run and, respectively, M9.
+The AWS-credentialed steps in `aws-experiment.yml` cannot be exercised before M9 (they need
+real infrastructure) and are unverified until then; that workflow cannot execute
+accidentally regardless, since it needs a human to supply `confirm: APPLY` inside the
+`aws-benchmark` environment.
+
+CI was then observed running for real on GitHub Actions after the push (run
+[31179401063](https://github.com/KubixDesiney/chainbreak/actions/runs/31179401063)). Seven
+of eight jobs went green on the first run; `security` failed on a check that had not been
+exercised locally with real git history: `git log -p --all | grep -qE '(AKIA|ASIA)[0-9A-Z]{16}'`
+has no `tests/`/`EXAMPLE` exemption, so it self-triggered on the synthetic
+`ASIAEXAMPLEEXAMPLE00` fixture in `tests/unit/test_domain_contract.py` the moment that file
+was committed (and therefore entered history). Fixed by applying the same `grep -v
+'EXAMPLE'` exemption the working-tree check already uses, in a follow-up commit. This is the
+kind of defect that is inherently impossible to catch without a real commit history to
+grep — noted here rather than silently folded into the M0 diff, per the "record known issues
+when they are created" rule.
 
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
@@ -148,8 +158,8 @@ M1 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the majority of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add. CI is now enforced structurally (import-linter, boundary tests, lint/type/security
-gates all pass locally) but has not yet been observed to pass on a real GitHub Actions run.
+add. CI has now run on GitHub Actions (see the M0 entry under "Completed" for the one real
+defect the first run found and the fix that followed it).
 
 Coverage targets from TESTING.md remain **not** enforced project-wide — `--cov-fail-under`
 gates exist only for the two modules M0 could gate today (SI-1 redaction, SI-5 SafetyGate),
@@ -193,12 +203,9 @@ at M17.
 4. **No `.tf` files exist.** Only contracts. `chainbreak infra *` will not work until M9. The
    `terraform` CI job is a structural no-op against an empty tree until then and has not been
    run locally (no `terraform` binary in the M0 development environment).
-5. **CI has still never executed on GitHub's runner.** M0 fixed every defect found by running
-   each job's commands locally (see the M0 entry under "Completed" for the list — two unpinned
-   actions, a self-matching guard check, an incompatible `pip-audit --strict`), and `make`
-   itself was not available locally to invoke the `Makefile` targets directly (verified by
-   running the underlying commands instead). The first real Actions run happens on push to
-   GitHub; treat it as still unverified until that run is observed to go green.
+5. **`make` itself is not available in the M0 development environment.** `Makefile` targets
+   were verified by running the commands each target wraps directly, not via `make lint`
+   etc. Low risk (the targets are one-line wrappers) but genuinely unexercised.
 
 ---
 
