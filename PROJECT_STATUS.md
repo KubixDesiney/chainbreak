@@ -794,11 +794,10 @@ under "Completed" for the four real defects the first three runs found and the f
 followed, the M1 entry for its own clean first-try run, the M4/M5 entries for runs
 [31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428) and
 [31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287), and the M6
-paragraph below for its own three-iteration path to green). **M7's work is complete and
-verified locally** (`ruff`, `mypy`, `lint-imports`, the full suite, and the `analysis/`
-coverage run above all pass against this working tree) **but has not yet been committed, pushed,
-or run through CI** — nothing above should be read as a claim that GitHub Actions has seen this
-code.
+paragraph below for its own three-iteration path to green). **M7 was pushed at commit
+`30e81eb` and was observed green on all ten jobs on the first try**
+([run 31245421173](https://github.com/KubixDesiney/chainbreak/actions/runs/31245421173)) — unlike
+M6, no fix iteration was needed.
 
 **M6 needed three iterations to go green**, none of them hypothetical — each was a defect a
 from-scratch review had a real chance of missing, caught by the exact mechanism designed to
