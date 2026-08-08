@@ -171,11 +171,8 @@ class TestUnimplementedCommandsExitTwoNotAStackTrace:
             # resolved by M6; see test_cli_runs_command.py for their real
             # behavior. `evidence export` without --public remains a stub.
             # `analyze` was resolved by M7; see test_cli_analyze_command.py.
-            ["infra", "plan"],
-            ["infra", "apply"],
-            ["infra", "destroy"],
-            ["infra", "status"],
-            ["infra", "verify-clean"],
+            # `infra plan|apply|destroy|status|verify-clean` were resolved
+            # by M9; see test_cli_infra_command.py.
             ["compare"],
         ],
     )

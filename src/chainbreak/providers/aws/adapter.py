@@ -410,9 +410,7 @@ class AwsProviderAdapter:
                     clients.dynamodb, outputs=outputs, run_id=run_id, probe_id=probe_id, nonce=nonce
                 )
             case "function.invoke":
-                return lambda: probes_mod.probe_function_invoke(
-                    clients.lambda_, outputs=outputs, nonce=nonce
-                )
+                return lambda: probes_mod.probe_function_invoke(clients.lambda_, outputs=outputs)
             case "queue.send":
                 return lambda: probes_mod.probe_queue_send(
                     clients.sqs, outputs=outputs, nonce=nonce

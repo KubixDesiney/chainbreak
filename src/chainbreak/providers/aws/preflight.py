@@ -132,7 +132,7 @@ def load_terraform_outputs(path: Path) -> TerraformOutputs:
         entry = raw[name]
         return entry["value"] if isinstance(entry, dict) and "value" in entry else entry
 
-    return TerraformOutputs(
+    outputs = TerraformOutputs(
         namespace=value("namespace"),
         account_id=value("account_id"),
         region=value("region"),
@@ -150,6 +150,66 @@ def load_terraform_outputs(path: Path) -> TerraformOutputs:
         external_id=value("external_id"),
         infrastructure_fingerprint=value("infrastructure_fingerprint"),
     )
+    _validate_output_shapes(outputs, path=path)
+    return outputs
+
+
+#: Per AWS_PROVIDER_SPEC section 8's output contract: namespace regex (the
+#: same ``Namespace`` pattern ``core/ids.py`` enforces everywhere else),
+#: digest format (``sha256:`` + 64 hex chars), and IAM role ARN shape. This
+#: is Python-side enforcement of what M9's Terraform outputs must look like
+#: -- a malformed apply should fail loudly here (P5), not surface later as an
+#: inexplicable namespace mismatch deep in a probe.
+_NAMESPACE_RE = re.compile(r"^cb-[0-9a-f]{8}$")
+_ACCOUNT_ID_RE = re.compile(r"^\d{12}$")
+_ROLE_ARN_RE = re.compile(r"^arn:aws:iam::\d{12}:role/.+$")
+_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def _validate_output_shapes(outputs: TerraformOutputs, *, path: Path) -> None:
+    problems: list[str] = []
+
+    def check(condition: bool, name: str, expected: str) -> None:
+        if not condition:
+            problems.append(f"{name} does not match {expected}")
+
+    check(bool(_NAMESPACE_RE.match(outputs.namespace)), "namespace", "^cb-[0-9a-f]{8}$")
+    check(bool(_ACCOUNT_ID_RE.match(outputs.account_id)), "account_id", "12 digits")
+    check(
+        bool(_ROLE_ARN_RE.match(outputs.bootstrap_role_arn)),
+        "bootstrap_role_arn",
+        "an IAM role ARN",
+    )
+    check(
+        bool(_ROLE_ARN_RE.match(outputs.principal_role_arn)),
+        "principal_role_arn",
+        "an IAM role ARN",
+    )
+    for letter, arn in outputs.agent_role_arns.items():
+        check(bool(_ROLE_ARN_RE.match(arn)), f"agent_{letter}_role_arn", "an IAM role ARN")
+    check(
+        bool(_DIGEST_RE.match(outputs.objectstore_marker_sha256)),
+        "objectstore_marker_sha256",
+        "sha256:<64 hex chars>",
+    )
+    check(
+        bool(_DIGEST_RE.match(outputs.keyvalue_marker_sha256)),
+        "keyvalue_marker_sha256",
+        "sha256:<64 hex chars>",
+    )
+    check(
+        bool(_DIGEST_RE.match(outputs.infrastructure_fingerprint)),
+        "infrastructure_fingerprint",
+        "sha256:<64 hex chars>",
+    )
+    check(outputs.queue_url.startswith("https://sqs."), "queue_url", "an https://sqs.* URL")
+
+    if problems:
+        raise ConfigurationError(
+            f"Terraform outputs at {path} have malformed values: {'; '.join(problems)}",
+            path=str(path),
+            problems=problems,
+        )
 
 
 @dataclass(frozen=True, slots=True)

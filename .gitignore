@@ -28,6 +28,9 @@ htmlcov/
 *.tfplan
 *.tfvars
 !*.tfvars.example
+# chainbreak infra apply's captured `terraform output -json` -- real
+# account/ARN data (T-13), read by providers.aws.preflight at runtime.
+infra/terraform/environments/*/outputs.json
 crash.log
 crash.*.log
 override.tf

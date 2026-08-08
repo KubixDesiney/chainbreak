@@ -242,8 +242,17 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "ARCH-1: boto3 is confined to providers.aws"
 type = "forbidden"
+# chainbreak.cli is deliberately absent here: ARCHITECTURE.md's own
+# dependency rule (INVARIANT ARCH-1) states "cli -> everything" -- the CLI
+# is the dispatch point that must be able to call into whichever provider a
+# command needs (M9's `chainbreak infra verify-clean` and `status` are the
+# first commands that actually exercise this; M10's `chainbreak run
+# --provider aws` will too). Every module below cli/ in the layering stays
+# forbidden from reaching boto3/botocore at all, transitively -- the actual
+# invariant this contract protects is "no AWS-specific knowledge leaks into
+# the domain/analysis layers," not "the CLI may never dispatch to the AWS
+# provider."
 source_modules = [
-  "chainbreak.cli",
   "chainbreak.config",
   "chainbreak.core",
   "chainbreak.capabilities",

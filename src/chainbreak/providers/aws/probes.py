@@ -177,13 +177,16 @@ def probe_keyvalue_write(
 # ---------------------------------------------------------------------------
 
 
-def probe_function_invoke(
-    lambda_client: Any, *, outputs: TerraformOutputs, nonce: str
-) -> ProbeOutcome:
+def probe_function_invoke(lambda_client: Any, *, outputs: TerraformOutputs) -> ProbeOutcome:
+    """The deployed function performs no work and returns a **fixed** payload
+    (``{"ok": true, "nonce": <namespace>}`` -- the capability catalog's own
+    description, ``capabilities/catalog.yaml``'s ``function.invoke`` entry:
+    "returns a fixed payload containing a nonce", and
+    ``infra/terraform/modules/resources/CONTRACT.md`` names the namespace as
+    that fixed value). The probe sends no meaningful payload and does not
+    echo one back -- there is nothing per-call to echo."""
     response = lambda_client.invoke(
-        FunctionName=outputs.function_name,
-        InvocationType="RequestResponse",
-        Payload=json.dumps({"nonce": nonce}).encode(),
+        FunctionName=outputs.function_name, InvocationType="RequestResponse", Payload=b"{}"
     )
     if disambiguation.is_lambda_function_fault(response.get("FunctionError")):
         return ProbeOutcome(
@@ -192,7 +195,7 @@ def probe_function_invoke(
             disambiguation_path="function.invoke:function_fault",
         )
     payload = json.loads(response["Payload"].read())
-    if payload.get("ok") is True and payload.get("nonce") == nonce:
+    if payload.get("ok") is True and payload.get("nonce") == outputs.namespace:
         return ProbeOutcome(
             outcome_class=OutcomeClass.ALLOWED, disambiguation_path="payload_verified"
         )

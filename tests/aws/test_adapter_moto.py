@@ -768,10 +768,10 @@ class TestProbes:
         from moto.awslambda_simple.models import lambda_simple_backends
 
         backend = lambda_simple_backends[_ACCOUNT][_REGION]
-        backend.lambda_simple_results_queue.append(json.dumps({"ok": True, "nonce": "n42"}))
-        outcome = probes_mod.probe_function_invoke(
-            clients["lambda"], outputs=fixture.outputs, nonce="n42"
+        backend.lambda_simple_results_queue.append(
+            json.dumps({"ok": True, "nonce": fixture.outputs.namespace})
         )
+        outcome = probes_mod.probe_function_invoke(clients["lambda"], outputs=fixture.outputs)
         assert outcome.outcome_class is OutcomeClass.ALLOWED
 
     def test_function_invoke_unexpected_payload_is_infrastructure_error(self, moto_fixture):
@@ -780,9 +780,7 @@ class TestProbes:
 
         backend = lambda_simple_backends[_ACCOUNT][_REGION]
         backend.lambda_simple_results_queue.append(json.dumps({"unexpected": "shape"}))
-        outcome = probes_mod.probe_function_invoke(
-            clients["lambda"], outputs=fixture.outputs, nonce="n42"
-        )
+        outcome = probes_mod.probe_function_invoke(clients["lambda"], outputs=fixture.outputs)
         assert outcome.outcome_class is OutcomeClass.ERROR_INFRASTRUCTURE
 
     def test_function_invoke_function_error_is_a_fault_not_a_denial(self):
@@ -818,7 +816,7 @@ class TestProbes:
             external_id="x",
             infrastructure_fingerprint="sha256:" + "0" * 64,
         )
-        outcome = probes_mod.probe_function_invoke(_StubLambdaClient(), outputs=outputs, nonce="n1")
+        outcome = probes_mod.probe_function_invoke(_StubLambdaClient(), outputs=outputs)
         assert outcome.outcome_class is OutcomeClass.ERROR_INFRASTRUCTURE
         assert outcome.disambiguation_path == "function.invoke:function_fault"
 

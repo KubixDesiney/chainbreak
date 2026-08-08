@@ -88,3 +88,62 @@ class TestLoadTerraformOutputs:
             load_terraform_outputs(path)
         assert "namespace" in str(exc_info.value)
         assert "agent_f_role_arn" in str(exc_info.value)
+
+
+class TestOutputShapeValidation:
+    """M9's own required assertion: every output not only exists (P5) but
+    matches its expected shape -- namespace regex, ARN shape, digest format
+    (AWS_PROVIDER_SPEC section 8; `infra/terraform/environments/aws-sandbox/
+    CONTRACT.md`'s stable output list)."""
+
+    def test_malformed_namespace_rejected(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["namespace"] = "not-a-namespace"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError, match="namespace"):
+            load_terraform_outputs(path)
+
+    def test_malformed_account_id_rejected(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["account_id"] = "not-twelve-digits"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError, match="account_id"):
+            load_terraform_outputs(path)
+
+    def test_malformed_role_arn_rejected(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["bootstrap_role_arn"] = "not-an-arn"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError, match="bootstrap_role_arn"):
+            load_terraform_outputs(path)
+
+    def test_malformed_agent_role_arn_rejected(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["agent_c_role_arn"] = "arn:aws:s3:::not-a-role-arn"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError, match="agent_c_role_arn"):
+            load_terraform_outputs(path)
+
+    def test_malformed_digest_rejected(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["objectstore_marker_sha256"] = "not-a-digest"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError, match="objectstore_marker_sha256"):
+            load_terraform_outputs(path)
+
+    def test_malformed_queue_url_rejected(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["queue_url"] = "not-a-url"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError, match="queue_url"):
+            load_terraform_outputs(path)
+
+    def test_multiple_shape_problems_all_reported_together(self, tmp_path: Path):
+        bad = _valid_outputs()
+        bad["namespace"] = "bad"
+        bad["account_id"] = "bad"
+        path = _write(tmp_path, bad)
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_terraform_outputs(path)
+        assert "namespace" in str(exc_info.value)
+        assert "account_id" in str(exc_info.value)
