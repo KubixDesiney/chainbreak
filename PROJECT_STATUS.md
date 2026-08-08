@@ -896,10 +896,13 @@ environment.
 
 **What M9's own acceptance criteria require that remains genuinely unmet:** criterion 1
 (`terraform validate`/`fmt -check`) **is** met, verified locally this milestone; criterion 2
-(`checkov`/`tflint` clean) is unverified — neither tool is installed in this development
-environment (a `pip install checkov` attempt stalled on this network's throughput and was not
-retried to completion; CI's own `terraform` job runs `checkov` and is the actual gate); criterion
-3 (apply → preflight passes → destroy → verify-clean reports nothing) — zero applies, no account;
+(`checkov`/`tflint` clean) is **half met** — `checkov` now runs clean, both locally (138 passed,
+0 failed, 30 documented `#checkov:skip`s) and in CI
+([run 31261194217](https://github.com/KubixDesiney/chainbreak/actions/runs/31261194217), after
+one fix iteration — see the "Tests" section below for the full story); `tflint` has still never
+run anywhere, in this environment or in CI (CI's own `terraform` job does not include it — only
+`checkov`); criterion 3 (apply → preflight passes → destroy → verify-clean reports nothing) —
+zero applies, no account;
 criterion 4 (`enable_negative_controls = true` provisions the three defective roles and their
 outputs appear) — the variable, roles and outputs exist in the HCL and validate, but "appear"
 in M9's acceptance-criterion sense means after a real apply, which has not happened; criterion 5
@@ -922,13 +925,13 @@ deliberately does not claim M8 complete.
 
 ### Blocked
 
-M8's remaining acceptance criteria (2, 3, 4) and M9's remaining acceptance criteria (2, 3, 4, 5)
-are both blocked on the same dedicated AWS benchmark account and IAM identity listed under
-"External resources eventually required" below — `test_adapter_real.py` reads `TerraformOutputs`
-from a real `terraform output -json` file, and `test_cleanup_contract.py` drives a real
-`terraform apply`/`destroy`, both of which need that account to exist. M9 criterion 2
-(`checkov`/`tflint`) is additionally blocked on installing those tools in this development
-environment, independent of the account.
+M8's remaining acceptance criteria (2, 3, 4) and M9's remaining acceptance criteria (2 in part,
+3, 4, 5) are both blocked on the same dedicated AWS benchmark account and IAM identity listed
+under "External resources eventually required" below — `test_adapter_real.py` reads
+`TerraformOutputs` from a real `terraform output -json` file, and `test_cleanup_contract.py`
+drives a real `terraform apply`/`destroy`, both of which need that account to exist. M9
+criterion 2's `tflint` half is additionally blocked on installing that tool, independent of the
+account (`checkov`, the other half, is resolved — see the M9 entry above).
 
 ### Not started
 
@@ -1041,12 +1044,36 @@ green on all ten jobs
 ([run 31255480917](https://github.com/KubixDesiney/chainbreak/actions/runs/31255480917)).
 `bandit -r src/ -q` is now added to this file's own pre-push habit for any future milestone
 touching `src/`, even though it is not yet listed in any milestone's own verification commands.
-**M9 has not been pushed yet** — `pytest -m "unit or integration"`, `ruff`, `mypy`, `lint-imports`
-and `bandit -r src/ -q` all pass locally (this file's own pre-push habit, set by M8's fix above),
-and `terraform fmt -check -recursive`/`terraform validate` pass for every module and environment
-against a locally downloaded Terraform 1.9.8 binary and a filesystem-mirrored AWS provider
-plugin, but CI's own `terraform` job (`checkov` specifically) has not run against this code yet;
-this paragraph will be updated with the real run number once it does.
+**M9 was pushed at commit `707df1d` and needed one fix iteration to go green** — the same
+one-iteration pattern M8 hit, and for the same underlying reason: a local verification gap.
+`pytest -m "unit or integration"`, `ruff`, `mypy`, `lint-imports` and `bandit -r src/ -q` all
+passed locally before the push (this file's own pre-push habit, set by M8's fix), and
+`terraform fmt -check -recursive`/`terraform validate` passed for every module and environment
+against a locally downloaded Terraform 1.9.8 binary — but `checkov` itself had never run
+anywhere in this development environment (known issue 18, at the time unresolved), so its own
+CI job ([run 31260482863](https://github.com/KubixDesiney/chainbreak/actions/runs/31260482863))
+was the first time it ran against this code at all, and it failed with 22 findings across 7
+resources. Two were genuine, cheap fixes applied for real: `aws_sqs_queue.queue` gained
+`sqs_managed_sse_enabled = true` (CKV_AWS_27), and the objectstore S3 lifecycle configuration
+gained a second, unscoped rule aborting incomplete multipart uploads (CKV_AWS_300 — checkov's
+own check only credits an `abort_incomplete_multipart_upload` block on a rule with no scoping
+`filter`, so folding it into the existing prefix-scoped rule does not satisfy it; the
+observability module's trail bucket got the equivalent fix, since its lifecycle rule already
+carries an empty-prefix filter). The remaining 20 findings are checkov's own production-hardening
+defaults (customer-managed KMS keys, cross-region replication, VPC-bound Lambda, a Lambda DLQ,
+code-signing, 1-year CloudWatch log retention, S3 access logging, S3/DynamoDB versioning and
+point-in-time recovery) that actively contradict this benchmark's actual design — every flagged
+resource exists for one run (minutes) and is destroyed with the rest of the stack, cost is
+budgeted under $0.10/suite (AWS_PROVIDER_SPEC section 9), and no secret ever reaches Terraform
+state (SI-1) — so each was documented with a `#checkov:skip=CKV_XXX:<specific reason>` comment
+naming exactly which of those three facts makes the check inapplicable, discovered the hard way
+that checkov only honors a skip comment placed *inside* the resource block it names, not one
+preceding it (an initial attempt placing the comments before each resource silently did nothing).
+`checkov` was then installed locally for the first time (resolving part of known issue 18) and
+run directly (`Checkov(argv=[...]).run()` — its console-script entry point does not work under
+this environment's Git Bash) to confirm the fix before repushing: 138 passed, 0 failed, 30
+skipped, exit 0. Commit `baa1459` was observed green on all ten jobs on the first try
+([run 31261194217](https://github.com/KubixDesiney/chainbreak/actions/runs/31261194217)).
 
 **M6 needed three iterations to go green**, none of them hypothetical — each was a defect a
 from-scratch review had a real chance of missing, caught by the exact mechanism designed to
@@ -1227,13 +1254,17 @@ at M17.
     9 estimates ~20 minutes wall clock for a full suite) could outlast a short-duration bootstrap
     session before M8's own real-account tests ever get to exercise this path. Not addressed now
     since it cannot be tested without a real account either; worth revisiting once one exists.
-18. **`checkov`/`tflint` (M9 acceptance criterion 2) have not run anywhere in this development
-    environment.** A `pip install checkov` attempt stalled on this network's own throughput
-    (the same constraint that required downloading the Terraform provider plugin directly rather
-    than through `terraform init`'s normal registry flow — see known issue 6's resolution above)
-    and was not retried to completion; `tflint` was not attempted at all. CI's own `terraform` job
-    runs `checkov -d infra/terraform` and is the actual gate for this criterion; until that job
-    runs, the "no `Resource: "*"` except `sts:GetCallerIdentity`" rule (S1) is enforced only by
+18. ~~`checkov`/`tflint` (M9 acceptance criterion 2) have not run anywhere in this development
+    environment.~~ **`checkov` half-resolved.** A first `pip install checkov` attempt had
+    stalled on this network's own throughput (the same constraint that required downloading the
+    Terraform provider plugin directly rather than through `terraform init`'s normal registry
+    flow — see known issue 6's resolution above); a second attempt completed, and `checkov`
+    (3.3.9) now runs clean locally (138 passed, 0 failed, 30 documented skips) and in CI
+    ([run 31261194217](https://github.com/KubixDesiney/chainbreak/actions/runs/31261194217), one
+    fix iteration after the first M9 push — see the "Tests" section for the full story).
+    `tflint` was never attempted and has still never run anywhere, in this environment or in CI
+    (CI's own `terraform` job runs `checkov` only, not `tflint`); until it does, the "no
+    `Resource: "*"` except `sts:GetCallerIdentity`" rule (S1) is enforced only by
     each module's own HCL having been written to it deliberately, not by an independent check.
 19. **No `terraform apply` has ever run, anywhere, against anything — not even LocalStack.**
     `environments/local-development` exists and validates, but this development environment has
@@ -1272,7 +1303,7 @@ Recorded now so it is deliberate rather than discovered later.
 | A **dedicated** AWS account, no production workloads | M8 | Hard requirement; the allowlist admits no wildcard |
 | An IAM identity able to assume the bootstrap and principal roles | M8 | SSO or OIDC preferred; never a static key |
 | Terraform 1.7+ | M9 | A 1.9.8 binary and a mirrored AWS provider plugin exist locally in this development environment (not committed) — sufficient for `fmt`/`validate`; `apply` still needs the account row above |
-| `checkov`/`tflint` | M9 | Not installed in this development environment; M9 acceptance criterion 2 is unverified locally, gated on CI's own `terraform` job instead |
+| `tflint` | M9 | Not installed anywhere (this environment or CI); the other half of M9 acceptance criterion 2 — `checkov` is now resolved, see the M9 entry above |
 | AWS spend | M8 | Under $1 for the full suite; Budgets alarm at $5 |
 | A GitHub environment `aws-benchmark` with required reviewers | M17 | For the manually-dispatched experiment workflow |
 | At least three separate time windows | M17 | Control C-7: timing trials must be distributed across blocks |
@@ -1286,14 +1317,14 @@ again once M8/M9 are settled.
 
 ## Current next action
 
-**M8's offline portion and M9's local portion are both done. Three things can happen next, and
-none requires waiting on the others: (a) an operator provisions the dedicated AWS benchmark
-account and IAM identity, after which `tests/aws/test_adapter_real.py` can finally run, a real
-`terraform apply`/`destroy` cycle can happen, and both M8 and M9 can actually be marked complete;
-(b) `checkov`/`tflint` get installed (locally or just left to CI) to close M9's remaining
-criterion 2; (c) implementation continues to M10 — the scope-attenuation benchmark — which depends
-only on M7 and runs entirely against the fake provider, so it is fully unblocked by the AWS
-account either of the other two paths needs.**
+**M8's offline portion and M9's local portion are both done (`checkov` now included — see the
+M9 entry above). Three things can happen next, and none requires waiting on the others: (a) an
+operator provisions the dedicated AWS benchmark account and IAM identity, after which
+`tests/aws/test_adapter_real.py` can finally run, a real `terraform apply`/`destroy` cycle can
+happen, and both M8 and M9 can actually be marked complete; (b) `tflint` gets installed to close
+the other, still-open half of M9's criterion 2; (c) implementation continues to M10 — the
+scope-attenuation benchmark — which depends only on M7 and runs entirely against the fake
+provider, so it is fully unblocked by the AWS account either of the other two paths needs.**
 
 Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M10.
 Specification:
