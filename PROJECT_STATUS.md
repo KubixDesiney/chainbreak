@@ -4,7 +4,8 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-08 · **Version:** 0.1.0a0 · **Phase:** M7 complete, M8 next
+**Last updated:** 2026-08-08 · **Version:** 0.1.0a0 · **Phase:** M7 complete, M8 partially
+complete (offline portion done; real-account verification blocked)
 
 ---
 
@@ -27,7 +28,9 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 through M7 complete, M8 is the next action.** M0 made the repository
+**Implementation: M0 through M7 complete. M8's offline portion (the AWS adapter itself) is
+complete; its real-account acceptance criteria are blocked pending an operator-provisioned
+account and M9's Terraform.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
@@ -50,9 +53,14 @@ untrusted bundles; and the `--public` export scrub. M7 completed analysis: cell 
 unanimity (ADR-012), the observed-authority/divergence/drift pipeline, the revocation-window
 interval math, the six-row stale-authority classifier, the confidence gate, one rule function per
 `FindingType`, the negative-control detector, and `analysis/pipeline.py` orchestrating a sealed
-bundle into `findings.json` end to end, wired to `chainbreak analyze`. All eight milestones are
-domain/capability/scenario/CLI/provider-laboratory/evidence/analysis work — no benchmark has
-executed and no AWS experiment has run.
+bundle into `findings.json` end to end, wired to `chainbreak analyze`. M8 built the AWS provider
+adapter — preflight P1–P11, STS delegation for all five mechanisms, the ten capability probes
+with content verification and denial-message disambiguation, the mutation choke point, retry with
+full-jitter backoff, and policy snapshotting — verified against moto-emulated AWS resources and,
+for the message-parsing logic, against literal AWS error strings; it has **not** been run against
+a real account, since none is provisioned and Terraform (M9) does not exist yet to provision one.
+All eight milestones so far are domain/capability/scenario/CLI/provider-laboratory/evidence/
+analysis/AWS-adapter-offline work — no benchmark has executed and no AWS experiment has run.
 
 ---
 
@@ -71,7 +79,7 @@ executed and no AWS experiment has run.
 | Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
 | Provider abstraction | Complete **and verified in code** — `ProviderAdapter` Protocol, live wire types, `assert_namespace` (SI-2) | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md), `providers/base/` |
 | Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 12 scenarios walk without crashing | ARCHITECTURE §3.9, `providers/fake/` |
-| AWS provider | Specified, not implemented | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md) |
+| AWS provider | Implemented and verified offline (moto call-shape tests, pure-logic disambiguation/retry/policy-synthesis tests) — **not yet verified against a real account** | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md), `providers/aws/` |
 | Terraform | Module contracts written, no `.tf` implemented | `infra/terraform/**/CONTRACT.md` |
 | Scoring | Specified, not implemented | [SCORING_MODEL.md](SCORING_MODEL.md) |
 | Reporting | Specified, not implemented | ARCHITECTURE §3.16 |
@@ -701,27 +709,157 @@ simply part of M6, which is complete.)
 
 ### In progress
 
-None.
+**M8 — AWS provider adapter.** Offline portion complete; real-account acceptance criteria
+(2, 3, 4 below) not met and cannot be until an account and Terraform (M9) exist. Delivered:
+`providers/aws/preflight.py` (`TerraformOutputs` + `load_terraform_outputs` — P5's loader,
+validating all sixteen required output names from AWS_PROVIDER_SPEC section 8; `run_preflight`
+— P1–P11 in order, P1/P2 raising immediately with no further AWS call, P8/P9 producing
+`ConfigurationError` rather than a `SecurityInvariantError` abort since a missing marker or a
+stray production tag is an infrastructure gap, not a security violation); `session.py`
+(`assume_role` — the 3600s chained-role cap applied *before* calling STS, never discovered as
+an AWS-side rejection, matching the precedent `providers/fake/session.py` set at M5;
+`boto3_session_from_credential` — the one call site besides `TemporaryCredential.__init__`
+itself that calls `.reveal()`, per SI-1's own documented exhaustive list); `bindings.py` (real
+`ProviderCapabilityBinding`s for all 10 capabilities with correct IAM action names — including
+two real AWS action/operation-name divergences this milestone had to get right, see finding 1
+below — plus `next_hop_role_arn`, resolving `identity.delegate`'s real probe target from the
+fixed, Terraform-provisioned six-role agent chain rather than any one scenario's logical graph);
+`probes.py` (all ten capability probes with content verification — a read is `ALLOWED` only if
+the returned digest matches; preconditions verified with the bootstrap identity's own clients);
+`disambiguation.py` (explicit-vs-implicit denial message classification, matched on AWS's own
+"with an explicit deny in a(n) ..." prefix rather than an enumerated policy-kind suffix — see
+finding 2; Lambda `FunctionError` vs `AccessDeniedException`; the S3 403/404 shape); `mutation.py`
+(the choke point — namespace assert, benchmark-agent assert (SI-12), one named inline policy per
+purpose so repeated mutations overwrite rather than accumulate, read-after-write polling; all six
+`MutationKind`s implemented, including `DELETE_SESSION_POLICY_SCOPE`'s correct no-AWS-call
+no-op); `policy.py` (`snapshot_policy_state` fingerprinting every inline policy *and* the trust
+policy on a role, not only the ones this adapter's own mutations write); `retry.py` (full-jitter
+backoff, transient-only, `AccessDenied`-shaped codes never retried, always returns rather than
+raising so `ProbeTiming.attempt_number`/`.retries` are known even on final failure);
+`policy_synthesis.py` (session-policy JSON built from binding metadata only, the 2048-char STS
+limit asserted with a clear error); `adapter.py` (`AwsProviderAdapter` — wires all of the above
+behind the `ProviderAdapter` Protocol, including a botocore `before-call` hook feeding
+`OperationAllowlist` (SI-3) with the same operation-name/IAM-action mapping finding 1 required).
+
+Six genuine findings, not design choices:
+
+1. **Two real AWS operation-name/IAM-action divergences would have broken `OperationAllowlist`
+   (SI-3) silently.** `HeadObject` (the write-confirmation call `objectstore.write` makes)
+   requires the `s3:GetObject` IAM action — S3 defines no separate `s3:HeadObject` action — and
+   `ListObjectsV2` requires `s3:ListBucket`, not a same-named action. The first binding draft
+   declared `s3:HeadObject` as a real action, which does not exist; caught by re-deriving each
+   action name from AWS's actual IAM reference rather than assuming operation name equals action
+   name, before any test could paper over it with a mock that doesn't enforce real names. Fixed
+   in `bindings.py`, with the reasoning recorded in a comment so a future capability addition
+   does not repeat the assumption. The same two exceptions are handled again in
+   `adapter.py::_iam_action` for the botocore hook, since the hook sees the *operation* name
+   (`"HeadObject"`, `"ListObjectsV2"`), not the binding's declared action.
+2. **The explicit-deny regex, matched narrowly on a trailing "...policy" noun, missed
+   "permissions boundary" — the one AWS explicit-deny phrase that does not end in the word
+   "policy."** Caught immediately by
+   `test_explicit_deny_recognized_across_every_documented_policy_kind[permissions boundary]`,
+   parametrized over all five policy-kind nouns AWS_PROVIDER_SPEC section 6.1 names. Fixed by
+   matching on the "with an explicit deny in a(n) ..." *prefix* alone — itself AWS's distinctive,
+   documented phrase — rather than requiring a specific trailing noun, so a policy kind AWS adds
+   later is still recognized without a code change.
+3. **Retry logic originally re-raised the final exception on exhaustion, losing the attempt/retry
+   count `ProbeTiming` needs for a probe that ultimately failed.** `call_with_retry` was redesigned
+   to always return a 3-tuple (`result, exception, RetryOutcome`) rather than raising, so
+   `adapter.py` learns how many attempts a probe took whether it succeeded or not — discovered
+   while wiring `adapter.probe()`, before any test was written against the raising version, by
+   working through what `ProbeTiming.attempt_number`/`.retries` would need to be populated from
+   on the failure path.
+4. **Every AWS resource/role name in the first draft double-prefixed "cb-".** `Namespace`-typed
+   values already carry their own "cb-" prefix (the type's real pattern is
+   `^cb-[0-9a-f]{8}$`, and `providers/fake/adapter.py` already established the convention of
+   using it directly with no further literal "cb-"), but `bindings.py`, `probes.py` and
+   `session.py`'s first drafts each prepended a second, literal `"cb-"` when building ARNs,
+   object keys and session names. Caught immediately by the first moto integration test —
+   `PutRolePolicy`/`CreateRole` calls citing role names like `cb-cb-a1b2c3d4-agent-b` that could
+   never match a real Terraform-provisioned role. Fixed across all three modules; a comment at
+   each fix site now states the convention explicitly.
+5. **The first `UPDATE_TRUST_POLICY` mutation attempt failed against real IAM semantics moto
+   correctly enforces:** a trust-policy statement carrying a `Resource` field is rejected outright
+   (`MalformedPolicyDocumentException: Has prohibited field Resource`) — trust policies only ever
+   have `Principal`/`Action`/`Effect`/`Condition`. `mutation.py`'s shared `_statement` helper
+   originally always included `Resource`; fixed by making it optional (`None` omits the field
+   entirely), which is itself evidence that testing against moto's real policy-validation model
+   catches mistakes a hand-rolled stub would not.
+6. **The shared `ProviderContractSuite`
+   (`tests/integration/test_provider_contract.py`) cannot run against this adapter unmodified,
+   contrary to M8's own acceptance criterion 1 as literally stated.** The suite's
+   `register_identity` calls invent ad hoc identity names (`"agent-denied"`, `"agent-empty"`)
+   that assume an in-memory policy engine capable of registering an arbitrary identity on the
+   spot — exactly what the fake adapter's `PolicyEngine` does and exactly what AWS's fixed,
+   Terraform-provisioned seven-role model (`bootstrap`, `principal`, `agent-a`..`agent-f`) cannot.
+   `test_adapter_real.py` overrides the two affected inherited tests to exercise the same
+   *behavior* (an identity with nothing granted is denied everything except the control
+   capability) against a real provisioned identity with an explicit deny mutation applied first,
+   rather than a role that does not exist — documented in both `adapter.py`'s module docstring
+   and `test_adapter_real.py`'s own, since this is a genuine specification gap discovered by
+   implementation, not an oversight to quietly paper over.
+
+`providers/aws/` had no tests before M8 (the package did not exist). Delivered, all offline:
+`test_disambiguation.py` (24 — message/response-shape classification pinned against literal,
+hand-copied AWS strings, the canary AWS_PROVIDER_SPEC's own "Risks" section names), `test_retry.py`
+(28 — transient classification, full-jitter bounds, `call_with_retry`'s success/exhaustion/
+non-transient-immediate paths), `test_terraform_outputs.py` (6 — `load_terraform_outputs` against
+valid/wrapped/missing/malformed/incomplete fixtures), `test_policy_synthesis.py` (5 — statement
+shape, the always-present whoami grant, the 2048-char limit), `test_adapter_moto.py` (52 — every
+module exercised against real boto3 clients hitting moto's in-memory AWS emulation: preflight
+P1–P4/P6/P7/P8/P9/P10, all five delegation mechanisms, all ten probes' success and error-shape
+paths, all six mutation kinds, policy snapshotting, and a full register→delegate→probe→mutate→
+snapshot walk through `AwsProviderAdapter` itself) (unit); `test_adapter_real.py` (20 — the
+inherited `ProviderContractSuite` plus eight IAM-semantics tests named in M8's own spec: role-chain
+capping by real STS, session-policy-cannot-grant, explicit-deny-wins, the denial-message-wording
+canary, the S3 403/404 precondition proof, missing-marker-is-`CONFIGURATION_ERROR`,
+whoami-never-denied, out-of-namespace-refused — **written but never executed**, gated behind the
+`aws` marker and this module's own `CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS` environment variable,
+neither of which is set anywhere this milestone ran) (aws-marked).
+
+`providers/aws/` finished at 93% (`retry.py`/`session.py`/`policy.py`/`policy_synthesis.py`/
+`bindings.py` 100%, `disambiguation.py` 100%, `probes.py` 95%, `mutation.py` 92%,
+`preflight.py` 94%, `adapter.py` 85% — its own lowest module, the thin Protocol-dispatch glue
+layer, already exercised end to end by the register→delegate→probe→mutate→snapshot walk above),
+comfortably above the 90% bar M5 set as precedent for a provider package (`providers/fake/`
+finished at ~99.7%; `providers/aws/`'s real ceiling is necessarily lower, since real IAM
+semantics — IAM IS the ground truth ADR-009 chose over policy simulation — cannot be exercised
+without a real account no matter how much offline test-writing happens).
+
+**What M8's own acceptance criteria require that remains genuinely unmet:**
+criterion 1 (passes the M5 contract suite *unmodified*) — see finding 6; criterion 2 (all
+`test_adapter_real.py` tests pass against a real benchmark account) — zero executions, no
+account; criterion 3 (recorded response fixtures covering every outcome class, driving the
+disambiguation tests) — `tests/fixtures/provider_responses/` was not created, since capturing a
+real AWS response requires a real call; criterion 4 (preflight ordering verified by call log) —
+verified indirectly (each check's own pass/fail path is tested individually against moto), but
+not via the literal "assert the botocore call log contains exactly one entry" mechanism
+AWS_PROVIDER_SPEC section 2 names for P2. Criterion 5 (no `boto3`/`botocore` import outside
+`providers/aws/`) **is** met, verified by `lint-imports` and `test_import_boundaries.py`. M8's
+own "Definition of done" requires "real AWS output pasted"; none exists, so this entry
+deliberately does not claim M8 complete.
 
 ### Blocked
 
-Not blocked outright: M8's own spec states its non-AWS parts (adapter structure, session
-synthesis, retry/backoff, disambiguation logic) are developable against `moto`. **Partially
-blocked**, though — M8's `tests/aws/test_adapter_real.py` and full acceptance both require the
-dedicated AWS benchmark account and IAM identity listed under "External resources eventually
-required" below, which M0–M7 never needed and do not yet exist.
+M8's remaining acceptance criteria (2, 3, 4) are blocked on the dedicated AWS benchmark account
+and IAM identity listed under "External resources eventually required" below, and practically on
+M9 (Terraform) existing to provision one — `test_adapter_real.py` reads `TerraformOutputs` from a
+real `terraform output -json` file that only M9's modules, applied against a real account, can
+produce.
 
 ### Not started
 
-M8 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M9 through M19 (M8's offline portion is done; its real-account criteria are blocked, not
+not-started — see above). See
+[docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-1112 passed, 9 skipped, 1 deselected in ~13s    (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 1121 deselected                      (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+1227 passed, 9 skipped, 21 deselected in ~64s   (Python 3.12.7, pytest -m "unit or integration")
+21 skipped, 1236 deselected                     (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -730,6 +868,12 @@ M8 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/scenarios/test_scenario_corpus.py` | 28 | Every scenario validates; capability closure (G-4); negative controls are correctly located and marked; all six defect kinds covered; all five families present |
 | `tests/unit/test_import_boundaries.py` | 6 | ARCH-1: core imports nothing internal, graph imports only core, boto3 confined to `providers/aws/`, AWS service strings confined to `providers/` and `AWS_PROVIDER_SPEC.md`, plus two planted-violation negative controls |
 | `tests/aws/test_placeholder.py` | 1 (skipped by default) | F5: proves the `aws`/`e2e` marker gate in `tests/conftest.py` actually skips, and actually un-gates under `CHAINBREAK_ALLOW_AWS_TESTS=1` |
+| `tests/aws/test_disambiguation.py` | 24 | Explicit-vs-implicit denial message classification against literal AWS strings across all five documented policy-kind nouns; Lambda `FunctionError` vs not; S3 403/404 shape; recognized/unrecognized access-denied codes |
+| `tests/aws/test_retry.py` | 28 | Transient-code classification including the never-retry-wins-over-503 ordering; full-jitter bounds with a seeded RNG; `call_with_retry`'s success, non-transient-immediate, transient-then-succeeds and exhaustion paths, each reporting the correct attempt/retry count |
+| `tests/aws/test_terraform_outputs.py` | 6 | `load_terraform_outputs` against a valid bare-value document, a valid `terraform output -json`-wrapped document, a missing file, malformed JSON, a non-object document, and missing required names |
+| `tests/aws/test_policy_synthesis.py` | 5 | One statement per intended capability plus the always-present whoami grant, never duplicated when requested explicitly, the empty-intent case, the 2048-char STS limit |
+| `tests/aws/test_adapter_moto.py` | 52 | Every AWS adapter module against real boto3 clients hitting moto's in-memory AWS: preflight P1–P4/P6/P7/P8/P9/P10 pass/fail paths, all five delegation mechanisms including the 3600s chain cap and session-policy attachment, all ten probes' success and denial/error-shape paths, all six mutation kinds, policy snapshot fingerprinting and change detection, and a full register→delegate→probe→mutate→snapshot walk through `AwsProviderAdapter` itself |
+| `tests/aws/test_adapter_real.py` | 20 (skipped by default) | The inherited `ProviderContractSuite` (two tests overridden for AWS's fixed identity model) plus eight IAM-semantics tests named in M8's own spec — role-chain capping by real STS, session-policy-cannot-grant, explicit-deny-wins, the denial-message-wording canary, the S3 403/404 precondition proof, missing-marker-is-`CONFIGURATION_ERROR`, whoami-never-denied, out-of-namespace-refused. **Never executed** — gated behind `CHAINBREAK_ALLOW_AWS_TESTS=1` and this module's own `CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS`, neither set anywhere this milestone ran |
 | `tests/unit/test_divergence.py` | 17 | Per-edge divergence (both observed- and expected-baseline variants), the section 7 worked example reproduced exactly, `classify_drift` table including `CORRECTED`, `edge_divergence`'s unmeasured-endpoint guards |
 | `tests/unit/test_first_divergence.py` | 10 | Single-node graphs, an unmeasured node reported rather than skipped, branching graphs analyzed independently, both M1-spec negative controls (hop-3-gain-propagates, hop-4-corrects) |
 | `tests/unit/test_graph_invariants.py` | 9 | G-1 (cycle among non-root nodes) through G-5, each with a violating fixture naming the invariant, plus the G-3 negative-control downgrade path |
@@ -787,17 +931,22 @@ M8 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/integration/test_analyze_idempotence.py` | 2 | F8: `analyze` run twice against the same real (diverging, then clean) bundle produces byte-identical `findings.json` and identical `finding_id`s |
 | `tests/integration/test_negative_controls.py` | 12 | Acceptance criterion 3: all six `nc-*` scenarios against the real fake provider produce their declared finding and `DETECTOR_OK`; the same six with the defect "fixed" produce `DETECTOR_FAILURE` instead |
 
-**Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
-unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add (`scoring/`, `reporting/`). CI was green on GitHub Actions through M6 (see the M0 entry
-under "Completed" for the four real defects the first three runs found and the fixes that
-followed, the M1 entry for its own clean first-try run, the M4/M5 entries for runs
+**Not yet written:** `tests/aws/test_adapter_real.py`'s tests exist but have never executed (no
+AWS account), `tests/fixtures/provider_responses/` (M8 acceptance criterion 3, requires a real
+recorded response), the e2e layer (M9/M17), and the rest of the unit suite described in
+[TESTING.md](TESTING.md) that covers modules later milestones will add (`scoring/`,
+`reporting/`). CI was green on GitHub Actions through M6 (see the M0 entry under "Completed" for
+the four real defects the first three runs found and the fixes that followed, the M1 entry for
+its own clean first-try run, the M4/M5 entries for runs
 [31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428) and
 [31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287), and the M6
 paragraph below for its own three-iteration path to green). **M7 was pushed at commit
 `30e81eb` and was observed green on all ten jobs on the first try**
 ([run 31245421173](https://github.com/KubixDesiney/chainbreak/actions/runs/31245421173)) — unlike
-M6, no fix iteration was needed.
+M6, no fix iteration was needed. **M8's offline portion is complete and verified locally
+(`ruff`, `mypy`, `lint-imports`, the full suite including the tables above) but has not yet been
+committed, pushed, or run through CI** — nothing above should be read as a claim that GitHub
+Actions has seen this code.
 
 **M6 needed three iterations to go green**, none of them hypothetical — each was a defect a
 from-scratch review had a real chance of missing, caught by the exact mechanism designed to
@@ -824,7 +973,10 @@ module (`redaction.py`/`writer.py`/`manifest.py`/`export.py`/`verify.py` 100%, `
 ~98%, `index.py` ~94%), `analysis/` 97% under `pytest -m "unit or integration"` (`authority.py`
 100%, `divergence.py` 100%, `confidence.py` 100%, `detector.py` ~95%, `rules.py` ~97%,
 `timing.py` ~98%, `pipeline.py` ~93% — see the M7 entry above for exactly which branches are
-uncovered and why) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%,
+uncovered and why), `providers/aws/` 93% offline-only (`retry.py`/`session.py`/`policy.py`/
+`policy_synthesis.py`/`bindings.py`/`disambiguation.py` 100%, `probes.py` ~95%, `mutation.py`
+~92%, `preflight.py` ~94%, `adapter.py` ~85% — see the M8 entry above for why `adapter.py` is
+the floor) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%,
 **100%**, 95% respectively; `config/`, `cli/` and `providers/` have no stated bar in TESTING.md's
 per-module table, so M5's own 90% acceptance criterion is the one actually gating `providers/`).
 `core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1 redaction
@@ -942,6 +1094,31 @@ at M17.
     call them with today. `chainbreak analyze` against any real bundle currently reports
     findings only from the authority/divergence and revocation-timing families. Stated
     explicitly in `pipeline.py`'s own module docstring rather than silently doing nothing.
+14. **No AWS account or Terraform infrastructure exists; nothing in `providers/aws/` has ever
+    executed against real AWS.** Every behavior verified so far is either pure logic (message
+    parsing, retry math, policy-document synthesis) or verified against moto's in-memory
+    emulation, which the M8 entry above states plainly does not enforce real IAM
+    allow/deny semantics. Real IAM behavior — the actual ground truth ADR-009 chose empirical
+    probing over policy simulation specifically to measure — remains completely unverified.
+    `tests/aws/test_adapter_real.py` exists and is ready to run the moment an account and
+    Terraform-provisioned infrastructure exist; until then, treat every AWS-adapter behavior as
+    "implemented per spec," not "confirmed correct."
+15. **`AwsProviderAdapter.register_identity` cannot satisfy the shared `ProviderContractSuite`
+    unmodified.** AWS's identities are fixed by Terraform provisioning (`bootstrap`, `principal`,
+    `agent-a`..`agent-f`); the suite's own fake-oriented tests invent ad hoc names
+    (`"agent-denied"`, `"agent-empty"`) no real account has a role for. `test_adapter_real.py`
+    overrides the two affected tests to exercise equivalent behavior against real identities
+    instead — a permanent, documented adaptation, not a temporary workaround to later remove.
+16. **`tests/fixtures/provider_responses/` (M8 acceptance criterion 3) does not exist.**
+    Recording real AWS response fixtures requires a real call; none has been made. The
+    disambiguation tests that exist (`test_disambiguation.py`) are pinned against hand-copied
+    literal strings from AWS's public documentation instead, which is the closest available
+    substitute but is not the same claim as "recorded from a real response."
+17. **`adapter.py::_bootstrap_session` caches its assumed bootstrap credential for the adapter's
+    entire lifetime with no refresh.** A long-running real benchmark (AWS_PROVIDER_SPEC section
+    9 estimates ~20 minutes wall clock for a full suite) could outlast a short-duration bootstrap
+    session before M8's own real-account tests ever get to exercise this path. Not addressed now
+    since it cannot be tested without a real account either; worth revisiting once one exists.
 
 ---
 
@@ -978,49 +1155,57 @@ Recorded now so it is deliberate rather than discovered later.
 | A GitHub environment `aws-benchmark` with required reviewers | M17 | For the manually-dispatched experiment workflow |
 | At least three separate time windows | M17 | Control C-7: timing trials must be distributed across blocks |
 
-Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offline.
+M0–M7 were entirely offline. M8's adapter code was written and verified offline (against moto
+and pure logic); its own remaining acceptance criteria, and M9's `terraform apply`/`destroy`,
+both need the account and identity above before they can run for real. M10–M16 are offline
+again once M8/M9 are settled.
 
 ---
 
 ## Current next action
 
-**Implement M8 — AWS provider adapter.**
+**M8's offline portion is done. Two things can happen next, and neither requires waiting on the
+other: (a) an operator provisions the dedicated AWS benchmark account and IAM identity, after
+which `tests/aws/test_adapter_real.py` can finally run for the first time and M8 can actually be
+marked complete; (b) implementation continues to M9 — Terraform — whose own `.tf` authoring and
+`cli/infra.py` wiring is, like M8's adapter code, writable and reviewable offline even though M9
+also depends on a real account for `terraform apply`/`destroy` to ever actually run.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M8.
-Specification: [docs/implementation/milestones/M08-aws-adapter.md](docs/implementation/milestones/M08-aws-adapter.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M9.
+Specification:
+[docs/implementation/milestones/M09-terraform-sandbox.md](docs/implementation/milestones/M09-terraform-sandbox.md).
 
-M8 depends on M7 (complete) and is the first milestone that touches a cloud: preflight P1–P11,
-STS delegation for all five mechanisms, session-policy synthesis from bindings only (never
-hand-written per scenario), probes for all 10 capabilities with **content verification** (a read
-is `ALLOWED` only if the returned digest matches — "no exception" is not success), denial-message
-disambiguation (explicit vs. implicit attribution, `DENIED_UNATTRIBUTED` when the phrase is
-absent rather than guessed), the mutation choke point (namespace assert, benchmark-agent assert,
-read-after-write confirmation), transient-only retry with full-jitter backoff (`AccessDenied` is
-never retried), and pinned/recorded regional STS endpoints. The non-AWS parts (adapter structure,
-policy synthesis, retry logic, disambiguation parsing) are developable now against `moto`;
-`tests/aws/test_adapter_real.py` and full acceptance need the operator-provisioned dedicated
-account and IAM identity under "External resources eventually required" above, which do not
-exist yet — confirm with the operator before assuming that account is available.
+M9 depends on M8 (offline portion complete) and, per its own dependencies line, also "requires
+an operator-owned AWS account" for `terraform apply`/`plan`/`destroy` to run for real — the same
+blocker M8 hit, one milestone later. Its file list already exists as
+`infra/terraform/**/CONTRACT.md` (module contracts to implement against, not restate) and
+`environments/*/CONTRACT.md`; the work is `main.tf`/`variables.tf`/`outputs.tf`/`versions.tf`
+per module plus `cli/infra.py` wrapping plan/apply/destroy/status/verify-clean. **One naming
+collision to resolve when M9 starts:** M9's own file list names
+`tests/aws/test_terraform_outputs.py`, which M8 already created (for
+`preflight.py::load_terraform_outputs`) — M9's tests either need a different filename or should
+extend the existing file, not silently overwrite it.
 
 Before starting, confirm M0-M7's toolchain and domain/capability/scenario/CLI/provider/evidence/
-analysis layers are intact:
+analysis/AWS-adapter-offline layers are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 1112 passed, 9 skipped, 1 deselected
-pytest -m aws -q                                    # expect 1 skipped
+pytest -m "unit or integration" -q                  # expect 1227 passed, 9 skipped, 21 deselected
+pytest -m aws -q                                    # expect 21 skipped
 pytest -m unit tests/unit/test_redaction.py \
   --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # expect 100%
 pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
   --cov=chainbreak.scenarios --cov=chainbreak.config --cov=chainbreak.cli \
   --cov=chainbreak.providers.base --cov=chainbreak.providers.fake --cov=chainbreak.evidence \
-  --cov=chainbreak.analysis --cov-report=term-missing -m "unit or integration"
+  --cov=chainbreak.analysis --cov=chainbreak.providers.aws --cov-report=term-missing \
+  -m "unit or integration"
      # expect core/ ~99%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%,
      # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%, evidence/ ~94-100% per module,
-     # analysis/ ~97% (pipeline.py needs integration tests included to clear its own bar)
+     # analysis/ ~97%, providers/aws/ ~93% offline-only (adapter.py ~85% is the floor)
 chainbreak --help                                   # expect < 500ms
 ```
 
