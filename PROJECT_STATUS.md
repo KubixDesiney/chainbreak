@@ -637,16 +637,26 @@ add (`analysis/`, `scoring/`, `reporting/`). CI was green on GitHub Actions thro
 the M0 entry under "Completed" for the four real defects the first three runs found and the
 fixes that followed, the M1 entry for its own clean first-try run, and the M4/M5 entries for
 runs [31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428) and
-[31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287)). **M6's
-first push was not green**: run
-[31240770166](https://github.com/KubixDesiney/chainbreak/actions/runs/31240770166) failed
-`test` (both 3.12 and 3.13) and `security`, for the two real, from-scratch-review-missable
-defects the M6 "Completed" entry's finding 3 above describes in full — a Windows/Linux
-line-ending mismatch in the sealed golden fixture, and a synthetic secret in
-`test_redaction.py` that wasn't EXAMPLE-exempted. Both are fixed in the commit this status
-update ships with; record the follow-up run's ID here once it is observed green, rather than
-assuming this fix is correct because it passes locally (that assumption is exactly what
-finding 3 disproved once already).
+[31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287)).
+
+**M6 needed three iterations to go green**, none of them hypothetical — each was a defect a
+from-scratch review had a real chance of missing, caught by the exact mechanism designed to
+catch it, the same pattern the M0 entry's four defects followed:
+run [31240770166](https://github.com/KubixDesiney/chainbreak/actions/runs/31240770166) failed
+`test` (both 3.12 and 3.13) on a Windows/Linux line-ending mismatch in the sealed golden
+fixture and failed `security` on a synthetic secret that wasn't EXAMPLE-exempted (the M6
+"Completed" entry's finding 3 above describes both in full); the fix for the second failure
+then reproduced the literal EXAMPLE-shaped string in this file's own prose, outside `tests/`,
+which run [31241489948](https://github.com/KubixDesiney/chainbreak/actions/runs/31241489948)
+caught in turn — the exact trap the M0 entry already describes hitting once, now hit a second
+time. Once `security`'s remaining failure turned out to be `git log -p --all` finding the
+original non-EXAMPLE string permanently baked into an earlier commit's diff (run
+[31241577278](https://github.com/KubixDesiney/chainbreak/actions/runs/31241577278)), the three
+M6 commits were squashed into one clean commit on top of M5 and force-pushed — a history
+rewrite done only after explicit operator sign-off, per this project's own operating rules for
+destructive git operations — landing at commit `830b419`. That push was observed green on all
+ten jobs on the first try
+([run 31241854761](https://github.com/KubixDesiney/chainbreak/actions/runs/31241854761)).
 
 Coverage: `core/` ~99%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
 ~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7%, `evidence/` ~94–100% per
