@@ -438,7 +438,8 @@ class AwsProviderAdapter:
     def _call_and_classify(self, call: Any, *, path: str) -> tuple[ProbeOutcome, RetryOutcome]:
         result, exc, retry_outcome = call_with_retry(call)
         if exc is None:
-            assert result is not None
+            if result is None:  # pragma: no cover -- call_with_retry's own contract
+                raise AssertionError("call_with_retry returned neither a result nor an exception")
             return result, retry_outcome
         if path == "identity.whoami":
             # Apparatus fault, not a denial (AWS_PROVIDER_SPEC section 6.2):
