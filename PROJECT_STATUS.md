@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-08 · **Version:** 0.1.0a0 · **Phase:** M6 complete, M7 next
+**Last updated:** 2026-08-08 · **Version:** 0.1.0a0 · **Phase:** M7 complete, M8 next
 
 ---
 
@@ -27,7 +27,7 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 through M6 complete, M7 is the next action.** M0 made the repository
+**Implementation: M0 through M7 complete, M8 is the next action.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
@@ -46,8 +46,12 @@ from a single seed. M6 completed the evidence pipeline: an append-only, flush-pe
 writer; the `redact()` choke point every record passes through, with `evidence/redaction.py` at
 exactly 100% coverage via a reflection-driven property test; SHA-256 sealing and root
 verification; a disposable SQLite run index; a bounded, streaming, schema-validated reader for
-untrusted bundles; and the `--public` export scrub. All seven milestones are
-analysis/domain/capability/scenario/CLI/provider-laboratory/evidence work — no benchmark has
+untrusted bundles; and the `--public` export scrub. M7 completed analysis: cell resolution by
+unanimity (ADR-012), the observed-authority/divergence/drift pipeline, the revocation-window
+interval math, the six-row stale-authority classifier, the confidence gate, one rule function per
+`FindingType`, the negative-control detector, and `analysis/pipeline.py` orchestrating a sealed
+bundle into `findings.json` end to end, wired to `chainbreak analyze`. All eight milestones are
+domain/capability/scenario/CLI/provider-laboratory/evidence/analysis work — no benchmark has
 executed and no AWS experiment has run.
 
 ---
@@ -63,6 +67,7 @@ executed and no AWS experiment has run.
 | Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 12 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
 | Evidence pipeline | Complete **and verified in code** — writer, `redact()` (100%), manifest sealing/verification, SQLite index, bounded reader, `--public` export | `evidence/` |
+| Analysis | Complete **and verified in code** — authority aggregation (ADR-012 unanimity), divergence/drift, revocation-window math, stale-authority classification, confidence gate, finding rules, negative-control detector, end-to-end `findings.json` pipeline, `chainbreak analyze` | [AUTHORIZATION_MODEL.md](AUTHORIZATION_MODEL.md), `analysis/` |
 | Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
 | Provider abstraction | Complete **and verified in code** — `ProviderAdapter` Protocol, live wire types, `assert_namespace` (SI-2) | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md), `providers/base/` |
 | Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 12 scenarios walk without crashing | ARCHITECTURE §3.9, `providers/fake/` |
@@ -548,15 +553,151 @@ directories themselves, not a script.
 100%, `reader.py` ~98%, `index.py` ~94%) — all comfortably above the 90% bar TESTING.md sets for
 modules without a stated bar, the same category `providers/` fell into at M5.
 
+**M7 — Analysis, findings and the confidence gate.** All five acceptance criteria demonstrated.
+Delivered: `analysis/authority.py` (`resolve_cell` — unanimity per ADR-012, all-`ALLOWED` ⇒
+`ALLOWED`, mixed-kind denials ⇒ `DENIED_UNATTRIBUTED`, mixed-anything-else ⇒ `INDETERMINATE`;
+`aggregate_observations`/`build_observed_authority`/`populate_observed_authority` — F1, F2,
+AUTH-1: `ObservedAuthority` holds only `ALLOWED` cells, everything else lands in `excluded` with
+an `ExclusionReason`); `analysis/divergence.py` (`analyze_graph` — a thin, testable wrapper
+gluing the M1 `graph/divergence.py` and `graph/paths.py` algorithms to a populated graph);
+`analysis/confidence.py` (`gate_confidence`/`confidence_rationale`, AUTHORIZATION_MODEL §6's
+formula exactly — an empty cell list is unconditionally `INSUFFICIENT` regardless of claimed
+coverage); `analysis/timing.py` (`compute_revocation_window` — `t_last_allow`, `t_first_deny`,
+the interval-with-jitter transition window, `NON_MONOTONIC_TRANSITION`,
+`NO_TRANSITION_OBSERVED_WITHIN_WINDOW`; `classify_stale_authority` — the six-row table with
+paired-fresh-credential disambiguation); `analysis/rules.py` (thirteen rule functions, one per
+non-derived `FindingType`, each funneled through a single `_build` helper that centralizes F3's
+confidence gating and F8's content-derived `finding_id`; every `Finding` carries `observation`,
+`expected_state`, `observed_state` and `security_interpretation` as separate fields per
+ADR-006, with `security_interpretation` always a static template with substituted values, never
+free text built from bundle content, per S2); `analysis/detector.py` (`check_negative_control` —
+F7, comparing a negative control's declared `expect_finding` against what the rules actually
+produced, emitting `DETECTOR_FAILURE` on mismatch); `analysis/pipeline.py` (`analyze`/
+`analyze_bundle` — F8: a pure function of bundle content, deriving `analyzed_at` from the
+bundle's own `manifest.completed_at` rather than a wall-clock read, and refusing to produce
+findings for a bundle that fails integrity verification unless `--allow-unsealed` is passed).
+`core/models.py` gained `CompiledExpectation` (wired into `scenarios/compiler.py`) so a
+scenario's `revocation_within`/other declared expectations survive compilation for
+`rule_revocation_delay` to compare against. `cli/analyze.py` was rewritten and `chainbreak
+analyze <run-id> [--runs-root] [--allow-unsealed]` now runs for real instead of exiting 2.
+`analysis/pipeline.py`'s own docstring states its scope precisely: the authority/divergence
+family (per phase, from `observations.jsonl`) and the revocation-timing family (from
+`POLICY_MUTATION_APPLIED` events paired with post-mutation polls) are extracted from any bundle
+automatically; `rule_stale_authority`, `rule_expired_credential_accepted`, `rule_silent_narrowing`
+and `rule_configuration_error` are implemented and directly callable but not yet wired into the
+automatic pipeline, since the deferred-execution and task-worker machinery that would produce
+their inputs from a bundle belongs to M13/M14 and does not exist yet.
+
+Six genuine findings, not design choices:
+
+1. **`finding_id` was wall-clock-seeded, breaking F8 idempotence.** The first pass called
+   `core.ids.new_finding_id()` (a ULID) inside `_build`, so calling `analyze` twice on the
+   identical bundle produced two `findings.json` files that differed in every finding's id.
+   Caught immediately by
+   `test_analyze_is_idempotent_on_a_diverging_bundle` — the first genuinely diverging bundle run
+   through the pipeline twice, not a synthetic idempotence check. Fixed with
+   `_deterministic_finding_id`: a SHA-256 digest over the finding's own content (type, subject
+   kind, identity/edge id, hop index, sorted observation refs), so the id is a pure function of
+   what the finding says, never of when it was computed.
+2. **AUTHORIZATION_MODEL §6's confidence formula, applied uniformly, forced every
+   non-authority finding to `INCONCLUSIVE`.** The formula is defined over `ProbeCellResult`
+   coverage and unanimity; `EXECUTION_ERROR`, `LIFETIME_CAPPED` and the timing/stale-authority
+   families are not built from probe cells at all, so an empty `cells=()` was — correctly, per
+   the formula's own `INSUFFICIENT` rule for zero coverage — downgrading every one of them
+   before any rule-specific test could see its intended finding type. Resolved by adding
+   `confidence_override` to `_build`: the coverage/unanimity gate remains the only path for the
+   five authority-axis rules (`EXPECTED_BEHAVIOR`, `AUTHORITY_EXPANSION`, `AUTHORITY_NARROWING`,
+   `DELEGATION_DRIFT`, `AUTHORITY_SURVIVAL`), while the rest supply a confidence value derived
+   from their own domain-appropriate evidentiary strength, documented at each call site rather
+   than silently bypassing F3.
+3. **`AUTHORITY_EXPANSION` and `DELEGATION_DRIFT` firing together at the same node looked like
+   a contradiction until `nc-non-monotone-chain.yaml` settled it.** The negative control's own
+   `expect_finding` names `DELEGATION_DRIFT` at a node that is also the origin of an
+   unexpected gain — exactly the node `rule_authority_expansion` fires on. Rather than making
+   the two rules mutually exclusive by guesswork, the resolution follows AUTHORIZATION_MODEL
+   §7's worked example directly: the origin of a gain at a non-root hop is *both* the
+   `AUTHORITY_EXPANSION` (the gain itself) and, for a `DELEGATION_DRIFT` classified
+   `ORIGINATED`, the start of the drift chain that downstream `PROPAGATED`/`AMPLIFIED` nodes
+   cite by `finding_id` — `rule_delegation_drift`'s docstring records this reasoning so it does
+   not look like an oversight on the next read.
+4. **Non-monotonic transition detection was mathematically dead code.** The first
+   implementation tested `any(t > t_first_deny for t in allowed_ns)`, but `t_last_allow` is
+   defined as `max(allowed_ns)`, so no allowed sample can ever exceed it — the branch could
+   never evaluate `True` regardless of input. A coarse, 100ms-grid-sampled test passed by
+   accident (the seed used never landed a sample on the second flip); rewriting
+   `test_oscillation_preserved_not_smoothed` to sample at the schedule's own recorded
+   `oscillation_flips_ms` (the same fix M5's own oscillation bug required, see the M5 entry
+   above) exposed it immediately. Fixed with a direct chronological scan counting state
+   transitions across the ordered samples; `non_monotonic = transitions > 1`.
+5. **The revocation-timing pipeline looked up poll data by the mutation's target identity,
+   missing the case `nc-no-revocation.yaml` exists to test.** That negative control mutates one
+   identity's policy while polling a *different*, unrelated identity — the point being that a
+   harness watching the wrong cell must not fabricate a transition. The first pass indexed
+   `polls_by_cell` and then queried it by the event's own target, finding nothing to measure
+   and silently producing no finding at all — the wrong reason. Fixed in `_revocation_findings`
+   by iterating every cell that was actually polled and measuring each against the run's one
+   mutation (ADR-011: concurrent mutations would destroy the timing measurement), regardless of
+   which identity the mutation itself named — matching what
+   `test_defect_present_watching_unaffected_identity_detector_ok` and its fixed-variant
+   counterpart in `test_negative_controls.py` require.
+6. **`@app.callback(invoke_without_command=True)` misparsed `run_id` when combined with an
+   option.** The first `cli/analyze.py` used the same callback pattern `cli/scenario.py`
+   established at M4, but Typer's callback dispatch does not compose with a required positional
+   argument the way a plain subcommand does: `chainbreak analyze <id> --runs-root <path>` exited
+   2 with "Missing parameter: run_id" even though the argument was present on the command line.
+   Caught by `test_analyze_a_sealed_bundle` before any fixture was adjusted to work around it.
+   Fixed by converting `analyze` to a plain function registered directly via
+   `app.command("analyze")(analyze.analyze)` in `cli/main.py`, not a sub-`Typer` app — the
+   pattern M4's other single-purpose commands (`run`, `report`) already used, which `scenario`
+   and `runs`, both genuinely multi-subcommand groups, did not need to follow.
+
+`evidence/`'s golden and tampered fixtures needed regenerating for a seventh, smaller reason
+worth recording alongside the six above even though it surfaced no defect in `analysis/` itself:
+M6's fixture generator wrote placeholder dicts for `scenario.json`/`graph.json`, which M6's own
+reader never validated against `CompiledScenario`/`AuthorizationGraph`. M7's `read_scenario`/
+`read_graph` do validate, so the committed fixtures failed to load before a single rule ever ran.
+Regenerated by compiling a real scenario (`scope-attenuation/basic.yaml`) through the actual
+`compile_scenario()` against a synthetic AWS registry, and by switching the tampered fixture's
+byte-flip from `"trial":1` → `"trial":9` (which broke `Observation`'s own `trial <= trial_count`
+validator before the sealing check under test ever ran) to flipping
+`"preconditions_verified":true` → `false` — a change that still breaks the sealed hash without
+breaking the record's own schema validity.
+
+`analysis/` had no dedicated tests before M7 (the package did not exist). Delivered:
+`test_authority_aggregation.py`, `test_confidence_gate.py`, `test_finding_rules.py`,
+`test_revocation_math.py`, `test_stale_classification.py`, `test_detector.py`,
+`test_cli_analyze_command.py` (unit); `test_known_truth_divergence.py` (C-9: a configured
+authority mismatch against the fake produces exactly the expected findings at exactly the
+expected confidence), `test_known_truth_timing.py` (the fake's `eventual` profile's known
+2000ms `propagation_delay_ms`; the measured transition window is asserted to contain it — a
+differential no AWS run could supply, since AWS's real propagation delay is exactly what a real
+run would be trying to measure), `test_analyze_idempotence.py`, `test_negative_controls.py` (all
+six `nc-*` scenarios against the real fake provider, both directions per acceptance criterion 3:
+the defect present produces the declared finding and `DETECTOR_OK`; the same scenario with the
+defect "fixed" produces `DETECTOR_FAILURE` instead) (integration). `tests/fixtures/
+mini_orchestrator.py` is the test-only stand-in for M10's not-yet-built orchestrator: compile a
+scenario, delegate along its edges through the real `FakeProviderAdapter`, probe or mutate-and-
+poll, and write a real, sealable bundle via the real `BundleWriter` — every M7 integration test
+runs against genuine fake-provider output, not hand-built fixtures.
+
+`analysis/` finished at 97% (acceptance criterion 5's 95% bar), unevenly distributed by design:
+`authority.py`, `divergence.py` and `detector.py` are effectively 100% (detector.py's one
+uncovered branch is a defensive `except` on a malformed `expect_finding` shape schema validation
+already prevents from reaching it); `pipeline.py` is 93%, its own lowest module — the uncovered
+lines are glue-code branches no shipped scenario's fake-provider walk happens to trigger (an
+unrecognized `mutation_kind` string, a bundle with no mutation event at all, a node that
+produces `EXPECTED_BEHAVIOR` with no sibling expansion/narrowing in the same phase, a bundle
+whose revocation measurement clears the delay threshold), not the stale-authority/
+silent-narrowing/configuration-error rules, which the module docstring already states are not
+called from `pipeline.py` at all yet and so do not appear in its coverage report either way.
+
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
 The following exists and passes tests, but the corresponding milestone is **not** complete
 because the milestone's full scope and acceptance criteria have not been met.
 
-| Component | Belongs to | State |
-|---|---|---|
-| `schemas/*.json` — 11 generated schemas | M6 | Complete, all valid draft 2020-12 |
-| `schemas/run-index.sql` | M6 | Complete, applies cleanly |
+None currently. (`schemas/*.json` and `schemas/run-index.sql`, listed here through M6, are now
+simply part of M6, which is complete.)
 
 ### In progress
 
@@ -564,19 +705,23 @@ None.
 
 ### Blocked
 
-None. M6 can start immediately.
+Not blocked outright: M8's own spec states its non-AWS parts (adapter structure, session
+synthesis, retry/backoff, disambiguation logic) are developable against `moto`. **Partially
+blocked**, though — M8's `tests/aws/test_adapter_real.py` and full acceptance both require the
+dedicated AWS benchmark account and IAM identity listed under "External resources eventually
+required" below, which M0–M7 never needed and do not yet exist.
 
 ### Not started
 
-M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M8 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-990 passed, 9 skipped, 1 deselected in ~12s     (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 999 deselected                       (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+1112 passed, 9 skipped, 1 deselected in ~13s    (Python 3.12.7, pytest -m "unit or integration")
+1 skipped, 1121 deselected                      (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -609,7 +754,7 @@ M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_clock.py` | 12 | `RunClock` before/at/past its deadline via an injected fake monotonic source, `elapsed_seconds`/`remaining_seconds`/`expired`, the real `time.monotonic_ns` default path, `no_offset_estimator` |
 | `tests/unit/test_logging_filter.py` | 14 | AKIA/ASIA keys, a simulated botocore DEBUG record with a JSON-quoted session token (acceptance criterion 3), key=value and JSON-quoted spellings, `install()` idempotence, third-party loggers covered even with `propagate = False` set on themselves |
 | `tests/unit/test_cli_surface.py` | 5 | S1: no option anywhere in the real command tree matches a bypass keyword; `--auto-approve` deliberately not flagged (documented exception); the negative-control detector both catches a planted `--skip-safety` fixture and stays silent on a clean one |
-| `tests/unit/test_cli_commands.py` | 28 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: all thirteen not-yet-implemented commands exit 2 with "not implemented until M\<n\>", never a stack trace |
+| `tests/unit/test_cli_commands.py` | 23 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: the remaining eight not-yet-implemented commands (`run`, `report`, `infra {plan,apply,destroy,status,verify-clean}`, `compare` — `runs`/`evidence export --public` resolved by M6, `analyze` resolved by M7) exit 2 with "not implemented until M\<n\>", never a stack trace |
 | `tests/unit/test_cli_scenario_command.py` | 6 | `chainbreak scenario validate`/`list` against a real scenario, a missing file, a structurally invalid document, the repo corpus, a missing directory, an empty directory |
 | `tests/unit/test_namespace_guard.py` | 7 | `assert_namespace` exact/embedded/lookalike/empty-ref cases, error context carries both `namespace` and `ref` |
 | `tests/unit/test_fake_policy_engine.py` | 16 | F2's full evaluation order: identity allow alone, explicit deny beating identity and session allow, session intersection never granting, resource policy granting across the intersection, `replace`/`apply_allow`/`remove_allow`, `evaluate_against` against an explicit snapshot with no registered identity at all |
@@ -621,7 +766,7 @@ M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_fake_determinism.py` | 4 | Acceptance criterion 3: a realistic multi-step sequence hashes identically for the same seed, differently for a different seed, identically across three independent in-process runs, and identically across two separate Python interpreter processes |
 | `tests/integration/test_provider_contract.py` | 12 | The adapter-agnostic shared contract suite: preflight account check, namespace refused before any evaluation (probe and delegate), every capability classifies allow/deny correctly, the control capability never denied, delegation metadata carries no secret, mutation returns a confirmed receipt, protected-identity mutation refused, lifetime capping reported, snapshot fingerprints stable and change after a mutation |
 | `tests/integration/test_fake_scenario_compatibility.py` | 37 | Acceptance criterion 4: every one of the 12 real shipped scenarios, compiled for real and walked (register, delegate along every edge, probe every matrix cell) through all three fake profiles, crash-free (36 parametrized cases) plus a corpus-count guard |
-| `tests/unit/test_redaction.py` | 363 | Reflection-discovers every `DomainModel` subclass and every unconstrained-free-text field on it; property sweep over a six-shape secret corpus per field asserting `redact()` raises or the secret appears in no output byte; SecretMaterial/bare-frozenset/opaque-value branches; `redact_message()`'s in-place ARN substitution; the S1 no-unsafe-file-write grep |
+| `tests/unit/test_redaction.py` | 369 | Reflection-discovers every `DomainModel` subclass and every unconstrained-free-text field on it; property sweep over a six-shape secret corpus per field asserting `redact()` raises or the secret appears in no output byte; SecretMaterial/bare-frozenset/opaque-value branches; `redact_message()`'s in-place ARN substitution; the S1 no-unsafe-file-write grep |
 | `tests/unit/test_evidence_schema.py` | 5 | The golden bundle's manifest and per-record artifacts validate against `schemas/*.json`; the embedded SQLite schema stays in sync with `schemas/run-index.sql` |
 | `tests/unit/test_sealing.py` | 13 | Golden bundle verifies, tampered bundle fails verification, sealing refuses an incomplete bundle, the writer's full lifecycle (duplicate dir, context manager on normal/exceptional exit, double close, write-after-close, `manifest.verify()`'s unsealed and artifact-set-mismatch branches), F2's leave-a-partial-bundle guarantee |
 | `tests/unit/test_bundle_ingest_safety.py` | 9 | T-10: oversized/malformed `.jsonl` lines and single-document JSON artifacts rejected with a bounded, named exception; the exact-boundary case accepted; a structurally invalid `findings.json` entry refused |
@@ -630,14 +775,30 @@ M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_evidence_reader.py` | 8 | Reader-side validation-error paths for each of `read_manifest`/`read_findings`/`read_observations`/`read_policy_states`/`read_credentials`; `read_events`' bare-dict pass-through |
 | `tests/unit/test_evidence_verify_cli.py` | 3 | `python -m chainbreak.evidence.verify` against a verified bundle, a tampered one, and bad usage |
 | `tests/unit/test_cli_runs_command.py` | 6 | `runs reindex`\`then\`list\`/\`show\` against a real indexed bundle, an empty runs root, a missing run, `evidence export --public --dry-run`, and the documented non-`--public` stub |
+| `tests/unit/test_authority_aggregation.py` | 17 | F1 unanimity: all-`ALLOWED`, unanimous denial, mixed-kind denial → `DENIED_UNATTRIBUTED`, each excluded-outcome reason; `aggregate_observations` grouping and trial ordering; F2/AUTH-1: allowed capability included, denial excluded but classified, never-probed vs. error exclusion reasons, coverage; `populate_observed_authority` against a real graph including the wrong-phase-ignored and unexpected-gain-detected cases |
+| `tests/unit/test_confidence_gate.py` | 13 | AUTHORIZATION_MODEL §6's formula: coverage thresholds, unanimity requirement, policy-snapshot failure, an empty cell list forced to `INSUFFICIENT` regardless of claimed coverage, `confidence_rationale`'s text for each gate outcome |
+| `tests/unit/test_finding_rules.py` | 38 | Every rule function's predicate, both firing and non-firing branches; `_build`'s deterministic `finding_id` and `confidence_override` bypass; the `INSUFFICIENT` → `INCONCLUSIVE` type substitution |
+| `tests/unit/test_revocation_math.py` | 12 | `compute_revocation_window`'s interval-with-jitter math, `NO_TRANSITION_OBSERVED_WITHIN_WINDOW`, `test_oscillation_preserved_not_smoothed` and `test_clean_transition_is_not_flagged_non_monotonic` locking in the chronological-scan fix |
+| `tests/unit/test_stale_classification.py` | 9 | The six-row stale-authority table, each row with a fixture naming it, paired-fresh-credential disambiguation |
+| `tests/unit/test_detector.py` | 6 | `check_negative_control` against a matching finding (`DETECTOR_OK`), a missing one (`DETECTOR_FAILURE`), and `_capabilities_satisfied`'s matching logic |
+| `tests/unit/test_cli_analyze_command.py` | 4 | `chainbreak analyze` against a sealed golden bundle, a tampered bundle refused without `--allow-unsealed`, the same bundle accepted with it, a missing run id |
+| `tests/integration/test_known_truth_divergence.py` | 2 | C-9: a fake adapter configured with a known authority mismatch produces exactly the expected `AUTHORITY_EXPANSION`/`DELEGATION_DRIFT` findings at exactly the expected confidence |
+| `tests/integration/test_known_truth_timing.py` | 2 | The `eventual` profile's known 2000ms `propagation_delay_ms`; the measured transition window is asserted to contain it, both through the finding layer and directly against the interval math |
+| `tests/integration/test_analyze_idempotence.py` | 2 | F8: `analyze` run twice against the same real (diverging, then clean) bundle produces byte-identical `findings.json` and identical `finding_id`s |
+| `tests/integration/test_negative_controls.py` | 12 | Acceptance criterion 3: all six `nc-*` scenarios against the real fake provider produce their declared finding and `DETECTOR_OK`; the same six with the defect "fixed" produce `DETECTOR_FAILURE` instead |
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add (`analysis/`, `scoring/`, `reporting/`). CI was green on GitHub Actions through M5 (see
-the M0 entry under "Completed" for the four real defects the first three runs found and the
-fixes that followed, the M1 entry for its own clean first-try run, and the M4/M5 entries for
-runs [31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428) and
-[31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287)).
+add (`scoring/`, `reporting/`). CI was green on GitHub Actions through M6 (see the M0 entry
+under "Completed" for the four real defects the first three runs found and the fixes that
+followed, the M1 entry for its own clean first-try run, the M4/M5 entries for runs
+[31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428) and
+[31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287), and the M6
+paragraph below for its own three-iteration path to green). **M7's work is complete and
+verified locally** (`ruff`, `mypy`, `lint-imports`, the full suite, and the `analysis/`
+coverage run above all pass against this working tree) **but has not yet been committed, pushed,
+or run through CI** — nothing above should be read as a claim that GitHub Actions has seen this
+code.
 
 **M6 needed three iterations to go green**, none of them hypothetical — each was a defect a
 from-scratch review had a real chance of missing, caught by the exact mechanism designed to
@@ -661,13 +822,16 @@ ten jobs on the first try
 Coverage: `core/` ~99%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
 ~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7%, `evidence/` ~94–100% per
 module (`redaction.py`/`writer.py`/`manifest.py`/`export.py`/`verify.py` 100%, `reader.py`
-~98%, `index.py` ~94%) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%,
-90%, **100%** respectively; `config/`, `cli/` and `providers/` have no stated bar in
-TESTING.md's per-module table, so M5's own 90% acceptance criterion is the one actually gating
-`providers/`). `core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1
-redaction `--cov-fail-under=100` gate is now active and passing — the first CI push to activate
-it will be the first time this gate has run for real, the same way M4's push was the first real
-run of the SI-5 SafetyGate gate. Coverage is otherwise not enforced project-wide.
+~98%, `index.py` ~94%), `analysis/` 97% under `pytest -m "unit or integration"` (`authority.py`
+100%, `divergence.py` 100%, `confidence.py` 100%, `detector.py` ~95%, `rules.py` ~97%,
+`timing.py` ~98%, `pipeline.py` ~93% — see the M7 entry above for exactly which branches are
+uncovered and why) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%,
+**100%**, 95% respectively; `config/`, `cli/` and `providers/` have no stated bar in TESTING.md's
+per-module table, so M5's own 90% acceptance criterion is the one actually gating `providers/`).
+`core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1 redaction
+`--cov-fail-under=100` gate is now active and passing — the first CI push to activate it will be
+the first time this gate has run for real, the same way M4's push was the first real run of the
+SI-5 SafetyGate gate. Coverage is otherwise not enforced project-wide.
 
 ---
 
@@ -769,6 +933,16 @@ at M17.
     resolves. Deliberately out of M6's scope (the milestone's file list is `evidence/` plus
     tests, not `config/`); worth folding into `Settings` if a later milestone's CLI surface
     needs it configured once rather than passed on every invocation.
+13. **`analysis/pipeline.py` does not automatically extract `STALE_AUTHORITY`,
+    `EXPIRED_CREDENTIAL_ACCEPTED`, `SILENT_NARROWING` or `CONFIGURATION_ERROR` findings from a
+    bundle.** Their rule functions exist, are implemented against AUTHORIZATION_MODEL.md's
+    six-row stale-authority table and are directly unit-tested in `test_finding_rules.py` and
+    `test_stale_classification.py`, but the deferred-execution polling and task-worker data
+    (`DEFERRED_EXECUTION` phase samples, `TaskOutcome` records) their predicates take as input
+    are produced by machinery M13/M14 have not built yet, so `analyze_bundle` has nothing to
+    call them with today. `chainbreak analyze` against any real bundle currently reports
+    findings only from the authority/divergence and revocation-timing families. Stated
+    explicitly in `pipeline.py`'s own module docstring rather than silently doing nothing.
 
 ---
 
@@ -779,8 +953,13 @@ Recorded now so it is deliberate rather than discovered later.
 - **`AuthoritySet` is a Pydantic model wrapping a `frozenset`.** Slightly heavier than a bare
   frozenset. Kept deliberately: canonical ordering is what makes evidence diffable and
   hashable. Do not "optimize" it.
-- **`ProbeCellResult.resolved` returns `self.trials[0]` for mixed denial attributions.**
-  Correct for the current taxonomy but fragile if denial kinds proliferate. Revisit at M7.
+- ~~`ProbeCellResult.resolved` returns `self.trials[0]` for mixed denial attributions.~~
+  **Checked at M7, not actually fragile.** Re-reading the property while building
+  `analysis/authority.py::resolve_cell` (which sits directly on top of it) found it already
+  branches on `len(distinct)`: a unanimous denial returns that shared value, and a *mixed-kind*
+  denial already returns `DENIED_UNATTRIBUTED`, never a `trials[0]` guess — locked in by
+  `test_mixed_denials_become_unattributed_no_exclusion`. The original note describing this as
+  fragile predated that reading; nothing needed to change.
 - **JSON Schemas are generated but not yet diffed in CI.** The `schemas` job now runs
   `python -m chainbreak.scenarios.export_schema schemas && git diff --exit-code schemas/` in
   every CI run; whether it correctly blocks a real drifted PR is unverified until GitHub
@@ -806,40 +985,43 @@ Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offl
 
 ## Current next action
 
-**Implement M7 — Analysis, findings and the confidence gate.**
+**Implement M8 — AWS provider adapter.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M7.
-Specification: [docs/implementation/milestones/M07-analysis-findings.md](docs/implementation/milestones/M07-analysis-findings.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M8.
+Specification: [docs/implementation/milestones/M08-aws-adapter.md](docs/implementation/milestones/M08-aws-adapter.md).
 
-M7 depends on M6 (complete) and turns evidence into findings: `analysis/authority.py`,
-`divergence.py`, `confidence.py`, `rules.py`, `timing.py`, `detector.py`, `pipeline.py`. Cell
-resolution is by unanimity (ADR-012), not majority voting. Every finding carries `observation`,
-`expected_state`, `observed_state` and `security_interpretation` as separate fields (ADR-006).
-The two most valuable tests are the known-truth differentials only the fake provider can supply:
-a configured authority mismatch producing exactly the expected findings at exactly the expected
-confidence, and a configured `propagation_delay_ms` producing a measured transition window that
-contains it. Run all six `nc-*` scenarios against the fake provider and assert each produces its
-declared finding; then deliberately "fix" each defect and assert `DETECTOR_FAILURE` instead —
-both directions, not just the one that proves detection works.
+M8 depends on M7 (complete) and is the first milestone that touches a cloud: preflight P1–P11,
+STS delegation for all five mechanisms, session-policy synthesis from bindings only (never
+hand-written per scenario), probes for all 10 capabilities with **content verification** (a read
+is `ALLOWED` only if the returned digest matches — "no exception" is not success), denial-message
+disambiguation (explicit vs. implicit attribution, `DENIED_UNATTRIBUTED` when the phrase is
+absent rather than guessed), the mutation choke point (namespace assert, benchmark-agent assert,
+read-after-write confirmation), transient-only retry with full-jitter backoff (`AccessDenied` is
+never retried), and pinned/recorded regional STS endpoints. The non-AWS parts (adapter structure,
+policy synthesis, retry logic, disambiguation parsing) are developable now against `moto`;
+`tests/aws/test_adapter_real.py` and full acceptance need the operator-provisioned dedicated
+account and IAM identity under "External resources eventually required" above, which do not
+exist yet — confirm with the operator before assuming that account is available.
 
-Before starting, confirm M0-M6's toolchain and domain/capability/scenario/CLI/provider/evidence
-layers are intact:
+Before starting, confirm M0-M7's toolchain and domain/capability/scenario/CLI/provider/evidence/
+analysis layers are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 990 passed, 9 skipped, 1 deselected
+pytest -m "unit or integration" -q                  # expect 1112 passed, 9 skipped, 1 deselected
 pytest -m aws -q                                    # expect 1 skipped
 pytest -m unit tests/unit/test_redaction.py \
   --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # expect 100%
 pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
   --cov=chainbreak.scenarios --cov=chainbreak.config --cov=chainbreak.cli \
   --cov=chainbreak.providers.base --cov=chainbreak.providers.fake --cov=chainbreak.evidence \
-  --cov-report=term-missing -m unit
+  --cov=chainbreak.analysis --cov-report=term-missing -m "unit or integration"
      # expect core/ ~99%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%,
-     # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%, evidence/ ~94-100% per module
+     # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%, evidence/ ~94-100% per module,
+     # analysis/ ~97% (pipeline.py needs integration tests included to clear its own bar)
 chainbreak --help                                   # expect < 500ms
 ```
 

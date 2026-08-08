@@ -175,3 +175,14 @@ class BundleWriter:
         )
         self._finalized = True
         return manifest
+
+
+def write_findings(run_dir: Path, findings_document: Mapping[str, Any]) -> None:
+    """``findings.json`` -- produced by ``analyze``, never by ``run`` (EVIDENCE_SCHEMA.md
+    section 1). Deliberately **not** part of ``evidence/manifest.py``'s ``ARTIFACT_NAMES``:
+    it is regenerable from ``observations.jsonl`` and is never covered by the sealed root
+    (ADR-006 made physical). Still funnels through :func:`redact` and
+    :func:`write_text_artifact` like every other evidence-bundle write (S1)."""
+    document = dict(findings_document)
+    redact(document)
+    write_text_artifact(run_dir / "findings.json", canonical.dumps(document))

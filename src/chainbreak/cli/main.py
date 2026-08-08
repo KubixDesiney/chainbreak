@@ -37,7 +37,7 @@ app = typer.Typer(
 app.add_typer(validate.app, name="validate")
 app.add_typer(scenario.app, name="scenario")
 app.add_typer(run.app, name="run")
-app.add_typer(analyze.app, name="analyze")
+app.command("analyze")(analyze.analyze)
 app.add_typer(report.app, name="report")
 app.add_typer(runs.app, name="runs")
 app.add_typer(runs.evidence_app, name="evidence")

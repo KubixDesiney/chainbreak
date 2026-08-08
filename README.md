@@ -7,20 +7,25 @@ and the authority a delegated workload *actually* holds when it executes.
 
 > **Status: 0.1.0a0 — M0 (repository foundation), M1 (domain model + authorization graph),
 > M2 (capability model + catalog), M3 (scenario language + compiler), M4 (CLI, configuration
-> and the SafetyGate), M5 (provider Protocol + deterministic fake laboratory) and M6 (evidence
-> pipeline, redaction and sealing) complete, M7 next.**
+> and the SafetyGate), M5 (provider Protocol + deterministic fake laboratory), M6 (evidence
+> pipeline, redaction and sealing) and M7 (analysis, findings and the confidence gate)
+> complete, M8 next.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
 > fake authorization engine (policy evaluation, session lifetimes, an injectable consistency
-> model, all 10 capability bindings), and the evidence pipeline (append-only sealed bundles,
+> model, all 10 capability bindings), the evidence pipeline (append-only sealed bundles,
 > a `redact()` choke point at exactly 100% coverage, a SQLite run index, and a bounded reader
-> and public-export scrub for untrusted bundles) are implemented and verified (990 passing
-> tests; `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
-> `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
-> `providers/fake/` ~99.7%), and CI enforces lint, types, import boundaries, and security scans
-> on every push. **No benchmark has been executed and no AWS experiment has been run**, so no
-> number anywhere in this repository is a measurement.
+> and public-export scrub for untrusted bundles), and the analysis pipeline (unanimity-based
+> cell resolution, divergence/drift classification, the revocation-window and stale-authority
+> math, the confidence gate, one rule per finding type, the negative-control detector, and
+> `chainbreak analyze` turning a sealed bundle into `findings.json`) are implemented and
+> verified (1112 passing tests; `core/` and `graph/` ~99% coverage, `capabilities/` 100%,
+> `scenarios/` ~98%, `core/safety.py` and `evidence/redaction.py` exactly 100%,
+> `providers/base/` 100%, `providers/fake/` ~99.7%, `analysis/` 97%), and CI enforces lint,
+> types, import boundaries, and security scans on every push. **No benchmark has been
+> executed and no AWS experiment has been run**, so no number anywhere in this repository is
+> a measurement.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.
 
 ---

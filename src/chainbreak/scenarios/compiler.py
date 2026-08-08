@@ -21,6 +21,7 @@ from chainbreak.core.models import (
     AuthoritySet,
     AuthorizationGraph,
     CapabilityCatalog,
+    CompiledExpectation,
     CompiledExpectedFinding,
     CompiledScenario,
     CompileWarning,
@@ -92,6 +93,7 @@ def compile_scenario(
         policy_artifacts=policy_artifacts,
         warnings=warnings,
         expected_finding=_compiled_expected_finding(spec),
+        expectations=_compiled_expectations(spec),
     )
 
 
@@ -250,6 +252,26 @@ def _compiled_expected_finding(spec: ScenarioSpec) -> CompiledExpectedFinding | 
         identity_id=expectation.identity,
         capabilities=AuthoritySet.of(*expectation.capabilities),
         min_confidence=expectation.min_confidence,
+    )
+
+
+def _compiled_expectations(spec: ScenarioSpec) -> tuple[CompiledExpectation, ...]:
+    return tuple(
+        CompiledExpectation(
+            kind=expectation.kind,
+            identity_id=expectation.identity,
+            phase=expectation.phase,
+            allow=AuthoritySet.of(*expectation.allow),
+            deny=AuthoritySet.of(*expectation.deny),
+            path=expectation.path,
+            mode=expectation.mode,
+            capability_id=expectation.capability,
+            max_seconds=expectation.max_seconds,
+            severity=expectation.severity,
+            justification=expectation.justification,
+            task_id=expectation.task,
+        )
+        for expectation in spec.expectations
     )
 
 

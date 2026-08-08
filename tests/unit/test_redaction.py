@@ -398,6 +398,14 @@ def _compiled_expected_finding_kwargs() -> dict[str, Any]:
     return {"type": FindingType.AUTHORITY_EXPANSION}
 
 
+def _compiled_expectation_kwargs() -> dict[str, Any]:
+    return {
+        "kind": "node_authority",
+        "identity_id": "agent-a",
+        "deny": m.AuthoritySet.of("keyvalue.read"),
+    }
+
+
 def _compiled_scenario_kwargs() -> dict[str, Any]:
     return {
         "compiled_hash": _sha("i"),
@@ -513,6 +521,7 @@ _FACTORIES: dict[type[m.DomainModel], Any] = {
     m.SynthesizedPolicy: _synthesized_policy_kwargs,
     m.CompileWarning: _compile_warning_kwargs,
     m.CompiledExpectedFinding: _compiled_expected_finding_kwargs,
+    m.CompiledExpectation: _compiled_expectation_kwargs,
     m.CompiledScenario: _compiled_scenario_kwargs,
     m.Provenance: _provenance_kwargs,
     m.ScenarioRef: _scenario_ref_kwargs,

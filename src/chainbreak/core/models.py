@@ -966,6 +966,37 @@ class CompiledExpectedFinding(DomainModel):
     min_confidence: Confidence = Confidence.MEDIUM
 
 
+class CompiledExpectation(DomainModel):
+    """A scenario's declared, non-negative-control expectation
+    (SCENARIO_SPECIFICATION.md's ``ExpectationSpec``), carried into the
+    compiled artifact so analysis (M7) can consult a timing threshold's
+    severity without re-parsing the scenario document.
+
+    Found missing at M7: M3's compiler used ``spec.expectations`` only to
+    widen the probe capability universe and never threaded it into
+    ``CompiledScenario`` -- there was no reader that needed it before
+    ``analysis/rules.py``'s ``REVOCATION_DELAY`` predicate, which must
+    distinguish an ``assertive`` threshold (raises a finding) from the
+    default ``informational`` one (never does; see SCORING_MODEL.md).
+    """
+
+    kind: str = Field(
+        pattern=r"^(node_authority|attenuation_monotone|no_first_divergence|"
+        r"revocation_within|task_contract)$"
+    )
+    identity_id: IdentityId | None = None
+    phase: str | None = None
+    allow: AuthoritySet = EMPTY_AUTHORITY
+    deny: AuthoritySet = EMPTY_AUTHORITY
+    path: tuple[IdentityId, ...] = ()
+    mode: str = Field(default="set", pattern=r"^(set|cardinality)$")
+    capability_id: CapabilityId | None = None
+    max_seconds: float | None = None
+    severity: str = Field(default="informational", pattern=r"^(informational|assertive)$")
+    justification: str = ""
+    task_id: str | None = None
+
+
 class CompiledScenario(DomainModel):
     """Output of ``scenarios/compiler.py`` (SCENARIO_SPECIFICATION.md section 10)."""
 
@@ -980,6 +1011,7 @@ class CompiledScenario(DomainModel):
     policy_artifacts: tuple[SynthesizedPolicy, ...] = ()
     warnings: tuple[CompileWarning, ...] = ()
     expected_finding: CompiledExpectedFinding | None = None
+    expectations: tuple[CompiledExpectation, ...] = ()
 
 
 # ---------------------------------------------------------------------------

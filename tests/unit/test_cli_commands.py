@@ -166,11 +166,11 @@ class TestUnimplementedCommandsExitTwoNotAStackTrace:
         "args",
         [
             ["run"],
-            ["analyze"],
             ["report"],
             # `runs list|show|reindex` and `evidence export --public` were
             # resolved by M6; see test_cli_runs_command.py for their real
             # behavior. `evidence export` without --public remains a stub.
+            # `analyze` was resolved by M7; see test_cli_analyze_command.py.
             ["infra", "plan"],
             ["infra", "apply"],
             ["infra", "destroy"],

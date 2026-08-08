@@ -23,7 +23,13 @@ from typing import Any, Final
 from pydantic import ValidationError
 
 from chainbreak.core.errors import EvidenceError
-from chainbreak.core.models import CredentialRecord, Observation, PolicyStateSnapshot
+from chainbreak.core.models import (
+    AuthorizationGraph,
+    CompiledScenario,
+    CredentialRecord,
+    Observation,
+    PolicyStateSnapshot,
+)
 from chainbreak.evidence.manifest import Manifest
 
 #: A single JSONL line (one observation, one event, ...) beyond this is
@@ -60,6 +66,26 @@ def read_manifest(path: Path) -> Manifest:
         return Manifest.model_validate(document)
     except ValidationError as exc:
         raise EvidenceError(f"{path.name}: does not conform to Manifest", path=str(path)) from exc
+
+
+def read_scenario(run_dir: Path) -> CompiledScenario:
+    document = _load_json_document(run_dir / "scenario.json")
+    try:
+        return CompiledScenario.model_validate(document)
+    except ValidationError as exc:
+        raise EvidenceError(
+            f"scenario.json: does not conform to CompiledScenario: {exc}", path=str(run_dir)
+        ) from exc
+
+
+def read_graph(run_dir: Path) -> AuthorizationGraph:
+    document = _load_json_document(run_dir / "graph.json")
+    try:
+        return AuthorizationGraph.model_validate(document)
+    except ValidationError as exc:
+        raise EvidenceError(
+            f"graph.json: does not conform to AuthorizationGraph: {exc}", path=str(run_dir)
+        ) from exc
 
 
 def read_findings(path: Path) -> dict[str, Any]:
