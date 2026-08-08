@@ -5,7 +5,17 @@
 
 data "aws_caller_identity" "current" {}
 
+# Same reasoning as modules/resources' objectstore bucket (see its own
+# comment): this bucket only ever exists for one benchmark run's own
+# CloudTrail delivery and is destroyed with the rest of the stack.
+# (checkov only honors #checkov:skip comments placed *inside* the resource
+# block, not preceding it.)
 resource "aws_s3_bucket" "trail" {
+  #checkov:skip=CKV2_AWS_62:No event-driven consumer exists; nothing would ever receive a notification.
+  #checkov:skip=CKV_AWS_18:Access logging needs a second bucket for a bucket that lives minutes -- disproportionate to what it protects.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is for durability of long-lived data; force_destroy=true means this bucket is deleted by design at the end of every run.
+  #checkov:skip=CKV_AWS_145:CloudTrail's own delivery contains no operator secrets (SI-1); a customer-managed KMS key adds per-request cost with no secret content to protect.
+  #checkov:skip=CKV_AWS_21:Versioning would retain old trail-log generations nothing in this benchmark reads back; force_destroy already handles cleanup.
   count = var.enable_cloudtrail ? 1 : 0
 
   bucket        = "${var.namespace}-trail"
@@ -42,6 +52,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "trail" {
 
     expiration {
       days = var.trail_retention_days
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
     }
   }
 }
