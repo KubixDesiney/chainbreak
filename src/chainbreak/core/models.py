@@ -94,6 +94,24 @@ class AuthoritySet(DomainModel):
 
     capabilities: frozenset[CapabilityId] = Field(default_factory=frozenset)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_canonical_list_form(cls, data: Any) -> Any:
+        """Accept ``canonical.dumps``'s own flattened-list rendering.
+
+        ``core/canonical.py`` deliberately serializes ``AuthoritySet`` as a
+        bare sorted list rather than ``{"capabilities": [...]}`` (its actual
+        field shape) for evidence diffability. That makes the write direction
+        and Pydantic's default read direction asymmetric: a bundle written by
+        the evidence writer could not be read back by ``model_validate``
+        until this accepted the same shape it produces (found by M6's
+        ``evidence/reader.py`` -- the first code to ever read this format
+        back).
+        """
+        if isinstance(data, list | tuple | frozenset | set):
+            return {"capabilities": data}
+        return data
+
     @classmethod
     def of(cls, *capabilities: str) -> AuthoritySet:
         return cls(capabilities=frozenset(capabilities))

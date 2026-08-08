@@ -126,6 +126,13 @@ ignore = [
 "tests/**" = ["S", "T20"]
 "src/chainbreak/reporting/**" = ["T20"]
 "src/chainbreak/cli/**" = ["T20"]  # the CLI layer's whole job is printing to the terminal
+# A standalone `python -m` diagnostic entry point, not the CLI proper --
+# M06-evidence-pipeline.md's own verification command names it directly.
+"src/chainbreak/evidence/verify.py" = ["T20"]
+# _SCHEMA_SQL preserves schemas/run-index.sql's exact line breaks so
+# test_evidence_schema.py can assert the two stay byte-identical; wrapping a
+# CHECK constraint across lines here would desync them for no benefit.
+"src/chainbreak/evidence/index.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["chainbreak"]

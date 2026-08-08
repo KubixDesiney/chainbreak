@@ -1,36 +1,135 @@
-"""`chainbreak runs list|show|reindex` and `chainbreak evidence export` -- not yet
-implemented until M6 (evidence pipeline and redaction), which is what creates
-run indices and evidence bundles in the first place.
+"""`chainbreak runs list|show|reindex` and `chainbreak evidence export`.
+
+Thin CLI adapters over ``evidence/index.py`` and ``evidence/export.py`` (M6).
+No business logic lives here (ARCHITECTURE.md section 3.1).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
-app = typer.Typer(help="Inspect past runs. Not yet implemented.")
-evidence_app = typer.Typer(help="Export evidence bundles. Not yet implemented.")
+app = typer.Typer(help="Inspect past runs.")
+evidence_app = typer.Typer(help="Export evidence bundles.")
+
+_DEFAULT_RUNS_ROOT = Path("runs")
 
 
-def _not_implemented(command: str) -> None:
-    typer.echo(f"chainbreak {command}: not implemented until M6", err=True)
-    raise typer.Exit(code=2)
+def _index_path(runs_root: Path) -> Path:
+    return runs_root / "index.db"
 
 
 @app.command("list")
-def list_runs() -> None:
-    _not_implemented("runs list")
+def list_runs(
+    runs_root: Path = typer.Option(
+        _DEFAULT_RUNS_ROOT, "--runs-root", help="Directory containing run bundles."
+    ),
+) -> None:
+    """List indexed runs, most recent first."""
+    from chainbreak.evidence.index import list_runs as index_list_runs
+    from chainbreak.evidence.index import open_index
+
+    conn = open_index(_index_path(runs_root))
+    rows = index_list_runs(conn)
+    conn.close()
+    if not rows:
+        typer.echo("no indexed runs (run `chainbreak runs reindex` after a run completes)")
+        return
+    for row in rows:
+        sealed = "sealed" if row["sealed"] else "UNSEALED"
+        typer.echo(
+            f"{row['run_id']}  {row['created_at']}  {row['status']}  {row['scenario_id']}  {sealed}"
+        )
 
 
 @app.command("show")
-def show_run(run_id: str) -> None:
-    _not_implemented("runs show")
+def show_run(
+    run_id: str,
+    runs_root: Path = typer.Option(
+        _DEFAULT_RUNS_ROOT, "--runs-root", help="Directory containing run bundles."
+    ),
+) -> None:
+    """Show one run's manifest summary."""
+    from chainbreak.core.errors import EvidenceError
+    from chainbreak.evidence.reader import read_manifest, verify_integrity
+
+    run_dir = runs_root / run_id
+    try:
+        manifest = read_manifest(run_dir / "manifest.json")
+    except EvidenceError as exc:
+        typer.echo(f"chainbreak runs show: {exc.message}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"run_id:      {manifest.run_id}")
+    typer.echo(f"status:      {manifest.status}")
+    typer.echo(f"created_at:  {manifest.created_at}")
+    typer.echo(f"completed_at:{manifest.completed_at}")
+    typer.echo(f"scenario:    {manifest.scenario.get('id')} v{manifest.scenario.get('version')}")
+    typer.echo(f"provider:    {manifest.provenance.get('provider')}")
+    typer.echo(f"sealed:      {manifest.integrity.root is not None}")
+    if manifest.integrity.root is not None:
+        typer.echo(f"root_verified:{verify_integrity(run_dir)}")
+    typer.echo(
+        f"counts:      observations={manifest.counts.observations} "
+        f"events={manifest.counts.events} "
+        f"policy_snapshots={manifest.counts.policy_snapshots} "
+        f"credentials={manifest.counts.credentials}"
+    )
 
 
 @app.command("reindex")
-def reindex_runs() -> None:
-    _not_implemented("runs reindex")
+def reindex_runs(
+    runs_root: Path = typer.Option(
+        _DEFAULT_RUNS_ROOT, "--runs-root", help="Directory containing run bundles."
+    ),
+) -> None:
+    """Rebuild the local run index from the bundles on disk (F5)."""
+    from chainbreak.evidence.index import reindex
+
+    count = reindex(_index_path(runs_root), runs_root)
+    typer.echo(f"reindexed {count} run(s) from {runs_root}")
 
 
 @evidence_app.command("export")
-def export_evidence(run_id: str) -> None:
-    _not_implemented("evidence export")
+def export_evidence(
+    run_id: str,
+    public: bool = typer.Option(
+        False, "--public", help="Scrub identifiers before writing the copy (F6)."
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Report what would be stripped without writing files."
+    ),
+    output_dir: Path | None = typer.Option(None, "--output-dir", help="Destination directory."),
+    include_policy_documents: bool = typer.Option(
+        False, "--include-policy-documents", help="Do not strip policy document bodies."
+    ),
+    runs_root: Path = typer.Option(
+        _DEFAULT_RUNS_ROOT, "--runs-root", help="Directory containing run bundles."
+    ),
+) -> None:
+    """Export a bundle. ``--public`` produces the scrubbed, shareable copy (F6)."""
+    if not public:
+        typer.echo("chainbreak evidence export: only --public export is implemented (M6)", err=True)
+        raise typer.Exit(code=2)
+
+    from chainbreak.core.errors import EvidenceError
+    from chainbreak.evidence.export import export_public
+
+    run_dir = runs_root / run_id
+    try:
+        report = export_public(
+            run_dir,
+            output_dir=output_dir,
+            dry_run=dry_run,
+            include_policy_documents=include_policy_documents,
+        )
+    except EvidenceError as exc:
+        typer.echo(f"chainbreak evidence export: {exc.message}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(report.render_diff())
+    if dry_run:
+        typer.echo(f"(dry run: nothing written to {report.output_dir})")
+    else:
+        typer.echo(f"wrote scrubbed bundle to {report.output_dir}")

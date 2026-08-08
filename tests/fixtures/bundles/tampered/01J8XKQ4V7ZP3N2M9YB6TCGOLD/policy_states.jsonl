@@ -1,0 +1,1 @@
+{"identity_id":"principal","monotonic_ns":0,"policies":[{"document_sha256":"sha256:7777777777777777777777777777777777777777777777777777777777777777","has_explicit_deny":false,"name_hash":"sha256:6666666666666666666666666666666666666666666666666666666666666666","policy_kind":"IDENTITY_INLINE","statement_count":1}],"snapshot_id":"ps_01","taken_at":"2026-08-07T12:00:00.000000Z"}

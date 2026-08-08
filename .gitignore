@@ -48,6 +48,12 @@ override.tf.json
 chainbreak.sqlite
 chainbreak.sqlite-*
 /reports/
+# Same class of bug as the /evidence/ anchoring above (M0), found again at M6:
+# the blanket *.jsonl rule also silently dropped the committed golden/tampered/
+# malicious bundle fixtures test_sealing.py and test_bundle_ingest_safety.py
+# depend on. Fixtures are synthetic and safe to publish; only runtime output
+# under /runs/ needs to stay local.
+!tests/fixtures/bundles/**/*.jsonl
 
 # --- Credentials and local config: must never reach the repository.
 .env

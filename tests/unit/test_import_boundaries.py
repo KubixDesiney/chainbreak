@@ -25,9 +25,15 @@ SRC_ROOT = REPO_ROOT / "src" / "chainbreak"
 # are not part of this check. ``scenarios/safety.py`` is the provider-agnostic literal-
 # infrastructure detector (SI-11): it must recognise the ARN shape to reject it, which
 # is a different thing from the rest of the engine depending on AWS semantics.
+# ``evidence/redaction.py`` and ``evidence/export.py`` are the same category of
+# exception for SI-1/T-13 (M6): redacting or scrubbing an ARN-shaped identifier
+# that a provider response put into evidence requires recognising that shape,
+# regardless of which provider produced it.
 _AWS_STRING_ALLOWED_PATHS: tuple[str, ...] = (
     "src/chainbreak/providers/",
     "src/chainbreak/scenarios/safety.py",
+    "src/chainbreak/evidence/redaction.py",
+    "src/chainbreak/evidence/export.py",
     "AWS_PROVIDER_SPEC.md",
 )
 

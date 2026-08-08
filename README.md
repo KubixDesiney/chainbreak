@@ -7,17 +7,20 @@ and the authority a delegated workload *actually* holds when it executes.
 
 > **Status: 0.1.0a0 — M0 (repository foundation), M1 (domain model + authorization graph),
 > M2 (capability model + catalog), M3 (scenario language + compiler), M4 (CLI, configuration
-> and the SafetyGate) and M5 (provider Protocol + deterministic fake laboratory) complete,
-> M6 next.**
+> and the SafetyGate), M5 (provider Protocol + deterministic fake laboratory) and M6 (evidence
+> pipeline, redaction and sealing) complete, M7 next.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
-> configuration resolution, the SafetyGate, the full `chainbreak` CLI, and a real deterministic
+> configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
 > fake authorization engine (policy evaluation, session lifetimes, an injectable consistency
-> model, all 10 capability bindings) are implemented and verified (576 passing tests; `core/`
-> and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%, `core/safety.py` exactly
-> 100%, `providers/base/` 100%, `providers/fake/` ~99.7%), and CI enforces lint, types, import
-> boundaries, and security scans on every push. **No benchmark has been executed and no AWS
-> experiment has been run**, so no number anywhere in this repository is a measurement.
+> model, all 10 capability bindings), and the evidence pipeline (append-only sealed bundles,
+> a `redact()` choke point at exactly 100% coverage, a SQLite run index, and a bounded reader
+> and public-export scrub for untrusted bundles) are implemented and verified (990 passing
+> tests; `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
+> `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
+> `providers/fake/` ~99.7%), and CI enforces lint, types, import boundaries, and security scans
+> on every push. **No benchmark has been executed and no AWS experiment has been run**, so no
+> number anywhere in this repository is a measurement.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.
 
 ---

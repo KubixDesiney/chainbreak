@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-07 · **Version:** 0.1.0a0 · **Phase:** M5 complete, M6 next
+**Last updated:** 2026-08-08 · **Version:** 0.1.0a0 · **Phase:** M6 complete, M7 next
 
 ---
 
@@ -27,7 +27,7 @@ milestone.
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 through M5 complete, M6 is the next action.** M0 made the repository
+**Implementation: M0 through M6 complete, M7 is the next action.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
@@ -42,9 +42,13 @@ Protocol and a real, deterministic fake authorization engine — real explicit-d
 policy evaluation with session-policy intersection, credential lifetime capping, an injectable
 consistency model that can reproduce a genuine non-monotonic revocation transition, and bindings
 for all 10 catalog capabilities — proven byte-for-byte reproducible across independent processes
-from a single seed. All six milestones are
-analysis/domain/capability/scenario/CLI/provider-laboratory work — no benchmark has executed
-and no AWS experiment has run.
+from a single seed. M6 completed the evidence pipeline: an append-only, flush-per-record bundle
+writer; the `redact()` choke point every record passes through, with `evidence/redaction.py` at
+exactly 100% coverage via a reflection-driven property test; SHA-256 sealing and root
+verification; a disposable SQLite run index; a bounded, streaming, schema-validated reader for
+untrusted bundles; and the `--public` export scrub. All seven milestones are
+analysis/domain/capability/scenario/CLI/provider-laboratory/evidence work — no benchmark has
+executed and no AWS experiment has run.
 
 ---
 
@@ -58,6 +62,7 @@ and no AWS experiment has run.
 | Capability model | Complete **and verified in code** — catalog v1.0.0/10 capabilities, registry, operation allowlist (SI-3), preconditions | [CAPABILITY_MODEL.md](CAPABILITY_MODEL.md), `capabilities/` |
 | Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 12 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
+| Evidence pipeline | Complete **and verified in code** — writer, `redact()` (100%), manifest sealing/verification, SQLite index, bounded reader, `--public` export | `evidence/` |
 | Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
 | Provider abstraction | Complete **and verified in code** — `ProviderAdapter` Protocol, live wire types, `assert_namespace` (SI-2) | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md), `providers/base/` |
 | Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 12 scenarios walk without crashing | ARCHITECTURE §3.9, `providers/fake/` |
@@ -440,6 +445,109 @@ same category `raise NotImplementedError`/`@overload` already get excluded for) 
 proven structurally sound via `@runtime_checkable` plus `isinstance(FakeProviderAdapter(),
 ProviderAdapter)`.
 
+**M6 — Evidence pipeline, redaction and sealing.** All five acceptance criteria demonstrated.
+Delivered: `evidence/redaction.py` (`redact()` — the single serialization choke point every
+record passes through before touching disk; raises `SecretLeakError` on a hit rather than
+sanitizing (S2); two independent pattern families — secret-shaped credential patterns that are
+fatal, and identifier-shaped ARN/hostname/account-id patterns that `redact_message()` substitutes
+in place, preserving sentence structure per ADR-013); `evidence/manifest.py` (`Manifest`,
+per-artifact SHA-256 plus a root over sorted `name:hash` pairs — F3 — `seal()`/`verify()`);
+`evidence/writer.py` (`BundleWriter` — append-only `.jsonl` streams flushed per record, so a
+killed process still leaves a usable partial bundle — F2; the only module in `evidence/` that
+opens a file for writing, enforced by a grep-based test so `evidence/export.py` funnels its own
+writes through `write_text_artifact` rather than touching the filesystem directly — S1);
+`evidence/index.py` (the SQLite run index — schema embedded as a literal copy of
+`schemas/run-index.sql`, checked byte-identical by a dedicated test rather than read from disk at
+runtime, matching the precedent M3 set for `scenarios/loader.py`; `reindex()` rebuilds it from
+bundles alone — F5); `evidence/reader.py` (bounded, streaming, schema-validated ingest of a
+possibly-untrusted bundle — T-10 — a per-line byte cap so a hostile `.jsonl` line cannot exhaust
+memory before its own size is even checked, `json.loads` only, never `eval`); `evidence/export.py`
+(`export_public` — F6 — scrubs ARNs, hostnames, bare account IDs and policy documents from a
+sealed bundle, re-scans its own output before writing anything, and prints a diff of what it
+stripped). `evidence/verify.py` is an additional convenience module, not in M6's required file
+list: a thin `python -m chainbreak.evidence.verify <run_dir>` wrapper matching the milestone's own
+verification-commands section literally.
+
+`cli/runs.py`'s five M4 stubs (`runs list|show|reindex`, `evidence export`) now wrap the real
+implementation instead of exiting 2; `evidence export` without `--public` remains a documented
+stub, since only the public-scrub path is in M6's scope. `tests/unit/test_cli_commands.py`'s
+generic "not implemented until M`n`" sweep was updated to drop the four resolved commands, with
+their real behavior covered by the new `tests/unit/test_cli_runs_command.py` — the same pattern
+M4 established for `cli/scenario.py`.
+
+Three genuine findings, not design choices:
+
+1. **`AuthoritySet` could be written but not read back.** `core/canonical.py` has, since M1,
+   deliberately serialized `AuthoritySet` as a bare sorted list rather than its actual
+   `{"capabilities": [...]}` field shape, for evidence diffability. Nothing before M6 ever needed
+   to read that format back — M5's fake-provider tests only ever *write* through `canonical.dumps`
+   for hashing — so the asymmetry was latent until `evidence/reader.py` became the first code to
+   round-trip a bundle: `CredentialRecord.model_validate()` on a freshly-written
+   `credentials.jsonl` line failed with `Input should be a valid dictionary or instance of
+   AuthoritySet`, caught immediately by `test_golden_bundle_credentials_match_credential_schema`
+   before any fixture was hand-massaged to hide it. Fixed at the source rather than worked around
+   in the reader: `AuthoritySet` gained a `model_validator(mode="before")` accepting its own
+   canonical list rendering as an alternate input shape, so the type is symmetric in both
+   directions. All 576 pre-existing tests continued to pass unmodified — the change only *adds*
+   an accepted input shape, never narrows one.
+2. **The ARCH-1 literal-AWS-string boundary needed the same, already-precedented exception
+   twice more.** `test_import_boundaries.py::test_no_aws_service_strings_outside_allowed_paths`
+   (added at M0, a merge gate) failed the moment `evidence/redaction.py`'s ARN-shape regex and
+   `evidence/writer.py`'s error message (`"already exists:"`, which contains the substring
+   `sts:`) existed. The regex hit was a real instance of a category the test already carves out
+   an exception for — `scenarios/safety.py` needs to recognize an ARN shape to reject it under
+   SI-11, "a different thing from the rest of the engine depending on AWS semantics," per that
+   test's own comment — and `evidence/redaction.py`/`evidence/export.py` need the identical
+   recognition for SI-1/T-13, so both were added to the existing allowed-paths list rather than
+   weakening the check. The `writer.py` hit was a coarse-regex false positive (`"exists:"` is not
+   an STS reference); fixed by rewording the message, not by touching the boundary rule.
+3. **A bundle sealed on Windows did not verify on Linux.** The first push (run
+   [31240770166](https://github.com/KubixDesiney/chainbreak/actions/runs/31240770166)) failed
+   `test` on both 3.12 and 3.13 with `root_verified: False` for the committed golden fixture —
+   `manifest.verify()` returning `False` for a bundle that verified locally every time. The cause:
+   `BundleWriter` opened its `.jsonl` streams and `write_text_artifact` opened its target files
+   without `newline=""`, so Python's universal-newline translation wrote `\r\n` on the Windows
+   machine the fixtures were generated on. `hash_file()` reads raw bytes, so the sealed hashes were
+   computed over that `\r\n` content. Locally, re-cloning the repo on the *same* Windows machine
+   re-triggered `core.autocrlf=true`'s checkout-side LF→CRLF conversion, silently reproducing the
+   same bytes and making local verification pass by symmetric coincidence — the local re-check was
+   not actually independent. On the Linux CI runner, git checks out the stored blob (already
+   normalized to LF on commit) without re-converting, so the bytes genuinely differed from what was
+   sealed, and `verify()` was correctly reporting real corruption, not a false alarm. Fixed at the
+   source (`newline=""` on every write in `evidence/writer.py`, both the JSONL streams and
+   `write_text_artifact`) and by regenerating `tests/fixtures/bundles/{golden,tampered}/` with the
+   corrected writer; `test_writer_never_writes_crlf` locks the invariant in. The `security` job on
+   the same push separately caught the synthetic secret corpus in `test_redaction.py` using
+   non-EXAMPLE-exempted AKIA/ASIA-shaped strings — CI's T-01 tree-and-history scan only exempts a
+   line containing the literal word `EXAMPLE` (see the M0 entry's own description of this
+   mechanism); fixed by switching to the AWS-documented example access-key shape
+   `test_logging_filter.py` already established elsewhere in the suite (prefix, seven-character
+   account hint, then the literal word the exemption looks for) rather than an arbitrary
+   16-character suffix. Both were real defects a from-scratch review had
+   a genuine chance of missing, caught by the exact mechanisms designed to catch them, on the first
+   real execution against a real clone — the same pattern M0's own four defects followed.
+
+`evidence/` had no dedicated tests before M6 (the package did not exist). Delivered:
+`test_redaction.py` (the property-based, reflection-driven sweep required by acceptance criterion
+2 — every `DomainModel` subclass in `core/models.py` discovered by `inspect.getmembers`, every
+field reflection identifies as unconstrained free text populated from a synthetic secret corpus
+of six shapes — AKIA/ASIA keys, a JWT, a PEM block, a base64 blob, a session-token shape —
+asserting `redact()` either raises or the secret appears nowhere in the canonical serialization;
+plus focused regressions proving `sha256:`-digests, ULIDs and full git commit SHAs are never
+false positives, since every hash field in the schema depends on that), `test_evidence_schema.py`,
+`test_sealing.py`, `test_bundle_ingest_safety.py`, `test_public_export_scrub.py`,
+`test_evidence_index.py`, `test_evidence_reader.py`, `test_evidence_verify_cli.py`,
+`test_cli_runs_command.py`. `tests/fixtures/bundles/{golden,tampered,malicious}/` were generated
+via a one-off script driving the real `BundleWriter` (golden), a single-byte tamper of the golden
+copy leaving `manifest.json` untouched (tampered), and hand-crafted oversized/malformed `.jsonl`
+lines (malicious) — not committed as a generator, since M6's file list names the fixture
+directories themselves, not a script.
+
+`evidence/redaction.py` finished at exactly 100% (acceptance criterion 2, S4); the rest of
+`evidence/` finished at 94–100% per module (`writer.py`/`manifest.py`/`export.py`/`verify.py`
+100%, `reader.py` ~98%, `index.py` ~94%) — all comfortably above the 90% bar TESTING.md sets for
+modules without a stated bar, the same category `providers/` fell into at M5.
+
 ### Implemented ahead of its milestone (design verification, not milestone completion)
 
 The following exists and passes tests, but the corresponding milestone is **not** complete
@@ -467,8 +575,8 @@ M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 ## Tests
 
 ```
-576 passed, 1 deselected in ~11s     (Python 3.12.7, pytest -m "unit or integration")
-1 skipped, 576 deselected            (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+990 passed, 9 skipped, 1 deselected in ~12s     (Python 3.12.7, pytest -m "unit or integration")
+1 skipped, 999 deselected                       (Python 3.12.7, pytest -m aws -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
@@ -513,28 +621,43 @@ M6 through M19. See [docs/implementation/MILESTONES.md](docs/implementation/MILE
 | `tests/unit/test_fake_determinism.py` | 4 | Acceptance criterion 3: a realistic multi-step sequence hashes identically for the same seed, differently for a different seed, identically across three independent in-process runs, and identically across two separate Python interpreter processes |
 | `tests/integration/test_provider_contract.py` | 12 | The adapter-agnostic shared contract suite: preflight account check, namespace refused before any evaluation (probe and delegate), every capability classifies allow/deny correctly, the control capability never denied, delegation metadata carries no secret, mutation returns a confirmed receipt, protected-identity mutation refused, lifetime capping reported, snapshot fingerprints stable and change after a mutation |
 | `tests/integration/test_fake_scenario_compatibility.py` | 37 | Acceptance criterion 4: every one of the 12 real shipped scenarios, compiled for real and walked (register, delegate along every edge, probe every matrix cell) through all three fake profiles, crash-free (36 parametrized cases) plus a corpus-count guard |
+| `tests/unit/test_redaction.py` | 363 | Reflection-discovers every `DomainModel` subclass and every unconstrained-free-text field on it; property sweep over a six-shape secret corpus per field asserting `redact()` raises or the secret appears in no output byte; SecretMaterial/bare-frozenset/opaque-value branches; `redact_message()`'s in-place ARN substitution; the S1 no-unsafe-file-write grep |
+| `tests/unit/test_evidence_schema.py` | 5 | The golden bundle's manifest and per-record artifacts validate against `schemas/*.json`; the embedded SQLite schema stays in sync with `schemas/run-index.sql` |
+| `tests/unit/test_sealing.py` | 13 | Golden bundle verifies, tampered bundle fails verification, sealing refuses an incomplete bundle, the writer's full lifecycle (duplicate dir, context manager on normal/exceptional exit, double close, write-after-close, `manifest.verify()`'s unsealed and artifact-set-mismatch branches), F2's leave-a-partial-bundle guarantee |
+| `tests/unit/test_bundle_ingest_safety.py` | 9 | T-10: oversized/malformed `.jsonl` lines and single-document JSON artifacts rejected with a bounded, named exception; the exact-boundary case accepted; a structurally invalid `findings.json` entry refused |
+| `tests/unit/test_public_export_scrub.py` | 8 | F6: a bundle seeded with an ARN, account ID, hostname and policy document in several places has all four stripped and reported in the diff; `--dry-run` writes nothing; `--include-policy-documents` opts back in; a clean bundle strips nothing; unsealed and tampered bundles are refused |
+| `tests/unit/test_evidence_index.py` | 10 | F5: schema creation/idempotence, upsert-and-get (including on-conflict update), `index_findings` populating `findings`/`detector_checks` from a hand-built fixture, `reindex` rebuilding from disk (skipping a manifest-less directory) including against the committed golden bundle |
+| `tests/unit/test_evidence_reader.py` | 8 | Reader-side validation-error paths for each of `read_manifest`/`read_findings`/`read_observations`/`read_policy_states`/`read_credentials`; `read_events`' bare-dict pass-through |
+| `tests/unit/test_evidence_verify_cli.py` | 3 | `python -m chainbreak.evidence.verify` against a verified bundle, a tampered one, and bad usage |
+| `tests/unit/test_cli_runs_command.py` | 6 | `runs reindex`\`then\`list\`/\`show\` against a real indexed bundle, an empty runs root, a missing run, `evidence export --public --dry-run`, and the documented non-`--public` stub |
 
 **Not yet written:** the AWS layer proper (M8), e2e layer (M9/M17), and the rest of the
 unit suite described in [TESTING.md](TESTING.md) that covers modules later milestones will
-add (`analysis/`, `evidence/`). CI is green on GitHub Actions (see the M0 entry under
-"Completed" for the four real defects the first three runs found and the fixes that
-followed, and the M1 entry for its own clean first-try run). The M4 push was observed green
-on the first try — all 10 jobs, including the SI-5 SafetyGate coverage gate activating for
-the first time (it had sat inactive, gated on `test_safety_gate.py` not existing, since M0)
-and passing at 100% ([run 31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428)).
-That run was also the first to observe M2 and M3's own additions, which had not yet had a
-dedicated run at the time either was completed. The M5 push was also observed green on the
-first try — all 10 jobs
-([run 31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287)).
+add (`analysis/`, `scoring/`, `reporting/`). CI was green on GitHub Actions through M5 (see
+the M0 entry under "Completed" for the four real defects the first three runs found and the
+fixes that followed, the M1 entry for its own clean first-try run, and the M4/M5 entries for
+runs [31211555428](https://github.com/KubixDesiney/chainbreak/actions/runs/31211555428) and
+[31216636287](https://github.com/KubixDesiney/chainbreak/actions/runs/31216636287)). **M6's
+first push was not green**: run
+[31240770166](https://github.com/KubixDesiney/chainbreak/actions/runs/31240770166) failed
+`test` (both 3.12 and 3.13) and `security`, for the two real, from-scratch-review-missable
+defects the M6 "Completed" entry's finding 3 above describes in full — a Windows/Linux
+line-ending mismatch in the sealed golden fixture, and a synthetic secret in
+`test_redaction.py` that wasn't EXAMPLE-exempted. Both are fixed in the commit this status
+update ships with; record the follow-up run's ID here once it is observed green, rather than
+assuming this fix is correct because it passes locally (that assumption is exactly what
+finding 3 disproved once already).
 
-Coverage: `core/` ~99.5%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
-~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7% (all exceed their
-TESTING.md bars, where one is stated — 95%, 95%, 90%, 90% respectively; `config/`, `cli/` and
-`providers/` have no stated bar in TESTING.md's per-module table, so M5's own 90% acceptance
-criterion is the one actually gating `providers/`). `core/safety.py` is exactly 100%, its own
-acceptance criterion. The SI-1 redaction `--cov-fail-under` gate in CI remains inactive because
-`evidence/redaction.py` does not exist yet (M6); the SI-5 SafetyGate gate is active and
-passing. Coverage is otherwise not enforced project-wide.
+Coverage: `core/` ~99%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
+~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7%, `evidence/` ~94–100% per
+module (`redaction.py`/`writer.py`/`manifest.py`/`export.py`/`verify.py` 100%, `reader.py`
+~98%, `index.py` ~94%) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%,
+90%, **100%** respectively; `config/`, `cli/` and `providers/` have no stated bar in
+TESTING.md's per-module table, so M5's own 90% acceptance criterion is the one actually gating
+`providers/`). `core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1
+redaction `--cov-fail-under=100` gate is now active and passing — the first CI push to activate
+it will be the first time this gate has run for real, the same way M4's push was the first real
+run of the SI-5 SafetyGate gate. Coverage is otherwise not enforced project-wide.
 
 ---
 
@@ -623,7 +746,19 @@ at M17.
     `docs/implementation/MILESTONES.md`'s dependency graph and M10's own file list
     (`execution/orchestrator.py`, `execution/matrix.py`, `execution/delegation.py`). See the
     M5 entry under "Completed" for how acceptance criteria 3 and 4 were verified instead, at
-    the provider layer that exists today.
+    the provider layer that exists today. M6's `BundleWriter` exists now and is exercised
+    directly by tests and by the fixture generator, so the write path itself is proven; only
+    the orchestration loop that would call it during a real run is still missing.
+11. **`Manifest.block_id` is always `None` today.** Added at M6 for schema symmetry with
+    `ExperimentRun` and because `schemas/run-index.sql`'s `runs.block_id` column already exists,
+    but nothing populates it until the orchestrator (M10+) and control C-7's block randomization
+    (M17) exist to set it. Harmless: every M6 code path treats it as optional.
+12. **The SQLite index path (`<runs_root>/index.db`) is a hardcoded CLI default, not a
+    `Settings` field.** `cli/runs.py` accepts `--runs-root` per-invocation but there is no
+    `chainbreak.toml`/env-var layer for it yet, unlike every other path `config/settings.py`
+    resolves. Deliberately out of M6's scope (the milestone's file list is `evidence/` plus
+    tests, not `config/`); worth folding into `Settings` if a later milestone's CLI surface
+    needs it configured once rather than passed on every invocation.
 
 ---
 
@@ -661,39 +796,40 @@ Nothing before M8 requires any of these. M0–M7 and M10–M16 are entirely offl
 
 ## Current next action
 
-**Implement M6 — Evidence pipeline, redaction and sealing.**
+**Implement M7 — Analysis, findings and the confidence gate.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M6.
-Specification: [docs/implementation/milestones/M06-evidence-pipeline.md](docs/implementation/milestones/M06-evidence-pipeline.md).
+Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M7.
+Specification: [docs/implementation/milestones/M07-analysis-findings.md](docs/implementation/milestones/M07-analysis-findings.md).
 
-M6 depends on M5 (complete) and is the highest-stakes milestone for SI-1 and EV-1: produce
-sealed, schema-valid, secret-free evidence bundles, and make redaction structurally impossible
-to bypass. `evidence/writer.py` (append-only JSONL streams, flushed per record so an aborted
-run yields usable partial evidence — F2), `evidence/redaction.py` (the single choke point
-every record passes through — this is what activates the SI-1 `--cov-fail-under=100` gate in
-CI, currently inactive since the file does not exist), `evidence/manifest.py` (per-artifact
-SHA-256 plus a root over sorted `name:hash` pairs — F3), `evidence/index.py` (SQLite run
-index), `evidence/reader.py` (bounded, streaming, schema-validated ingest of a possibly-
-untrusted bundle), `evidence/export.py` (`--public` scrub with a printed diff — F6). Once M6
-lands, `chainbreak runs list|show|reindex` and `chainbreak evidence export` (M4's stubs) have
-something real to wrap.
+M7 depends on M6 (complete) and turns evidence into findings: `analysis/authority.py`,
+`divergence.py`, `confidence.py`, `rules.py`, `timing.py`, `detector.py`, `pipeline.py`. Cell
+resolution is by unanimity (ADR-012), not majority voting. Every finding carries `observation`,
+`expected_state`, `observed_state` and `security_interpretation` as separate fields (ADR-006).
+The two most valuable tests are the known-truth differentials only the fake provider can supply:
+a configured authority mismatch producing exactly the expected findings at exactly the expected
+confidence, and a configured `propagation_delay_ms` producing a measured transition window that
+contains it. Run all six `nc-*` scenarios against the fake provider and assert each produces its
+declared finding; then deliberately "fix" each defect and assert `DETECTOR_FAILURE` instead —
+both directions, not just the one that proves detection works.
 
-Before starting, confirm M0-M5's toolchain and domain/capability/scenario/CLI/provider layers
-are intact:
+Before starting, confirm M0-M6's toolchain and domain/capability/scenario/CLI/provider/evidence
+layers are intact:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
 mypy                                                # clean
 lint-imports                                        # 6 contracts kept
-pytest -m "unit or integration" -q                  # expect 576 passed, 1 deselected
+pytest -m "unit or integration" -q                  # expect 990 passed, 9 skipped, 1 deselected
 pytest -m aws -q                                    # expect 1 skipped
+pytest -m unit tests/unit/test_redaction.py \
+  --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # expect 100%
 pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
   --cov=chainbreak.scenarios --cov=chainbreak.config --cov=chainbreak.cli \
-  --cov=chainbreak.providers.base --cov=chainbreak.providers.fake \
+  --cov=chainbreak.providers.base --cov=chainbreak.providers.fake --cov=chainbreak.evidence \
   --cov-report=term-missing -m unit
-     # expect core/ ~99.5%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%,
-     # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%
+     # expect core/ ~99%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%,
+     # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%, evidence/ ~94-100% per module
 chainbreak --help                                   # expect < 500ms
 ```
 

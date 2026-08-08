@@ -50,6 +50,7 @@ Two properties are structural, not conventional:
   "created_at": "2026-08-07T14:19:58.114233Z",
   "completed_at": "2026-08-07T14:27:11.902004Z",
   "status": "COMPLETED",
+  "block_id": null,
 
   "scenario": {
     "id": "delegation-drift-four-hop",
@@ -106,6 +107,10 @@ URL-safe, and it does not leak a hostname or MAC address the way UUIDv1 does.
 
 `infrastructure_fingerprint` is a hash over the Terraform output values (post-redaction),
 so evidence records *which* infrastructure produced it without recording the ARNs.
+
+`block_id` mirrors the field of the same name on `ExperimentRun` and on the SQLite index's
+`runs` table, added at M6 for schema symmetry. It is `null` until the orchestrator (M10+) and
+control C-7's block randomization (M17, EXPERIMENT_PROTOCOL.md section 0) exist to set it.
 
 ---
 
