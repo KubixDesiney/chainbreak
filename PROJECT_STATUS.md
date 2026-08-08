@@ -943,10 +943,18 @@ its own clean first-try run, the M4/M5 entries for runs
 paragraph below for its own three-iteration path to green). **M7 was pushed at commit
 `30e81eb` and was observed green on all ten jobs on the first try**
 ([run 31245421173](https://github.com/KubixDesiney/chainbreak/actions/runs/31245421173)) — unlike
-M6, no fix iteration was needed. **M8's offline portion is complete and verified locally
-(`ruff`, `mypy`, `lint-imports`, the full suite including the tables above) but has not yet been
-committed, pushed, or run through CI** — nothing above should be read as a claim that GitHub
-Actions has seen this code.
+M6, no fix iteration was needed. **M8's offline portion was pushed at commit `ed0fa3b` and
+needed one fix iteration to go green.** The `security` job's `bandit -r src/` step failed on
+`adapter.py`'s `assert result is not None` (B101: bandit flags any bare `assert` in `src/`,
+since asserts are stripped under Python's `-O` optimization) — a real gap in local verification,
+since `bandit` is not among this project's own documented verification commands and had never
+been run against this code before the push. Fixed by replacing the assert with an explicit
+`if result is None: raise AssertionError(...)`, matching the precedent `retry.py`'s own
+"unreachable" branch already set earlier in the same milestone; commit `38bc329` was observed
+green on all ten jobs
+([run 31255480917](https://github.com/KubixDesiney/chainbreak/actions/runs/31255480917)).
+`bandit -r src/ -q` is now added to this file's own pre-push habit for any future milestone
+touching `src/`, even though it is not yet listed in any milestone's own verification commands.
 
 **M6 needed three iterations to go green**, none of them hypothetical — each was a defect a
 from-scratch review had a real chance of missing, caught by the exact mechanism designed to
