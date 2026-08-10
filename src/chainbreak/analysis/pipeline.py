@@ -3,21 +3,20 @@ pure function of bundle content, no clock reads, no randomness that affects
 output).
 
 Scope, stated plainly: the authority/divergence family (per phase, from
-``observations.jsonl``) and the revocation-timing family (from
+``observations.jsonl``), the revocation-timing family (from
 ``POLICY_MUTATION_APPLIED`` events paired with ``POST_MUTATION``-phase poll
-observations) are detected automatically from any bundle, regardless of what
-produced it. Stale-authority and silent-narrowing require deferred-execution
-and task-worker machinery that belongs to M13/M14, which do not exist yet;
-:mod:`chainbreak.analysis.rules` and :mod:`chainbreak.analysis.timing`
-already implement their predicates and are directly callable once bundles
-carrying that data exist -- this pipeline does not yet extract that data
-from a bundle automatically, and says so rather than silently doing nothing.
+observations), the stale-authority family (since M13, from
+``DEFERRED_EXECUTION``/``PAIRED_FRESH_CREDENTIAL``-phase observations, see
+:mod:`chainbreak.analysis.stale`), and the silent-narrowing family (since
+M14, from ``TASK_OUTCOME_RECORDED`` events, see
+:mod:`chainbreak.analysis.task_contract`) are all detected automatically
+from any bundle, regardless of what produced it.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -31,10 +30,14 @@ from chainbreak.analysis.rules import (
     rule_delegation_drift,
     rule_execution_error,
     rule_expected_behavior,
+    rule_expired_credential_accepted,
     rule_lifetime_capped,
     rule_no_transition_observed,
     rule_revocation_delay,
+    rule_stale_authority,
 )
+from chainbreak.analysis.stale import stale_authority_measurements
+from chainbreak.analysis.task_contract import extract_task_outcomes, task_contract_findings
 from chainbreak.analysis.timing import PollSample, compute_revocation_window
 from chainbreak.core.enums import MutationKind, PlanPhase
 from chainbreak.core.ids import CapabilityId, IdentityId
@@ -45,6 +48,8 @@ from chainbreak.core.models import (
     DetectorCheck,
     Finding,
     Observation,
+    PathAnalysis,
+    RevocationMeasurement,
 )
 from chainbreak.evidence.reader import (
     read_credentials,
@@ -54,6 +59,7 @@ from chainbreak.evidence.reader import (
     read_scenario,
 )
 from chainbreak.evidence.writer import write_findings
+from chainbreak.graph.paths import analyze_all_paths
 
 _ANALYZER_VERSION = "1.0.0"
 
@@ -63,18 +69,19 @@ class AnalysisResult:
     findings: tuple[Finding, ...]
     detector_checks: tuple[DetectorCheck, ...]
     bundle_root_verified: bool
-
-
-def _origin_finding_id(findings_so_far: list[Finding], identity_id: IdentityId) -> str | None:
-    """The most recent ``AUTHORITY_EXPANSION`` finding at ``identity_id``, if
-    any -- what a ``DELEGATION_DRIFT`` finding downstream cites as its cause
-    (AUTHORIZATION_MODEL.md section 7's worked example)."""
-    from chainbreak.core.enums import FindingType
-
-    for finding in reversed(findings_so_far):
-        if finding.type is FindingType.AUTHORITY_EXPANSION and finding.identity_id == identity_id:
-            return finding.finding_id
-    return None
+    #: M11 F3: first divergence and monotonicity per root-to-leaf path
+    #: (AUTHORIZATION_MODEL.md section 4.5), keyed by ``PlanPhase.value`` --
+    #: a branching graph diverges independently per branch, which no
+    #: per-node or per-edge finding above captures on its own.
+    path_analyses: dict[str, tuple[PathAnalysis, ...]] = field(default_factory=dict)
+    #: M15: the graph after every authority-axis phase has been folded in
+    #: (the same ``accumulated_graph`` the path-analysis loop below already
+    #: builds) -- ``scoring/categories.py`` needs per-edge "was this node
+    #: actually measured" state and re-deriving it from scratch would
+    #: duplicate this exact accumulation loop rather than reuse its output.
+    #: ``None`` only when the bundle has no authority-axis phase at all
+    #: (a pure revocation/task/stale-authority-only run).
+    populated_graph: AuthorizationGraph | None = None
 
 
 def _authority_findings_for_phase(
@@ -89,8 +96,20 @@ def _authority_findings_for_phase(
 
     analysis = analyze_graph(populated)
     findings: list[Finding] = []
+    # M11 F4: the finding_id of the AUTHORITY_EXPANSION at the TRUE origin of
+    # a gain, threaded through every downstream hop that carries it forward
+    # (PROPAGATED/AMPLIFIED) -- not just the immediate parent's own finding.
+    # Looking up only the parent's AUTHORITY_EXPANSION (as an earlier version
+    # of this function did) loses the citation past the origin's immediate
+    # child: a PROPAGATED node never gets its own AUTHORITY_EXPANSION finding
+    # (rule_authority_expansion's predicate excludes PROPAGATED/AMPLIFIED),
+    # so a grandchild looking up its own parent would find nothing there. A
+    # CORRECTED hop deliberately gets no entry, which is what resets the
+    # chain: any later, independent gain past a correction is a fresh
+    # origin, not attributed to the earlier, already-fixed defect.
+    origin_by_identity: dict[IdentityId, str] = {}
 
-    for node in populated.nodes:
+    for node in sorted(populated.nodes, key=lambda n: n.hop_index):
         if node.observed_authority is None:
             continue
         cells = cells_by_identity.get(node.identity_id, {})
@@ -104,11 +123,14 @@ def _authority_findings_for_phase(
         expansion = rule_authority_expansion(node, drift_class, cells)
         if expansion is not None:
             findings.append(expansion)
-        drift_finding = rule_delegation_drift(
-            node, drift_class, _origin_finding_id(findings, node.parent_id or ""), cells
-        )
+            origin_by_identity[node.identity_id] = expansion.finding_id
+
+        origin_finding_id = origin_by_identity.get(node.parent_id or "")
+        drift_finding = rule_delegation_drift(node, drift_class, origin_finding_id, cells)
         if drift_finding is not None:
             findings.append(drift_finding)
+            if node.identity_id not in origin_by_identity and origin_finding_id is not None:
+                origin_by_identity[node.identity_id] = origin_finding_id
 
         narrowing = rule_authority_narrowing(node, cells)
         if narrowing is not None:
@@ -131,12 +153,15 @@ def _authority_findings_for_phase(
     return findings
 
 
-def _revocation_findings(
-    events: list[dict[str, Any]],
-    observations: list[Observation],
-    expectations: tuple[CompiledExpectation, ...],
-) -> list[Finding]:
-    findings: list[Finding] = []
+def revocation_measurements(
+    events: list[dict[str, Any]], observations: list[Observation]
+) -> list[RevocationMeasurement]:
+    """One :class:`RevocationMeasurement` per polled (identity, capability)
+    cell (M12). Split out from ``_revocation_findings`` (M15) so
+    ``scoring/categories.py`` can consume the same measurements
+    ``analysis/rules.py``'s finding predicates are built from, rather than
+    re-parsing ``events``/``observations`` a second time."""
+    measurements: list[RevocationMeasurement] = []
     mutation_events = [e for e in events if e.get("kind") == "POLICY_MUTATION_APPLIED"]
 
     poll_observations = [o for o in observations if o.phase is PlanPhase.POST_MUTATION]
@@ -150,7 +175,7 @@ def _revocation_findings(
             )
         )
     if not mutation_events or not polls_by_cell:
-        return findings
+        return measurements
 
     # A run has one mutation to observe against (ADR-011: concurrent
     # mutations would destroy the timing measurement); every polled cell is
@@ -168,18 +193,31 @@ def _revocation_findings(
     except ValueError:
         mutation_kind = None
     if mutation_sent_ns is None or mutation_kind is None:
-        return findings
+        return measurements
 
     for (identity_id, capability_id), samples in polls_by_cell.items():
-        measurement = compute_revocation_window(
-            samples,
-            identity_id=identity_id,
-            capability_id=capability_id,
-            mutation_kind=mutation_kind,
-            mutation_sent_ns=mutation_sent_ns,
-            poll_interval_ms=500,
-            mutation_receipt_confirmed=bool(receipt.get("confirmed", False)),
+        measurements.append(
+            compute_revocation_window(
+                samples,
+                identity_id=identity_id,
+                capability_id=capability_id,
+                mutation_kind=mutation_kind,
+                mutation_sent_ns=mutation_sent_ns,
+                poll_interval_ms=500,
+                mutation_receipt_confirmed=bool(receipt.get("confirmed", False)),
+            )
         )
+
+    return measurements
+
+
+def _revocation_findings(
+    events: list[dict[str, Any]],
+    observations: list[Observation],
+    expectations: tuple[CompiledExpectation, ...],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    for measurement in revocation_measurements(events, observations):
         no_transition = rule_no_transition_observed(measurement)
         if no_transition is not None:
             findings.append(no_transition)
@@ -189,8 +227,8 @@ def _revocation_findings(
                 e
                 for e in expectations
                 if e.kind == "revocation_within"
-                and e.identity_id == identity_id
-                and e.capability_id == capability_id
+                and e.identity_id == measurement.identity_id
+                and e.capability_id == measurement.capability_id
             ),
             None,
         )
@@ -198,6 +236,22 @@ def _revocation_findings(
         if delay is not None:
             findings.append(delay)
 
+    return findings
+
+
+def _stale_authority_findings(
+    events: list[dict[str, Any]],
+    observations: list[Observation],
+    credentials: list[Any],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    for measurement in stale_authority_measurements(events, observations, credentials):
+        stale = rule_stale_authority(measurement)
+        if stale is not None:
+            findings.append(stale)
+        expired = rule_expired_credential_accepted(measurement)
+        if expired is not None:
+            findings.append(expired)
     return findings
 
 
@@ -212,12 +266,53 @@ def analyze_bundle(run_dir: Path) -> AnalysisResult:
     credentials = list(read_credentials(run_dir))
 
     findings: list[Finding] = []
+    path_analyses: dict[str, tuple[PathAnalysis, ...]] = {}
+    # F3: unlike per-node/per-edge findings (independently correct using
+    # only their own phase's observations), a root-to-leaf PATH's first
+    # divergence needs the root's own measurement too -- and a scenario's
+    # own baseline phase is typically the only phase that ever re-probes the
+    # root (an after-delegation phase's targets are usually the delegated
+    # agents alone). Populating progressively, feeding each phase's output
+    # graph into the next call, accumulates observed authority across
+    # phases instead of re-populating fresh each time (a node with no
+    # observations in a later phase keeps whatever an earlier phase already
+    # measured for it, since populate_observed_authority leaves it
+    # unchanged rather than resetting it) -- so "the path analysis as of
+    # this phase" reflects everything measured up to and including it, the
+    # same accumulated view a scenario's own scenario-wide (not per-phase)
+    # no_first_divergence/attenuation_monotone expectations assume.
+    accumulated_graph = graph
 
-    phases_present = {o.phase for o in observations} - {PlanPhase.POST_MUTATION}
+    # POST_MUTATION (M12), DEFERRED_EXECUTION/PAIRED_FRESH_CREDENTIAL (M13)
+    # and TASK_EXECUTION (M14) each get their own dedicated analysis below
+    # instead: a probe against a deliberately-pinned pre-mutation
+    # credential, a freshly re-delegated pairing probe, or a task's own
+    # step invocation, would otherwise look like an ordinary
+    # AUTHORITY_EXPANSION/NARROWING relative to the graph's static
+    # expected_authority -- noise duplicating (and potentially conflicting
+    # with) the dedicated finding each of those phases exists to produce.
+    phases_present = {o.phase for o in observations} - {
+        PlanPhase.POST_MUTATION,
+        PlanPhase.DEFERRED_EXECUTION,
+        PlanPhase.PAIRED_FRESH_CREDENTIAL,
+        PlanPhase.TASK_EXECUTION,
+    }
     for phase in sorted(phases_present, key=lambda p: p.value):
         findings.extend(_authority_findings_for_phase(graph, observations, phase))
+        accumulated_graph = populate_observed_authority(
+            accumulated_graph, observations, phase=phase
+        )
+        path_analyses[phase.value] = analyze_all_paths(accumulated_graph)
+
+    # M15: expose the fully-accumulated graph only when at least one
+    # authority-axis phase actually populated it -- otherwise it is
+    # byte-identical to the unpopulated ``graph`` and callers should treat
+    # this category axis as unmeasured, not "measured with zero coverage".
+    populated_graph = accumulated_graph if phases_present else None
 
     findings.extend(_revocation_findings(events, observations, scenario.expectations))
+    findings.extend(_stale_authority_findings(events, observations, credentials))
+    findings.extend(task_contract_findings(extract_task_outcomes(events), scenario.task_plans))
 
     for credential in credentials:
         capped = rule_lifetime_capped(credential)
@@ -240,6 +335,8 @@ def analyze_bundle(run_dir: Path) -> AnalysisResult:
         findings=tuple(findings),
         detector_checks=tuple(detector_checks),
         bundle_root_verified=verify_integrity(run_dir),
+        path_analyses=path_analyses,
+        populated_graph=populated_graph,
     )
 
 
@@ -263,6 +360,13 @@ def _findings_document(manifest_completed_at: str | None, result: AnalysisResult
             }
             for c in result.detector_checks
         ],
+        # M11 F3: per root-to-leaf path, keyed by phase -- a branching graph
+        # diverges independently per branch, which no single per-node or
+        # per-edge finding above captures on its own.
+        "path_analyses": {
+            phase: [p.model_dump(mode="json") for p in paths]
+            for phase, paths in result.path_analyses.items()
+        },
     }
 
 

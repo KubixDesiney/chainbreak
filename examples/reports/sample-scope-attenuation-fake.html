@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CHAINBREAK -- run 01KZNVRCY521JN2YR886MN025N</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 960px; margin: 2rem auto;
+         padding: 0 1rem; color: #1a1a1a; background: #fff; line-height: 1.5; }
+  header.banner { background: #fff3cd; border: 2px solid #f2b701; padding: 0.75rem 1rem;
+                  margin-bottom: 1rem; font-weight: bold; }
+  .warn { background: #fdecea; border: 2px solid #e45756; padding: 0.5rem 1rem; margin: 0.5rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+  th { background: #f5f5f5; }
+  .finding { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+  .finding h3 { margin-top: 0; }
+  .finding dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+  .finding dt { font-weight: bold; }
+  figure { margin: 1.5rem 0; }
+  figcaption { font-size: 0.85rem; color: #555; margin-top: 0.25rem; }
+  code, pre { font-family: ui-monospace, monospace; }
+  .not-measured { font-weight: bold; }
+  ul.limitations li { margin-bottom: 0.25rem; }
+</style>
+</head>
+<body>
+<header class="banner">FAKE-PROVIDER APPARATUS CHECK -- this is not a measurement of any real provider.</header>
+
+<h1>CHAINBREAK &mdash; run 01KZNVRCY521JN2YR886MN025N</h1>
+<p>
+  scenario <code>scope-attenuation-basic</code> v1.0.0 (scope-attenuation)
+  &mdash; provider <code>fake</code> (adapter 0.1.0)<br>
+  status <code>COMPLETED</code> &mdash; bundle_root_verified <code>True</code>
+</p>
+
+
+<h2>Category results</h2>
+<table>
+<thead><tr><th>category</th><th>status</th><th>coverage</th><th>confidence</th></tr></thead>
+<tbody>
+<tr>
+  <td>DELEGATION_INTEGRITY</td>
+  <td>CONSISTENT</td>
+  <td>1.00</td>
+  <td>HIGH</td>
+</tr>
+<tr>
+  <td>SCOPE_ATTENUATION</td>
+  <td>CONSISTENT</td>
+  <td>1.00</td>
+  <td>HIGH</td>
+</tr>
+<tr>
+  <td>REVOCATION_RESPONSIVENESS</td>
+  <td>NOT_MEASURED</td>
+  <td>--</td>
+  <td>--</td>
+</tr>
+<tr>
+  <td>AUTHORITY_FRESHNESS</td>
+  <td>NOT_MEASURED</td>
+  <td>--</td>
+  <td>--</td>
+</tr>
+<tr>
+  <td>FAILURE_TRANSPARENCY</td>
+  <td>NOT_MEASURED</td>
+  <td>--</td>
+  <td>--</td>
+</tr>
+<tr>
+  <td>CREDENTIAL_HYGIENE</td>
+  <td>CONSISTENT</td>
+  <td>1.00</td>
+  <td>HIGH</td>
+</tr>
+</tbody>
+</table>
+<p class="not-measured">NOT_MEASURED is not a pass. 3 of 6 categories were not exercised by this scenario.</p>
+
+
+<h2>Figures</h2>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 530 150" width="530" height="150"><rect x="0" y="0" width="530" height="150" fill="none"/><text x="265.0" y="20" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">Authorization graph</text><line x1="115.0" y1="85.0" x2="265.0" y2="85.0" stroke="#8a8a8a" marker-end="url(#arrow)"/><text x="190.0" y="81.0" text-anchor="middle" font-family="monospace" font-size="8" fill="#8a8a8a">ROLE_CHAIN</text><line x1="265.0" y1="85.0" x2="415.0" y2="85.0" stroke="#8a8a8a" marker-end="url(#arrow)"/><text x="340.0" y="81.0" text-anchor="middle" font-family="monospace" font-size="8" fill="#8a8a8a">SESSION_POLICY_SCOPED</text><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#8a8a8a"/></marker></defs><circle cx="115.0" cy="85.0" r="6" fill="#4c78a8"/><text x="115.0" y="103.0" text-anchor="middle" font-family="monospace" font-size="9">principal</text><circle cx="265.0" cy="85.0" r="6" fill="#54a24b"/><text x="265.0" y="103.0" text-anchor="middle" font-family="monospace" font-size="9">agent-a</text><circle cx="415.0" cy="85.0" r="6" fill="#54a24b"/><text x="415.0" y="103.0" text-anchor="middle" font-family="monospace" font-size="9">agent-b</text></svg>
+  <figcaption><strong>Authorization graph</strong> &mdash; 3 identities, 2 delegation edges. FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 260" width="640" height="260"><rect x="0" y="0" width="640" height="260" fill="none"/><text x="320.0" y="20" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">Intended vs. effective authority per hop</text><line x1="40" y1="220" x2="600" y2="220" stroke="#8a8a8a"/><rect x="55.6" y="40.0" width="49.8" height="180.0" fill="#4c78a8"><title>intended: 8 capabilities</title></rect><text x="80.4" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">8</text><rect x="117.8" y="40.0" width="49.8" height="180.0" fill="#e45756"><title>effective: 8 capabilities</title></rect><text x="142.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">8</text><text x="133.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal (hop 0)</text><rect x="242.2" y="85.0" width="49.8" height="135.0" fill="#4c78a8"><title>intended: 6 capabilities</title></rect><text x="267.1" y="81.0" text-anchor="middle" font-family="monospace" font-size="10">6</text><rect x="304.4" y="85.0" width="49.8" height="135.0" fill="#e45756"><title>effective: 6 capabilities</title></rect><text x="329.3" y="81.0" text-anchor="middle" font-family="monospace" font-size="10">6</text><text x="320.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a (hop 1)</text><rect x="428.9" y="175.0" width="49.8" height="45.0" fill="#4c78a8"><title>intended: 2 capabilities</title></rect><text x="453.8" y="171.0" text-anchor="middle" font-family="monospace" font-size="10">2</text><rect x="491.1" y="175.0" width="49.8" height="45.0" fill="#e45756"><title>effective: 2 capabilities</title></rect><text x="516.0" y="171.0" text-anchor="middle" font-family="monospace" font-size="10">2</text><text x="506.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b (hop 2)</text><rect x="40" y="18" width="10" height="10" fill="#4c78a8"/><text x="54" y="27" font-family="sans-serif" font-size="10">intended</text><rect x="160" y="18" width="10" height="10" fill="#e45756"/><text x="174" y="27" font-family="sans-serif" font-size="10">effective</text></svg>
+  <figcaption><strong>Intended vs. effective authority per hop</strong> &mdash; 3 hop(s) with an observed-authority phase. FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 260" width="640" height="260"><rect x="0" y="0" width="640" height="260" fill="none"/><text x="320.0" y="20" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">Excess / missing capabilities per hop</text><line x1="40" y1="220" x2="600" y2="220" stroke="#8a8a8a"/><rect x="63.3" y="220.0" width="74.7" height="0.0" fill="#4c78a8"><title>excess: 0</title></rect><text x="100.7" y="216.0" text-anchor="middle" font-family="monospace" font-size="10">0</text><rect x="156.7" y="220.0" width="74.7" height="0.0" fill="#e45756"><title>missing: 0</title></rect><text x="194.0" y="216.0" text-anchor="middle" font-family="monospace" font-size="10">0</text><text x="180.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">hop-1</text><rect x="343.3" y="220.0" width="74.7" height="0.0" fill="#4c78a8"><title>excess: 0</title></rect><text x="380.7" y="216.0" text-anchor="middle" font-family="monospace" font-size="10">0</text><rect x="436.7" y="220.0" width="74.7" height="0.0" fill="#e45756"><title>missing: 0</title></rect><text x="474.0" y="216.0" text-anchor="middle" font-family="monospace" font-size="10">0</text><text x="460.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">hop-2</text><rect x="40" y="18" width="10" height="10" fill="#4c78a8"/><text x="54" y="27" font-family="sans-serif" font-size="10">excess</text><rect x="160" y="18" width="10" height="10" fill="#e45756"/><text x="174" y="27" font-family="sans-serif" font-size="10">missing</text></svg>
+  <figcaption><strong>Excess / missing capabilities per hop</strong> &mdash; 2 edge(s) evaluated. FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 80" role="img" aria-label="Revocation timeline (transition window shaded): not applicable"><text x="12" y="40" font-family="monospace" font-size="13" fill="#8a8a8a">No revocation transition was observed within any polled window.</text></svg>
+  <figcaption><strong>Revocation timeline (transition window shaded)</strong> &mdash; No revocation transition was observed within any polled window. FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 80" role="img" aria-label="Stale-authority window: not applicable"><text x="12" y="40" font-family="monospace" font-size="13" fill="#8a8a8a">stale_window_seconds is not populated in v0.1 (no mutation-timing input to compute it from) -- omitted rather than approximated from a different instant.</text></svg>
+  <figcaption><strong>Stale-authority window</strong> &mdash; stale_window_seconds is not populated in v0.1 (no mutation-timing input to compute it from) -- omitted rather than approximated from a different instant. FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 260" width="640" height="260"><rect x="0" y="0" width="640" height="260" fill="none"/><text x="320.0" y="20" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">Repeatability across trials</text><line x1="40" y1="220" x2="600" y2="220" stroke="#8a8a8a"/><rect x="43.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="48.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="53.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/function.invoke</text><rect x="70.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="75.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="80.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/identity.delegate</text><rect x="96.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="102.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="106.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/keyvalue.write</text><rect x="123.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="128.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="133.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/objectstore.read</text><rect x="150.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="155.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="160.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/objectstore.write</text><rect x="176.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="182.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="186.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/objectstore.list</text><rect x="203.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="208.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="213.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">principal/keyvalue.read</text><rect x="230.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="235.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="240.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/identity.delegate</text><rect x="256.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="262.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="266.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/objectstore.write</text><rect x="283.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="288.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="293.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/function.invoke</text><rect x="310.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="315.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="320.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/keyvalue.write</text><rect x="336.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="342.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="346.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/keyvalue.read</text><rect x="363.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="368.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="373.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/objectstore.read</text><rect x="390.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="395.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="400.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-a/objectstore.list</text><rect x="416.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="422.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="426.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/keyvalue.read</text><rect x="443.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="448.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="453.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/objectstore.list</text><rect x="470.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="475.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="480.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/objectstore.read</text><rect x="496.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="502.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="506.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/objectstore.write</text><rect x="523.3" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="528.7" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="533.3" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/function.invoke</text><rect x="550.0" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="555.3" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="560.0" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/identity.delegate</text><rect x="576.7" y="40.0" width="10.7" height="180.0" fill="#4c78a8"><title>agreement fraction: 1</title></rect><text x="582.0" y="36.0" text-anchor="middle" font-family="monospace" font-size="10">1</text><text x="586.7" y="234" text-anchor="middle" font-family="monospace" font-size="10">agent-b/keyvalue.write</text></svg>
+  <figcaption><strong>Repeatability across trials</strong> &mdash; trial agreement per cell -- principal/function.invoke: 3/3, principal/identity.delegate: 3/3, principal/keyvalue.write: 3/3, principal/objectstore.read: 3/3, principal/objectstore.write: 3/3, principal/objectstore.list: 3/3, principal/keyvalue.read: 3/3, agent-a/identity.delegate: 3/3, agent-a/objectstore.write: 3/3, agent-a/function.invoke: 3/3, agent-a/keyvalue.write: 3/3, agent-a/keyvalue.read: 3/3, agent-a/objectstore.read: 3/3, agent-a/objectstore.list: 3/3, agent-b/keyvalue.read: 3/3, agent-b/objectstore.list: 3/3, agent-b/objectstore.read: 3/3, agent-b/objectstore.write: 3/3, agent-b/function.invoke: 3/3, agent-b/identity.delegate: 3/3, agent-b/keyvalue.write: 3/3 FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+<figure>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 80" role="img" aria-label="Scenario comparison across runs: not applicable"><text x="12" y="40" font-family="monospace" font-size="13" fill="#8a8a8a">Single-run report -- no cross-run comparison available (see `chainbreak analyze --aggregate-scores`).</text></svg>
+  <figcaption><strong>Scenario comparison across runs</strong> &mdash; Single-run report -- no cross-run comparison available (see `chainbreak analyze --aggregate-scores`). FAKE-PROVIDER APPARATUS CHECK -- not a measurement of any real provider.</figcaption>
+</figure>
+
+<h2>Findings</h2>
+<div class="finding">
+  <h3>EXPECTED_BEHAVIOR <small>(INFORMATIONAL, confidence HIGH)</small></h3>
+  <dl>
+    <dt>observation</dt><dd>principal returned observed authority matching expected authority in all 8 probed capabilities at phase BASELINE</dd>
+    <dt>expected_state</dt><dd>{&#34;capabilities&#34;: [&#34;function.invoke&#34;, &#34;identity.delegate&#34;, &#34;identity.whoami&#34;, &#34;keyvalue.read&#34;, &#34;keyvalue.write&#34;, &#34;objectstore.list&#34;, &#34;objectstore.read&#34;, &#34;objectstore.write&#34;]}</dd>
+    <dt>observed_state</dt><dd>{&#34;capabilities&#34;: [&#34;function.invoke&#34;, &#34;identity.delegate&#34;, &#34;identity.whoami&#34;, &#34;keyvalue.read&#34;, &#34;keyvalue.write&#34;, &#34;objectstore.list&#34;, &#34;objectstore.read&#34;, &#34;objectstore.write&#34;]}</dd>
+    <dt>security_interpretation</dt><dd>No divergence detected. This is a measurement, not a guarantee.</dd>
+  </dl>
+</div>
+<div class="finding">
+  <h3>EXPECTED_BEHAVIOR <small>(INFORMATIONAL, confidence HIGH)</small></h3>
+  <dl>
+    <dt>observation</dt><dd>agent-a returned observed authority matching expected authority in all 8 probed capabilities at phase POST_DELEGATION</dd>
+    <dt>expected_state</dt><dd>{&#34;capabilities&#34;: [&#34;function.invoke&#34;, &#34;identity.delegate&#34;, &#34;identity.whoami&#34;, &#34;keyvalue.read&#34;, &#34;objectstore.read&#34;, &#34;objectstore.write&#34;]}</dd>
+    <dt>observed_state</dt><dd>{&#34;capabilities&#34;: [&#34;function.invoke&#34;, &#34;identity.delegate&#34;, &#34;identity.whoami&#34;, &#34;keyvalue.read&#34;, &#34;objectstore.read&#34;, &#34;objectstore.write&#34;]}</dd>
+    <dt>security_interpretation</dt><dd>No divergence detected. This is a measurement, not a guarantee.</dd>
+  </dl>
+</div>
+<div class="finding">
+  <h3>EXPECTED_BEHAVIOR <small>(INFORMATIONAL, confidence HIGH)</small></h3>
+  <dl>
+    <dt>observation</dt><dd>agent-b returned observed authority matching expected authority in all 8 probed capabilities at phase POST_DELEGATION</dd>
+    <dt>expected_state</dt><dd>{&#34;capabilities&#34;: [&#34;identity.whoami&#34;, &#34;objectstore.read&#34;]}</dd>
+    <dt>observed_state</dt><dd>{&#34;capabilities&#34;: [&#34;identity.whoami&#34;, &#34;objectstore.read&#34;]}</dd>
+    <dt>security_interpretation</dt><dd>No divergence detected. This is a measurement, not a guarantee.</dd>
+  </dl>
+</div>
+
+<h2>Limitations</h2>
+<ul class="limitations">
+  <li>Single account: every run in this bundle executed against a single AWS account.</li>
+  <li>Single region: every run in this bundle executed against a single region.</li>
+  <li>Simple policies: the shipped scenarios exercise a small number of statements per identity, not production-scale policy complexity.</li>
+  <li>Deterministic worker: v0.1&#39;s task worker is a deterministic, synthetic implementation of the TaskWorker Protocol, not a real agent.</li>
+  <li>Small n: trial counts and cross-run sample sizes are both modest (see coverage/confidence per category and n reported with every timing result).</li>
+</ul>
+
+</body>
+</html>

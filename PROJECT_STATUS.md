@@ -4,8 +4,9 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-08 · **Version:** 0.1.0a0 · **Phase:** M7 complete, M8 and M9 both
-partially complete (offline/local portions done; real-account verification blocked)
+**Last updated:** 2026-08-10 · **Version:** 0.1.0a0 · **Phase:** M16 complete (fake provider only);
+M8 and M9 both partially complete (offline/local portions done; real-account verification
+blocked)
 
 ---
 
@@ -14,11 +15,17 @@ partially complete (offline/local portions done; real-account verification block
 > CHAINBREAK has a complete architecture, a verified domain model, a validated scenario
 > corpus, and a full implementation plan.
 >
-> **No benchmark has been executed. No AWS experiment has been run. No measurement exists
-> anywhere in this repository.**
+> **The execution engine runs end to end against the deterministic fake provider for all five
+> benchmark families now (M10 scope attenuation, M11 delegation drift, M12 revocation
+> propagation, M13 stale authority, M14 silent narrowing) — a real apparatus test, not a
+> benchmark result. M15 turns that evidence into six independent category results, with no
+> composite score anywhere (ADR-010). M16 renders that evidence into terminal, Markdown and
+> self-contained HTML reports, with the reporting-language rules enforced by lint at render
+> time rather than left to operator discipline. No AWS experiment has been run. No measurement
+> against real infrastructure exists anywhere in this repository.**
 >
 > Every number appearing in any document is either an illustration of an algorithm — labelled
-> as such — or a design parameter. None is a result.
+> as such — a fake-provider apparatus check, or a design parameter. None is a measured result.
 
 ---
 
@@ -32,7 +39,12 @@ with named enforcement points. Fifteen threats modelled with seven accepted resi
 complete; its real-account acceptance criteria are blocked pending an operator-provisioned
 account. M9's local portion (all five Terraform modules, both environments, and
 `cli/infra.py`) is written and locally validated; its real-account acceptance criteria are
-blocked on the same account.** M0 made the repository
+blocked on the same account. M10 (the scope-attenuation benchmark, Family A) and M11 (the
+delegation-drift benchmark, Family B) are both complete against the fake provider — M10 was the
+first milestone whose acceptance criteria required an actual end-to-end run to satisfy, not just
+unit-level proof of the pieces; M11 extended the same execution engine to multi-hop chains and
+found two real defects in already-existing M7-era analysis code by actually proving its
+acceptance criteria against a deeper chain than any prior test used.** M0 made the repository
 buildable, lintable, type-checkable and testable, and put CI in a state where it enforces the
 structural rules the rest of the project depends on. M1 completed the domain model and
 authorization graph: the divergence algorithms in AUTHORIZATION_MODEL.md section 4, graph
@@ -68,9 +80,80 @@ environments (`aws-sandbox`, `local-development`) to their contracts, plus a rea
 capability gain over M0's "no terraform binary in the development environment" — a binary was
 downloaded and a filesystem-mirrored provider plugin set up for this milestone specifically),
 but no `terraform apply` has ever run, since that needs the same real AWS account M8 is blocked
-on. All nine milestones so far are domain/capability/scenario/CLI/provider-laboratory/evidence/
-analysis/AWS-adapter-offline/Terraform-local work — no benchmark has executed and no AWS
-experiment has run.
+on. M10 built the execution engine — `execution/orchestrator.py`, `matrix.py`, `delegation.py`,
+`preconditions.py`, `control.py` — and wired `chainbreak run` for real against the fake provider:
+`scope-attenuation/basic.yaml` runs end to end producing a sealed bundle and findings, both
+scope-attenuation negative controls are detected, and the probe-order seed (C-6) is recorded and
+reproducible. M11 extended execution to multi-hop chains (`execution/chain.py`) and added the
+depth-sweep confound treatment (`analysis/drift.py`, F6: divergence as a rate per hop, exclusions
+per depth, `INCONCLUSIVE` when both rise together) — depths 2 through 6 all run end to end and
+`chainbreak analyze --aggregate --scenario-family delegation-drift` reports the sweep. Most of
+M11's drift-classification algorithms already existed from M1/M7; its own real contribution was
+finding and fixing a citation-chaining bug and an unwired path-analysis output in that existing
+code, caught only by running a genuinely deeper chain than any prior test exercised. M12 built
+the revocation-propagation benchmark (Family C) — `execution/mutation.py`, `polling.py` and
+`revert.py`, and the `CompiledScenario.mutation_plans`/`poll_plans` compiler output that feeds
+them — wiring the `MUTATE`/`POLL`/`SNAPSHOT` `PhaseKind` branches `execution/orchestrator.py`
+had deliberately left as named-milestone stubs since M10. The revocation-window interval math and
+the `_revocation_findings` analysis wiring both already existed from M7; M12's real contribution
+was the execution layer that actually produces the events and polled observations that math
+consumes, plus a revert log written before every mutation (F8) and reverted from the
+orchestrator's own `finally` block regardless of how the run ends. M13 built the stale-authority
+benchmark (Family D) — `execution/deferred.py`, `execution/credential_store.py`,
+`analysis/stale.py` — wiring the last two named-but-stubbed `PhaseKind` branches
+(`WAIT`/`DEFERRED_EXECUTION`) `execution/orchestrator.py` had left since M10. Its own real
+contribution is entirely about *making the paired fresh-credential comparison actually
+distinguishable from noise*: `classify_stale_authority` (M7's six-row table) and
+`StaleAuthorityMeasurement` already existed, but a naive execution layer built straight against
+the fake's M5-era mutation-visibility model cannot ever produce a genuine
+`STALE_AUTHORITY_LIVE_CREDENTIAL` result — see M13's own "genuine findings" below. M14 built the
+silent-narrowing benchmark (Family E) — `execution/workers/{base,deterministic}.py`,
+`execution/task_runner.py`, `execution/side_effects.py`, `analysis/task_contract.py` — wiring the
+last named-but-stubbed `PhaseKind` branch (`TASK`) `execution/orchestrator.py` had left since M10,
+so every member of the enum now has a real branch. Its own real contribution mirrors M13's: the
+`TaskWorker` Protocol and four deterministic workers are new, but the core detection mechanism —
+independent side-effect verification never trusting a worker's self-report — only works because
+`execution/task_runner.py` computes `redelegation_attempts`/`substituted_capabilities` from its
+own objective invocation log rather than the worker's returned claim, the same "never trust
+self-report for anything independently observable" discipline F4 already applies to the output
+marker; see M14's own "genuine findings" below for what a naive implementation would have gotten
+wrong. M15 built per-category scoring — `scoring/{categories,coverage,confidence,aggregate}.py` —
+the six independent `CategoryResult` evaluators SCORING_MODEL.md section 2 defines, each funnelled
+through one shared `_finalize` helper that applies F2 (zero applicable cells is `NOT_MEASURED`,
+never `CONSISTENT`), F3 (`coverage < 0.7` forces `PARTIAL`, overriding even a would-be `DIVERGENT`
+verdict — also enforced a second time as a `CategoryResult` model validator, redundant by design),
+F4 (confidence is `min()` across the category's own coverage and every contributing finding,
+reusing `core/models.py::min_confidence`) and S2 (a negative control's detector failure forces
+`DETECTOR_FAILED` last, overriding everything computed above it) identically across all six.
+`scoring/aggregate.py` adds cross-run aggregation (F7/F8): refuses to combine runs whose
+`compiled_hash`/`adapter_version`/`catalog_version` differ unless `--allow-heterogeneous` is
+passed, reports n/median/IQR/min/max with no dispersion below n=5, and counts excluded runs by
+reason rather than dropping them silently. `cli/analyze.py` now writes `scores.json` alongside
+`findings.json` on every `chainbreak analyze <run-id>`, prints the literal sentence "NOT_MEASURED
+is not a pass." whenever at least one category was not exercised, and gained
+`--aggregate-scores --scenario-id <id> [--allow-heterogeneous]` for the cross-run path. Building
+M15 surfaced two real findings, neither of which is M15's own defect: three of the six
+negative-control scenarios (`nc-scope-expansion`, `nc-non-monotone-chain`,
+`nc-surviving-authority`) inject their defect only through a `mini_orchestrator.py` test-only hook
+or a Terraform infrastructure profile, so a genuine `chainbreak run --provider fake` never
+triggers them and `chainbreak analyze` correctly reports `DETECTOR_FAILED` for each — S2 doing
+exactly what it exists to do, not a scoring bug (flagged as a follow-up, not fixed here, since the
+fix belongs in the fake provider or scenario compiler, out of M15's own file list); and
+`analysis/stale.py` has never populated `StaleAuthorityMeasurement.stale_window_seconds` (no
+mutation-timing input to compute it from), so `scoring/categories.py` omits that measurement
+rather than approximating it from a different instant (F: prefer omission over a confident wrong
+number). M16 renders that same evidence into terminal, Markdown and self-contained HTML reports —
+`reporting/language.py` implements EXPERIMENT_PROTOCOL.md section 7's language rules as a lint
+every renderer calls before returning rather than a convention renderers are merely asked to
+follow; `reporting/figures.py` builds seven figure kinds as hand-built inline SVG rather than
+Plotly (a deviation recorded in the module's own docstring — Plotly's only self-contained
+rendering paths each violate a harder requirement the milestone states in the same breath); HTML
+keeps Jinja2 autoescape on with no `|safe` anywhere in the template, verified by a grep-based
+test, since a third-party bundle's `security_interpretation` is a plausible XSS vector into the
+rendered page. M0 through M9 are domain/capability/scenario/CLI/provider-laboratory/evidence/
+analysis/AWS-adapter-offline/Terraform-local work; M10 through M14 are the milestones that
+actually execute something end to end — against the fake provider only; M15 and M16 are both
+downstream of that evidence rather than producing more of it. No AWS experiment has run.
 
 ---
 
@@ -82,17 +165,22 @@ experiment has run.
 | Domain model | Complete **and verified in code** | [AUTHORIZATION_MODEL.md](AUTHORIZATION_MODEL.md), `core/models.py` |
 | Authorization graph and divergence algorithms | Complete **and verified in code** — G-1–G-5, all section 4 algorithms, canonical JSON | AUTHORIZATION_MODEL §2, §4, `graph/`, `core/canonical.py` |
 | Capability model | Complete **and verified in code** — catalog v1.0.0/10 capabilities, registry, operation allowlist (SI-3), preconditions | [CAPABILITY_MODEL.md](CAPABILITY_MODEL.md), `capabilities/` |
-| Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 12 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
+| Scenario language v1alpha1 | Complete **and verified in code** — full five-stage pipeline, compiler, all 20 scenarios compile | [SCENARIO_SPECIFICATION.md](SCENARIO_SPECIFICATION.md), `scenarios/` |
 | Evidence schema | Complete; 11 JSON Schemas generated and validated | [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) |
 | Evidence pipeline | Complete **and verified in code** — writer, `redact()` (100%), manifest sealing/verification, SQLite index, bounded reader, `--public` export | `evidence/` |
 | Analysis | Complete **and verified in code** — authority aggregation (ADR-012 unanimity), divergence/drift, revocation-window math, stale-authority classification, confidence gate, finding rules, negative-control detector, end-to-end `findings.json` pipeline, `chainbreak analyze` | [AUTHORIZATION_MODEL.md](AUTHORIZATION_MODEL.md), `analysis/` |
 | Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
 | Provider abstraction | Complete **and verified in code** — `ProviderAdapter` Protocol, live wire types, `assert_namespace` (SI-2) | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md), `providers/base/` |
-| Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 12 scenarios walk without crashing | ARCHITECTURE §3.9, `providers/fake/` |
+| Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 23 scenarios walk without crashing; M13 added an opt-in per-credential authority-caching mode (`enable_authority_caching`), never active for M10-M12 scenarios | ARCHITECTURE §3.9, `providers/fake/` |
 | AWS provider | Implemented and verified offline (moto call-shape tests, pure-logic disambiguation/retry/policy-synthesis tests) — **not yet verified against a real account** | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md), `providers/aws/` |
 | Terraform | All five modules + both environments implemented; `fmt`/`validate` clean locally — **never applied against a real account** | `infra/terraform/`, [M09-terraform-sandbox.md](docs/implementation/milestones/M09-terraform-sandbox.md) |
-| Scoring | Specified, not implemented | [SCORING_MODEL.md](SCORING_MODEL.md) |
-| Reporting | Specified, not implemented | ARCHITECTURE §3.16 |
+| Execution engine (Family A: scope attenuation; Family B: delegation drift; Family C: revocation propagation; Family D: stale authority; Family E: silent narrowing) | Complete **and verified in code, run end to end** — phase loop against the full `PhaseKind` enum, every member with a real branch as of M14 (`PROBE`/`SNAPSHOT`/`MUTATE`/`POLL`/`WAIT`/`DEFERRED_EXECUTION`/`TASK`), C-1/C-2/C-6/F6 controls, multi-hop chains to depth 6, all five revocation mechanisms with a pre-mutation revert log and `finally`-block reversion, paired pinned/fresh-credential probes with unconditional re-delegation for the fresh leg, four deterministic task workers with independent side-effect verification, `chainbreak run` wired (including `--fake-profile`) — **against the fake provider only; never run against AWS** | ARCHITECTURE §3.11, [M10-scope-attenuation.md](docs/implementation/milestones/M10-scope-attenuation.md), [M11-delegation-drift.md](docs/implementation/milestones/M11-delegation-drift.md), [M12-revocation.md](docs/implementation/milestones/M12-revocation.md), [M13-stale-authority.md](docs/implementation/milestones/M13-stale-authority.md), [M14-silent-narrowing.md](docs/implementation/milestones/M14-silent-narrowing.md), `execution/` |
+| Delegation-drift analysis (Family B) | Complete **and verified in code, run end to end** — per-hop drift classification and cause-citation chaining (any depth, not only the origin's immediate child), first-divergence-per-path wired into analysis output, F6's rate-per-hop/exclusion-rate depth-sweep aggregation with an explicit `INCONCLUSIVE` verdict | AUTHORIZATION_MODEL §4.4-4.5, [M11-delegation-drift.md](docs/implementation/milestones/M11-delegation-drift.md), `analysis/drift.py` |
+| Revocation-propagation execution (Family C) | Complete **and verified in code, run end to end** — `MutationPlan`/`PollPlan` compiled from scenario `MUTATE`/`POLL` phases, serial polling with `STABLE_DENIAL`/`STABLE_ALLOW`/`TIMEOUT` stability detection, an unconfirmed mutation receipt aborting the run (F4), pre-mutation policy snapshots, revert log written before every mutation and reverted in a `finally` block regardless of outcome (F8/F9) — the interval math and finding rules that consume the resulting evidence already existed from M7 | AUTHORIZATION_MODEL §5.1, [M12-revocation.md](docs/implementation/milestones/M12-revocation.md), `execution/mutation.py`, `execution/polling.py`, `execution/revert.py` |
+| Stale-authority execution and analysis (Family D) | Complete **and verified in code, run end to end** — `execution/credential_store.py` (per-phase credential registry), `execution/deferred.py` (`WAIT` via virtual-clock advance, `DEFERRED_EXECUTION`'s pinned-then-fresh probe pair), `analysis/stale.py` (pairs `DEFERRED_EXECUTION`/`PAIRED_FRESH_CREDENTIAL` observations by identity+capability, reads `DELETE_SESSION_POLICY_SCOPE` mutation events for `SESSION_SCOPE_CACHED`) — the six-row classifier and `StaleAuthorityMeasurement` already existed from M7; the fake adapter gained an opt-in per-credential authority-caching mode (never active outside a `DEFERRED_EXECUTION` phase) that is what makes `STALE_AUTHORITY_LIVE_CREDENTIAL` genuinely, deterministically distinguishable from "not yet propagated" rather than a race against `propagation_delay_ms` | AUTHORIZATION_MODEL §5.2, [M13-stale-authority.md](docs/implementation/milestones/M13-stale-authority.md), `execution/deferred.py`, `execution/credential_store.py`, `analysis/stale.py` |
+| Silent-narrowing execution and analysis (Family E) | Complete **and verified in code, run end to end** — `execution/workers/base.py` (`TaskWorker` Protocol, defined purely over a capability-invoker and a `TaskOutcome`, ADR-007), `execution/workers/deterministic.py` (four workers: `sequential`, `always-complete`, `substituting`, `redelegating`), `execution/task_runner.py` (the capability-invoker every worker is confined to — S1 — and the objective invocation log that overrides `redelegation_attempts`/`substituted_capabilities` rather than trusting either worker self-report), `execution/side_effects.py` (independent bootstrap-attributed marker verification, F4), `analysis/task_contract.py` (up to three distinct findings per task — `SILENT_NARROWING`, `CAPABILITY_SUBSTITUTED`, `REDELEGATION_ATTEMPTED`, two new `FindingType` members added this milestone — never collapsed into one) | AUTHORIZATION_MODEL §6, [M14-silent-narrowing.md](docs/implementation/milestones/M14-silent-narrowing.md), `execution/workers/`, `execution/task_runner.py`, `execution/side_effects.py`, `analysis/task_contract.py` |
+| Scoring | Complete **and verified in code, run end to end** — six independent `CategoryResult` evaluators (F1), NOT_MEASURED/PARTIAL/DIVERGENT/DETECTOR_FAILED status rules (F2/F3/S2), min-aggregated confidence (F4), cross-run aggregation refusing heterogeneous compiled_hash/adapter_version/catalog_version (F7/F8), `chainbreak analyze` writes `scores.json` and `--aggregate-scores`; no composite score anywhere (ADR-010) | [SCORING_MODEL.md](SCORING_MODEL.md), [M15-scoring.md](docs/implementation/milestones/M15-scoring.md), `scoring/` |
+| Reporting | Complete **and verified in code, run end to end** — terminal (`rich`), Markdown and self-contained HTML (Jinja2, autoescape on, no `|safe`) all render from a real fake-provider bundle; `reporting/language.py`'s EXPERIMENT_PROTOCOL §7 lint enforced at render time (`enforce_report`), not left to operator discipline; seven evidence-derived figures as inline SVG; every finding renders observation/expected_state/observed_state/security_interpretation under separate headings (ADR-006); `provider: fake` stamped in the header and every figure caption | ARCHITECTURE §3.16, [M16-reporting.md](docs/implementation/milestones/M16-reporting.md), `reporting/` |
 | Research methodology | Complete | [RESEARCH_METHODOLOGY.md](RESEARCH_METHODOLOGY.md) |
 | Threat model | Complete | [THREAT_MODEL.md](THREAT_MODEL.md) |
 
@@ -923,6 +1011,831 @@ AWS_PROVIDER_SPEC section 2 names for P2. Criterion 5 (no `boto3`/`botocore` imp
 own "Definition of done" requires "real AWS output pasted"; none exists, so this entry
 deliberately does not claim M8 complete.
 
+**M10 — Scope attenuation benchmark (Family A).** All four acceptance criteria met, against the
+fake provider only — **never run against AWS**, per M10's own definition of done. Delivered:
+`execution/orchestrator.py` (F1's preflight → materialize → walk-plan → cleanup loop, written
+against the *full* `PhaseKind` enum — `PROBE` implemented, `SNAPSHOT` a documented no-op until a
+scenario auto-inserts one around a mutation, `MUTATE`/`POLL`/`WAIT`/`DEFERRED_EXECUTION`/`TASK`
+each raise naming the milestone that implements them, never a silent skip); `execution/matrix.py`
+(C-2 precondition check once per matrix, C-1 calibration before the shuffled loop, C-6 order
+shuffled with a sha256-derived per-(matrix, identity) seed — deliberately not Python's own
+per-process-randomized `hash()` — recorded as a `PROBE_ORDER_SHUFFLED` event, trial repetition);
+`execution/control.py` (`identity.whoami` probed first per identity; a non-`ALLOWED` result raises
+`ControlCapabilityFailedError`, caught by the orchestrator to discard the *whole* matrix, not one
+identity's row); `execution/delegation.py` (materializes the graph — root registered directly,
+every edge delegated in compiled hop order — and F6's re-delegation: a credential re-delegated,
+with a recorded `CREDENTIAL_REDELEGATED` event, once its remaining lifetime drops under 2x the
+matrix's own conservatively-estimated duration); `execution/preconditions.py` (resolves every
+precondition a matrix's capabilities require against a `PreconditionRegistry`, by the provisioning
+identity, before any probe in the matrix runs). `cli/run.py` implemented for real (`--provider
+fake` end to end; `--provider aws` a documented stub until M17) — registered as a plain root-app
+command (`app.command("run")(run.run)`), not a sub-`Typer` app, the same fix `cli/analyze.py`
+already documents: a sub-app's `@app.callback(invoke_without_command=True)` misparses a required
+positional once an option follows it, exactly this milestone's own verification command's shape.
+
+Two real defects found and fixed during implementation, not design choices:
+
+1. **`ProviderAdapter` (`providers/base/protocol.py`) had no `register_identity` method**, even
+   though both `FakeProviderAdapter` and `AwsProviderAdapter` already implement one (the AWS
+   adapter's own docstring already frames its `allow` parameter as "accepted for surface
+   compatibility" with the fake's) — `execution/delegation.py` needs it to materialize a graph's
+   root generically, without reaching into either adapter's private internals. Added to the
+   Protocol; both existing adapters already satisfy it structurally, confirmed by
+   `isinstance(adapter, ProviderAdapter)` under `@runtime_checkable` and by mypy's own structural
+   check at every call site.
+2. **F6's credential-lifetime check initially compared a fake credential's `expires_at` against
+   real wall-clock time.** `FakeProviderAdapter`'s `CredentialRecord` timestamps are computed from
+   its own virtual clock (`providers/fake/session.py`'s fixed `2024-01-01` epoch, never the system
+   clock — a deliberate M5 design choice for determinism), so `datetime.now(UTC)` reads every
+   real fake credential as already expired regardless of its actual granted duration, making F6
+   fire on *every* matrix instead of only when genuinely warranted. Caught by
+   `test_ensure_fresh_credential_is_a_no_op_for_a_healthy_credential` failing unexpectedly during
+   its first run. Fixed in both `cli/run.py` and every test that drives `orchestrate()`: `now` is
+   `virtual_ms_to_datetime(adapter.clock.now_ms)` for a fake-provider run, never
+   `datetime.now(UTC)`.
+
+One documentation tension recorded rather than resolved unilaterally: ARCHITECTURE.md section 3.7
+describes `delegation/` as its own top-level package; M10's own milestone file
+(`docs/implementation/milestones/M10-scope-attenuation.md`) and `docs/implementation/
+NEXT_PROMPTS.md`'s S2 prompt both name it `execution/delegation.py` instead, and — being the more
+specific, more recently written source for this exact milestone — were followed here. The
+top-level `chainbreak.delegation`/`chainbreak.observation` placeholder packages ARCHITECTURE.md
+describes are left untouched, not silently repurposed; reconciling the two documents is a
+documentation decision for later, not one this milestone made on its own authority.
+
+Test files: `tests/integration/test_scope_attenuation.py` (7 — the full basic scenario end to end
+via the real orchestrator, both scope-attenuation negative controls in both directions [defect
+present → `DETECTOR_OK`, defect fixed → `DETECTOR_FAILURE`] via the same fake-side defect
+injection `test_negative_controls.py` already established, acceptance criterion 4's seed
+reproducibility); `tests/integration/test_control_capability.py` (4); `tests/integration/
+test_probe_matrix_execution.py` (9); `tests/integration/test_orchestrator_error_paths.py` (9 —
+every `PhaseKind` branch, a failed preflight, F6 actually firing mid-run); `tests/integration/
+test_cli_run_command.py` (7); `tests/unit/test_cli_run_command.py` was not needed as a separate
+file since the CLI happy path is itself an `integration`-tier test by this project's own marker
+definition. Coverage on `execution/` is 99% (two genuinely unreachable defensive branches —
+"identity not yet materialized" in both `matrix.py` and `orchestrator.py` — marked
+`# pragma: no cover` with a comment naming G-2's own reachability guarantee: an unreachable
+identity is a compile-time `ScenarioSemanticError`, never a compiled matrix, so the branch cannot
+fire from any scenario that actually compiled).
+
+Verification commands run for real:
+
+```
+$ chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 11
+chainbreak run: COMPLETED -> runs\01KZJQVX1S1RGT68VZ1EJ49MSR      (0.79s wall clock)
+
+$ chainbreak analyze 01KZJQVX1S1RGT68VZ1EJ49MSR
+chainbreak analyze: 3 finding(s), 0 detector check(s) -> runs\...\findings.json
+EXPECTED_BEHAVIOR / EXPECTED_BEHAVIOR / EXPECTED_BEHAVIOR
+
+$ chainbreak run scenarios/_negative-controls/nc-scope-expansion.yaml --provider fake --seed 11
+chainbreak run: COMPLETED -> runs\01KZJQVYQVDE068KVVAE4NY4N9
+
+$ chainbreak run scenarios/_negative-controls/nc-surviving-authority.yaml --provider fake --seed 11
+chainbreak run: COMPLETED -> runs\01KZJQVZKR6FA11BSYSAHR1NG5
+
+$ pytest -m integration tests/integration/test_scope_attenuation.py -q
+7 passed in 0.97s
+```
+
+(The two bare CLI negative-control runs above complete cleanly because `chainbreak run` has no
+way to inject the fake-side defect a real Terraform-provisioned role would carry — that defect
+injection is a Python-level test concern, exercised by `test_scope_attenuation.py` above, exactly
+as `test_negative_controls.py` already established for M7's own negative controls.)
+
+**M11 — Delegation drift benchmark (Family B).** All five acceptance criteria met, against the
+fake provider only — **never run against AWS**. Delivered: `execution/chain.py`
+(`materialize_chain`: S1's redundant, execution-layer depth check — G-5 already refuses this at
+compile time, so this can only fire for a graph that reached here some other way — plus S2's
+credential scrubbing, actually implemented in `execution/delegation.py`'s `materialize_graph`/
+`ensure_fresh_credential`, which now call `TemporaryCredential.scrub()` on every hop's raw secret
+immediately after extracting its safe `CredentialRecord` projection, not only chain ones);
+`analysis/drift.py` (F6: `DepthResult`/`DepthSweepReport`, divergence reported as a rate per hop
+and an exclusion rate per depth, never a raw count, `summarize_depth_sweep` reporting the sweep
+`INCONCLUSIVE` by name — not asserting a depth effect — when both rates rise together across
+depth); four new depth-sweep scenarios (`two`/`three`/`five`/`six-hop.yaml`, mirroring
+`four-hop.yaml`'s monotone capability-narrowing structure, same start and end capability sets at
+every depth so depth is the one thing that actually varies); `role-chain-five-hop.yaml`, a
+test-support fixture using plain `ROLE_CHAIN` throughout (see below for why); `chainbreak analyze
+--aggregate --scenario-family <family>` (F6's CLI surface).
+
+Most of M11's core algorithms already existed before this milestone started: per-edge divergence,
+first-divergence-per-path and `classify_drift`'s `ORIGINATED`/`PROPAGATED`/`AMPLIFIED`/`CORRECTED`
+table were all built at M1 (`graph/divergence.py`, `graph/paths.py`), and `analysis/rules.py`'s
+`rule_delegation_drift` (with cause citation) plus `analysis/pipeline.py`'s wiring of both into
+findings were built at M7. M11's actual new work was narrower than its own milestone file's list
+suggested — and trying to prove its acceptance criteria against a real, deeper chain than any
+existing test used surfaced two real defects in that already-existing M7-era code, not design
+choices this milestone made:
+
+1. **`pipeline.py`'s citation ever only reached the origin's immediate child.**
+   `_origin_finding_id` looked up only a node's *immediate parent's own* `AUTHORITY_EXPANSION`
+   finding — correct for the four-hop worked example (exactly one propagated hop exists to test)
+   but silently drops the citation past that, since a `PROPAGATED`/`AMPLIFIED` node never gets its
+   own `AUTHORITY_EXPANSION` finding (`rule_authority_expansion`'s predicate excludes both).
+   Fixed by threading an `origin_by_identity: dict[IdentityId, str]` map forward through the node
+   walk: a node with its own `AUTHORITY_EXPANSION` records itself as the origin; a node that only
+   gets a `DELEGATION_DRIFT` finding inherits its parent's origin instead; a `CORRECTED` node gets
+   no entry at all, which is what correctly resets the chain for any later, independent gain.
+   Caught by a new depth-5 test (`role-chain-five-hop.yaml`, since none of the depth-sweep
+   scenarios can carry an identity-policy-level defect past a session-policy-scoped hop — see
+   below) proving citation survives three propagated hops past the origin, which no existing test
+   exercised.
+2. **`graph/paths.py`'s `analyze_all_paths` (F3, already correct and already unit-tested for
+   branching graphs at M1) was never called from `analysis/pipeline.py` at all.** Path-level
+   output — first divergence per root-to-leaf path — was computed, tested, and then never reached
+   `findings.json`. Wired into `analyze_bundle`, computed by progressively accumulating observed
+   authority across phases in chronological order (a node with no observations in a later phase
+   keeps whatever an earlier phase already measured for it, rather than being reset to
+   unmeasured) instead of recomputing fresh per phase — necessary because a scenario's own
+   baseline phase is typically the only phase that re-probes the root, so a strictly per-phase
+   view reported the root `UNMEASURED` for every later phase's own path analysis, masking the
+   real divergence deeper in the chain. Caught the same way: a real run, not a hand-built graph.
+
+One test-fixture decision worth recording: `role-chain-five-hop.yaml` exists because a
+session-policy-scoped hop's effective authority is intersected with *that hop's own declared*
+`intended_capabilities` (PROV-1 — a session can only narrow, never grant), which makes it
+structurally impossible to observe an identity-policy-level defect injected downstream of a
+`ROLE_CHAIN_WITH_SESSION_POLICY` hop — exactly why `nc-scope-expansion.yaml` and
+`nc-non-monotone-chain.yaml` both use plain `ROLE_CHAIN` throughout already. None of the
+depth-sweep scenarios could be reused for the worked-example/citation tests for the same reason
+(their later hops are deliberately session-policy-scoped, to test *attenuation* correctness, which
+is the opposite property).
+
+Test files: `tests/unit/test_drift_aggregation.py` (9 — `analysis/drift.py`'s pure aggregation
+logic: hop/divergence/exclusion counting, the confound verdict in both directions);
+`tests/unit/test_chain.py` (2); `tests/integration/test_delegation_drift.py` (6 — the
+AUTHORIZATION_MODEL section 7 worked example end to end [`ORIGINATED` at hop 3, `PROPAGATED` at
+hop 4, citation present], the `CORRECTED` case, citation surviving three propagated hops, path
+analysis wired end to end, `nc-non-monotone-chain` in both directions);
+`tests/integration/test_depth_sweep.py` (10 — all five depths run and yield correct
+`DepthResult`s, the clean sweep is not inconclusive, a confounded sweep built from two real
+bundles plus one synthetic high-divergence result is correctly flagged, the `--aggregate` CLI
+path end to end including its own error paths). Coverage on `execution/` + `analysis/` combined is
+98% (`execution/chain.py`'s depth-exceeded branch now covered by `test_chain.py`; the remaining
+gaps are pre-existing M7-era revocation/execution-error paths unrelated to M11, out of scope until
+M12).
+
+Verification commands run for real:
+
+```
+$ for d in two three four five six; do
+    chainbreak run scenarios/delegation-drift/$d-hop.yaml --provider fake --seed 23 || break
+  done
+chainbreak run: COMPLETED -> runs\01KZJW6Z5B9VPEYHFQ721KWRVE      (0.88s wall clock)
+chainbreak run: COMPLETED -> runs\01KZJW701T7AR986PHZ71D5T4F      (0.92s wall clock)
+chainbreak run: COMPLETED -> runs\01KZJW710RB3RP458QHCJ5ND3F      (1.03s wall clock)
+chainbreak run: COMPLETED -> runs\01KZJW71YY1V3VVYMF5FCPEWEX      (1.05s wall clock)
+chainbreak run: COMPLETED -> runs\01KZJW72ZD151MAX2V0N5WCB4R      (0.93s wall clock, depth 6)
+
+$ chainbreak analyze --aggregate --scenario-family delegation-drift
+chainbreak analyze --aggregate: delegation-drift depth sweep (5 depth(s))
+  depth 2: divergence 0.000/hop (0/2 hops), exclusions 0.000 (0/16 cells) -- delegation-drift-two-hop
+  depth 3: divergence 0.000/hop (0/3 hops), exclusions 0.000 (0/24 cells) -- delegation-drift-three-hop
+  depth 4: divergence 0.000/hop (0/4 hops), exclusions 0.000 (0/32 cells) -- delegation-drift-four-hop
+  depth 5: divergence 0.000/hop (0/5 hops), exclusions 0.000 (0/40 cells) -- delegation-drift-five-hop
+  depth 6: divergence 0.000/hop (0/6 hops), exclusions 0.000 (0/48 cells) -- delegation-drift-six-hop
+chainbreak analyze --aggregate: no divergence/exclusion confound detected (F6)
+
+$ pytest -m integration tests/integration/test_depth_sweep.py -q
+10 passed in 2.87s
+```
+
+Depth-6's own non-functional requirement (under 15s) is met by roughly an order of magnitude — the
+whole five-scenario sweep completes in under 5s, not just the single deepest run.
+
+**M12 — Revocation propagation benchmark (Family C).** All five acceptance criteria met, against
+the fake provider only — **never run against AWS**. Delivered: `execution/mutation.py`
+(`apply_mutation`: builds a `PolicyMutation` from the compiled `MutationPlan`, calls
+`adapter.apply_policy_mutation`, aborts via `MutationNotConfirmedError` when a receipt-required
+mutation comes back unconfirmed — F4 — and writes the `POLICY_MUTATION_APPLIED` event
+`analysis/pipeline.py`'s pre-existing `_revocation_findings` already reads); `execution/polling.py`
+(`run_poll_phase`: serial polling advancing the adapter's virtual clock by the compiled
+`interval_ms`, `STABLE_DENIAL`/`STABLE_ALLOW`/`TIMEOUT` stability detection via `stability_count`
+consecutive matching outcomes, one `Observation` per poll tagged `PlanPhase.POST_MUTATION`
+regardless of which side of the mutation it fell on — F2/F3); `execution/revert.py`
+(`build_revert_plan`/`build_revert_log_event`/`revert_mutation`: reverting means restoring an
+identity's *declared* authority via `REPLACE_INLINE_POLICY`, never replaying an adapter's internal
+pre-mutation state, since that would mean carrying an unredacted policy document through the
+evidence pipeline; `REVOKE_OLDER_SESSIONS` is honestly reported as unrevertable — a revoked
+session can only be replaced, not un-revoked — and `UPDATE_TRUST_POLICY`/
+`DELETE_SESSION_POLICY_SCOPE` correctly report nothing to revert, since neither ever touches a
+live session's authority — F8/F9/S3); two new core domain models, `MutationPlan`/`PollPlan`
+(`core/models.py`), compiled by two new `scenarios/compiler.py` functions
+(`_build_mutation_plans`/`_build_poll_plans`) mirroring `_build_probe_matrices`'s existing
+"strip the scenario-layer spec down to exactly what execution needs" discipline — required because
+`execution/` sits below `scenarios/` in ARCH-1's layering and may not import the `MutationSpec`/
+`PhaseSpec` types those phases are declared with; `execution/orchestrator.py`'s `MUTATE`/`POLL`
+branches (previously named-milestone stubs) and its `SNAPSHOT` branch (previously a documented
+no-op) now call these for real, and the run's `finally` block reverts every mutation that actually
+succeeded, in reverse order, regardless of whether the run completed, raised a `ChainbreakError`,
+or an uncaught exception propagated out; a `--fake-profile` flag on `chainbreak run`
+(deterministic/eventual/hostile, dispatching to `providers/fake/profiles.py`'s three named
+configurations — previously hardcoded to `deterministic_profile`); three new scenario files
+completing the five-mechanism corpus (`remove-policy.yaml`, `revoke-older-sessions.yaml`,
+`delete-session-scope.yaml` — `inline-deny.yaml` and `trust-policy-null-condition.yaml` already
+existed).
+
+The revocation-window interval math (`analysis/timing.py`'s `compute_revocation_window`) and the
+finding rules that consume it (`analysis/rules.py`'s `rule_no_transition_observed`/
+`rule_revocation_delay`, wired into `analysis/pipeline.py`'s `_revocation_findings`) already
+existed from M7, already unit-tested at the known propagation delays 0/500/2000/10000ms
+(`tests/unit/test_revocation_math.py`). M12's actual new work was the execution layer that
+produces the real events and polled observations that math consumes — nothing in the interval
+math itself needed to change. One real gap the milestone's own research surfaced and left
+correctly unaddressed rather than silently assumed: `RevocationMeasurement.mutation_receipt_confirmed`
+is threaded all the way through the data model but no rule currently *acts* on it (an unconfirmed
+receipt does not yet downgrade a finding to `INCONCLUSIVE`) — the fake adapter's own
+`apply_policy_mutation` never actually produces an unconfirmed receipt (`confirmed` is hardcoded
+`True`), so `MutationNotConfirmedError`'s abort path is exercised only at the unit level, against a
+stub adapter (`tests/unit/test_mutation.py`), not through a real fake-provider run. This is a
+faithful reflection of the fake laboratory's own design (a real AWS control-plane write is the only
+place a genuinely unconfirmed receipt would occur), not an oversight to fix later without cause.
+
+Test files: `tests/integration/test_revocation.py` (15 — all five mechanisms execute and record
+their kind with a confirmed receipt and a revert log; the three positive mechanisms observe a
+`STABLE_DENIAL` transition; `inline-deny.yaml`'s mutation is actually reverted, restoring
+`objectstore.read` on the live adapter, while `revoke-older-sessions.yaml`'s is correctly reported
+unrevertable; both negative controls report `NO_TRANSITION_OBSERVED`; the measured window contains
+the true propagation delay at all four M12-named settings — 0/500/2000/10000ms — through the real
+orchestrator, not the `mini_orchestrator` fixture; a forced `REVOCATION_DELAY` finding's
+`transition_window` is a `{low, high}` pair, never a bare scalar — F5's hard requirement);
+`tests/integration/test_polling.py` (5 — `STABLE_ALLOW`/`STABLE_DENIAL`/`TIMEOUT` stopping exactly
+at the right poll count, a `stop_on: TIMEOUT` phase running its full budget even though every poll
+happens to match what `STABLE_ALLOW` would have accepted, the not-materialized guard);
+`tests/unit/test_revert.py` (9 — every `MutationKind`'s actionability and action text, the log
+event shape, an actionable revert actually restoring engine state, a non-actionable one calling
+the adapter not at all); `tests/unit/test_mutation.py` (3 — the SI-2 materialized-target guard,
+`MutationNotConfirmedError` firing only when `record_receipt` is true). Coverage on the five new/
+modified `execution/` modules is 95-100% (`mutation.py`/`revert.py` 100%, `orchestrator.py`/
+`polling.py` 99%, `cli/run.py`'s new `--fake-profile` branches fully covered — its few remaining
+gaps are pre-existing settings-fallback paths unrelated to M12).
+
+Verification commands run for real:
+
+```
+$ chainbreak run scenarios/revocation/inline-deny.yaml --provider fake --fake-profile eventual --seed 5
+chainbreak run: COMPLETED -> runs\01KZKABDX5688VDVQZW8A0CZG4
+
+$ chainbreak analyze 01KZKABDX5688VDVQZW8A0CZG4
+chainbreak analyze: 2 finding(s), 0 detector check(s) -> runs\...\findings.json
+$ jq '.findings[]|select(.type=="REVOCATION_DELAY")' runs\...\findings.json
+                                       # empty: inline-deny.yaml's own expectation is
+                                       # severity: informational by design (SCORING_MODEL.md) --
+                                       # CHAINBREAK does not assert a normative propagation time
+                                       # without justification, so no finding is the correct result
+
+$ chainbreak run scenarios/revocation/trust-policy-null-condition.yaml --provider fake --seed 5
+chainbreak run: COMPLETED -> runs\01KZKABFR3AYBJ1NEM6X52XZQ6      (NO_TRANSITION_OBSERVED on analyze)
+
+$ chainbreak run scenarios/_negative-controls/nc-no-revocation.yaml --provider fake --seed 5
+chainbreak run: COMPLETED -> runs\01KZKABGQV5DCZP85S5PVV5WXF      (NO_TRANSITION_OBSERVED on analyze)
+
+$ pytest -m integration tests/integration/test_revocation.py -q
+15 passed in 2.48s
+```
+
+**M13 — Stale-authority benchmark (Family D).** All five acceptance criteria met, against the
+fake provider only — **never run against AWS** (out of scope by the milestone's own definition).
+Delivered: `execution/credential_store.py` (`CredentialStore` — a per-`(phase_name, identity_id)`
+registry the orchestrator populates every time a `PROBE`-kind matrix actually runs against an
+identity, letting a later `credential_source: phase:<name>` resolve back to "the credential
+minted at that phase" without re-delegating — F1); `execution/deferred.py` (`run_wait_phase` —
+F2, advances the provider's virtual clock via the same `advance_clock` escape hatch
+`execution/polling.py` already established, with an untested real-sleep fallback for a future
+real-time adapter, M17; `run_deferred_execution_phase` — probes every capability in the compiled
+universe using the pinned credential *without* calling `delegation.ensure_fresh_credential`
+first, tags those `PlanPhase.DEFERRED_EXECUTION`, then **unconditionally** mints a new credential
+— never gated by remaining lifetime the way `ensure_fresh_credential`'s own F6 threshold is,
+since a comfortably-valid pinned credential would otherwise silently reuse the same session for
+the "fresh" leg and defeat F3 entirely — and probes again, tagged
+`PlanPhase.PAIRED_FRESH_CREDENTIAL`); `analysis/stale.py` (`stale_authority_measurements` — pairs
+`DEFERRED_EXECUTION`/`PAIRED_FRESH_CREDENTIAL` observations by `(identity_id, capability_id)`,
+reads `DELETE_SESSION_POLICY_SCOPE`-kind `POLICY_MUTATION_APPLIED` events for
+`session_scope_removed` rather than inferring it from any observed outcome, and calls M7's
+pre-existing `classify_stale_authority`); two new compiled-plan types mirroring M12's own
+`MutationPlan`/`PollPlan` precedent, `WaitPlan`/`DeferredExecutionPlan` (`core/models.py`,
+compiled by two new `scenarios/compiler.py` functions,
+`_build_wait_plans`/`_build_deferred_execution_plans`, the latter sharing a new
+`_capability_universe` helper with `_build_probe_matrices` rather than duplicating F3's
+probe-universe selection a third time); new `PhaseSpec` validation (`WAIT` requires a positive
+`wait_seconds`; `DEFERRED_EXECUTION` requires `target_identity`, not only `credential_source`) and
+a new `PlanPhase.PAIRED_FRESH_CREDENTIAL` enum member; `execution/orchestrator.py`'s `WAIT`/
+`DEFERRED_EXECUTION` branches (previously named-milestone stubs since M10) now call these for
+real, and every `PROBE`-kind matrix records its identity's current credential into the run's one
+`CredentialStore` as it runs; three new scenario files (`stale-authority/short-defer.yaml`,
+`long-defer.yaml`, `post-expiry.yaml`, F6's {30, 120, 600}s-plus-expiry set) and
+`nc-stale-credential-reuse.yaml` (already committed since M3-era scaffolding) simplified to drop
+a redundant trailing `PROBE`-kind "paired-fresh-credential" phase once `DEFERRED_EXECUTION` grew
+its own paired-probe machinery — see finding 3 below for why that scaffolded design would not
+have worked as originally sketched.
+
+Four genuine findings, not design choices:
+
+1. **The fake's own mutation-visibility model cannot, by construction, ever produce a genuine
+   `STALE_AUTHORITY_LIVE_CREDENTIAL` result.** `providers/fake/adapter.py`'s pending-transition
+   window (M5) is keyed purely by *identity* and *wall-clock time since the mutation*, never by
+   which credential is asking — so a credential minted before a mutation and one minted
+   immediately after it, probed at the same instant, always observe the *identical* pre/post
+   state. Every M10-M12 scenario needs exactly this (the revocation family's whole measurement is
+   the *same* session watching a live transition over time), but it means the paired
+   fresh-credential probe F3 requires can never disagree with the pinned one on identity-policy
+   grounds alone — the classifier would only ever see "not propagated yet" or "already current",
+   never genuine staleness, regardless of how the scenario's deferral interval was tuned against
+   `propagation_delay_ms`. Fixed with a new, strictly opt-in mechanism
+   (`FakeProviderAdapter.enable_authority_caching`, an adapter-specific escape hatch matching
+   `advance_clock`'s own precedent, never in the `ProviderAdapter` Protocol): every `delegate()`
+   call now captures a snapshot of the issuing identity's *live* (allow, deny) at that exact
+   moment, keyed by the new credential's own id; once `execution/deferred.py` calls
+   `enable_authority_caching` for the one identity it is about to run a deferred/paired-fresh
+   probe against, that identity's probes consult *its currently-held credential's own* snapshot
+   instead of live/pending state. An old (pre-mutation) pinned credential's snapshot never
+   changes; a freshly re-delegated one captures a brand-new snapshot reflecting whatever is
+   currently true (`apply_policy_mutation` always writes to live engine state synchronously,
+   regardless of the separate propagation-delay window) — which is what makes the divergence
+   deterministic and independent of deferral length or fake profile, rather than a race. Checked
+   before the pending-transition branch, never touched by M10-M12 scenarios (the set defaults
+   empty and only `execution/deferred.py` ever populates it), so none of their existing tests
+   changed behavior.
+2. **The snapshot must be captured at each credential's own issuance, not lazily when caching is
+   enabled.** The first implementation called `enable_authority_caching` (which ran well after
+   the scenario's `MUTATE` phase) and had *it* capture the snapshot from current engine state —
+   which is already post-mutation by the time `DEFERRED_EXECUTION` runs, so the "pinned" probe
+   incorrectly observed the *new* policy instead of the old one it was minted under. Caught
+   immediately by the very first hand-run of `short-defer.yaml` (the deferred-execution
+   observation for `objectstore.read` came back `DENIED_EXPLICIT`, not the expected `ALLOWED`),
+   before any test had been written to hide it. Fixed by moving snapshot capture into
+   `delegate()` itself, unconditionally for every credential regardless of whether caching is
+   enabled yet (cheap, harmless for the identities that never opt in — nothing ever reads it),
+   keyed by credential id rather than identity id so an old and a new credential for the same
+   identity each keep their own.
+3. **`nc-stale-credential-reuse.yaml`'s own scaffolded design (a separate trailing `kind: PROBE`
+   phase literally named `paired-fresh-credential`) would not have produced a genuinely fresh
+   credential.** The generic `PROBE` branch always calls `delegation.ensure_fresh_credential`,
+   whose F6 threshold only re-delegates if the *remaining* lifetime is under 2x the estimated
+   matrix duration — for the 3600s-lifetime credentials these scenarios use, a 20-30s-old
+   credential is nowhere near that threshold, so the "paired" phase would have silently reused
+   the *same* session, defeating F3 entirely. `execution/deferred.py` instead performs both
+   probes internally, with an unconditional re-delegation between them; the scenario's own
+   redundant trailing phase (and the matching, now-dead `PHASE_NAME_TO_PLAN_PHASE["paired-fresh-
+   credential"]` table entry in `orchestrator.py`) were removed rather than worked around.
+4. **The "ambiguous / not yet propagated" case (AUTHORIZATION_MODEL §5.2's `INDETERMINATE` row)
+   is reached for free, with no dedicated fixture needed.** `_build_deferred_execution_plans`
+   probes the *full* declared capability universe, not only the one capability a scenario's own
+   `MUTATE` phase targets (F3's own "you cannot detect expansion by testing only what you
+   expect" logic, reused here) — so `identity.whoami`, never touched by any mutation in any of
+   the three shipped scenarios, always shows the pinned and fresh probes agreeing (`ALLOWED`),
+   which `classify_stale_authority` already correctly reports as `INDETERMINATE`, never
+   `STALE_AUTHORITY_LIVE_CREDENTIAL` — exercised directly by
+   `tests/integration/test_stale_authority.py::TestShortDefer::test_unmutated_capability_classifies_indeterminate_not_stale`
+   against a real run, not only `test_stale_classification.py`'s pure-function unit test from M7.
+
+`CURRENT_AUTHORITY` and `SESSION_SCOPE_CACHED` (the two rows the three shipped scenarios do not
+naturally reach) are exercised directly against `execution/deferred.py` and a real
+`FakeProviderAdapter` without a full YAML scenario, matching `test_mutation.py`'s own precedent
+for testing one `execution/` module's specific branch directly. `EXPIRED_CREDENTIAL_HONORED` (the
+one row that would contradict documented behavior) cannot be produced by a *correctly behaving*
+fake by construction — its classification is covered at the pure-function level by
+`test_stale_classification.py` (M7); `tests/integration/test_stale_authority.py`'s
+`TestExpiredCredentialHonoredWiring` additionally proves `analysis/pipeline.py`'s own wiring
+around it fires correctly, by corrupting one real `post-expiry.yaml` observation the way only a
+genuine provider defect could and re-sealing a bundle from the corrupted data — the one thing the
+fake's own correctness cannot demonstrate on its own. `analysis/pipeline.py`'s `analyze_bundle`
+now extracts stale-authority findings automatically from any bundle (closing the stale-authority
+half of former known issue 13 below; silent-narrowing remains M14's).
+
+Test files: `tests/integration/test_stale_authority.py` (11 — short-defer/long-defer/post-expiry
+all run for real; `STALE_AUTHORITY_LIVE_CREDENTIAL` for the mutated capability and `INDETERMINATE`
+for the untouched one from the *same* run; `CREDENTIAL_EXPIRED` with no mutation involved at all;
+`CURRENT_AUTHORITY`/`SESSION_SCOPE_CACHED` driven directly against `execution/deferred.py`;
+`EXPIRED_CREDENTIAL_HONORED`'s pipeline wiring via a corrupted, re-sealed bundle);
+`tests/integration/test_credential_pinning.py` (3 — acceptance criterion 2: the deferred
+observation's `credential_id` equals the `after-delegation`-phase credential's, read from
+`observations.jsonl`/`credentials.jsonl`, never asserted against the code path; the paired
+observation's differs); `tests/integration/test_post_expiry.py` (4 — acceptance criterion 4);
+`tests/unit/test_credential_store.py` (3), `tests/unit/test_deferred.py` (2 — the no-edge/root
+guard, and a stand-in adapter with no `enable_authority_caching` hook, proving
+`execution/deferred.py` still runs correctly against a future real-time adapter without it);
+`tests/unit/test_scenario_schema_extra.py` gained the two new `PhaseSpec` validator cases.
+`tests/integration/test_negative_controls.py`'s `nc-stale-credential-reuse` section, previously
+rule-level only (no deferred-execution engine existed), now runs end to end through the real
+orchestrator in both directions — defect present (a real `ATTACH_INLINE_DENY` mutation) reports
+`DETECTOR_OK`; the "fix" (the same compiled scenario with its `MUTATE` step and `MutationPlan`
+stripped via `model_copy`, so the pinned and fresh probes have nothing to disagree about) reports
+`DETECTOR_FAILURE`, following the exact pattern `TestNoRevocation` already established for
+`nc-no-revocation` at M12.
+
+Coverage: every M13-proper module (`execution/deferred.py`, `execution/credential_store.py`,
+`analysis/stale.py`, `providers/fake/session.py`, `scenarios/schema.py`) finished at 100%;
+`scenarios/compiler.py` 98% (two pre-existing, unrelated gaps); `execution/orchestrator.py`/
+`providers/fake/adapter.py` 99% (a couple of pre-existing branch-coverage partials, not M13's
+own new code). One piece of dead code from an earlier iteration of finding 1 above
+(`SessionStore.issued_at_ms`, superseded by the credential-keyed snapshot dict before it was ever
+called from anywhere) was found and deleted rather than left behind.
+
+Verification commands run for real:
+
+```
+$ chainbreak run scenarios/stale-authority/short-defer.yaml --provider fake --fake-profile eventual --seed 13
+chainbreak run: COMPLETED -> runs\01KZN4T8H2EETY19HTZ8S6QVMT
+
+$ chainbreak analyze 01KZN4T8H2EETY19HTZ8S6QVMT
+chainbreak analyze: 2 finding(s), 0 detector check(s) -> runs\...\findings.json
+$ jq '.findings[]|select(.type=="STALE_AUTHORITY")' runs\...\findings.json
+                                       # classification: STALE_AUTHORITY_LIVE_CREDENTIAL, agent-c,
+                                       # security_interpretation names it documented bearer-token
+                                       # behavior in the same paragraph as the result (AC5)
+
+$ chainbreak run scenarios/_negative-controls/nc-stale-credential-reuse.yaml --provider fake --seed 13
+chainbreak run: COMPLETED -> runs\01KZN4TZAGFYCGM8SQSPJP49SG
+
+$ pytest -m integration tests/integration/test_stale_authority.py -q
+11 passed in 1.83s
+```
+
+**M14 — Silent-narrowing benchmark (Family E).** All five acceptance criteria met, against the
+fake provider only — **never run against AWS** (out of scope by the milestone's own definition;
+LLM workers are v0.4, also out of scope). Delivered: `execution/workers/base.py` (`TaskWorker` —
+a `Protocol` defined purely over `CapabilityInvoker`/`InvocationResult`/`TaskStep` and a returned
+`TaskOutcome`, nothing about how a worker decides anything — F1/ADR-007, so a future LLM-backed
+worker implements the identical interface with no downstream change);
+`execution/workers/deterministic.py` (four workers — `sequential`, the honest one, honoring
+`on_failure` including a genuine one-shot retry; `always-complete`, the negative-control liar that
+never invokes anything at all yet reports a fully self-consistent `COMPLETE`; `substituting`,
+which invokes `identity.whoami` in place of its declared last step; `redelegating`, which attempts
+`identity.delegate` mid-task in addition to its real steps — plus a `WORKERS` registry and
+`resolve_worker`); `execution/task_runner.py` (`run_task` — builds the one capability-invoker
+every worker is confined to, S1, wrapping `adapter.probe()` exactly as `matrix.py`/`deferred.py`
+already do so SI-2/SI-3 apply to task actions unchanged; refuses every `identity.delegate`
+invocation structurally, before it could ever reach the provider, and counts the attempt in its
+own log rather than the worker's; computes `substituted_capabilities` by comparing the objective
+invocation log against the plan's declared steps, collapsing consecutive same-capability repeats
+first so an honest `on_failure: retry` is never mistaken for a substitution; records the output
+marker only when the declared *last* step was genuinely the last thing invoked, under its own
+capability, and it succeeded); `execution/side_effects.py` (`verify_output_marker` — F4, reads the
+same store the runner wrote to, via a `provisioning_ref` parameter kept for a future real-adapter
+bootstrap read even though the fake's own escape hatch does not need it); `analysis/task_contract.py`
+(`task_contract_findings` — extracts `TaskOutcome`s from `TASK_OUTCOME_RECORDED` events and calls
+three rule functions per task, each gated by that task's own declared `completion_contract`); two
+new `analysis/rules.py` functions, `rule_capability_substituted`/`rule_redelegation_attempted`,
+and two new `FindingType` members, `CAPABILITY_SUBSTITUTED`/`REDELEGATION_ATTEMPTED`
+(AUTHORIZATION_MODEL §6 updated) — F5's "reported distinctly" requirement needed genuinely
+distinct types, not just distinct text under the one pre-existing `SILENT_NARROWING`, since a
+single task can trigger more than one contract violation at once and `Finding.subject_kind` is
+regex-constrained to a fixed vocabulary that has no room for a per-violation tag; a new
+`PlanPhase.TASK_EXECUTION` tag (excluded from the generic per-node authority-findings pass, the
+same reasoning `POST_MUTATION`/`DEFERRED_EXECUTION`/`PAIRED_FRESH_CREDENTIAL` already established);
+`execution/orchestrator.py`'s `TASK` branch (the last named-but-stubbed `PhaseKind`, and its own
+trailing `else` is now structurally unreachable through any current enum value, kept only to fail
+loudly if a future member is ever added without a branch); a new `TaskPlan`/`TaskStepPlan` pair
+(`core/models.py`, `scenarios/compiler.py::_build_task_plans`, mirroring `MutationPlan`/`PollPlan`/
+`DeferredExecutionPlan`'s established "compiled analogue, never import the scenario-layer spec
+type" discipline); the fake adapter's `record_scratch_marker`/`scratch_marker_exists` escape
+hatches (matching `advance_clock`/`enable_authority_caching`'s own precedent — simulated write-then-
+independently-verify storage the fake has no other way to model, since it is a pure policy-decision
+engine with no real object content).
+
+Four genuine findings, not design choices:
+
+1. **`redelegation_attempts`/`substituted_capabilities` must be computed by the executor, never
+   trusted from a worker's own returned `TaskOutcome`, or the entire family's core guarantee
+   collapses.** The Protocol lets a worker return anything in those two fields; if
+   `execution/task_runner.py` had simply forwarded them, a dishonest worker could self-report zero
+   substitutions and zero redelegation attempts regardless of what it actually did, and nothing
+   downstream would ever know better — exactly the class of defect F4's marker-verification
+   requirement exists to prevent, just for a different pair of fields. Fixed by keeping both fields
+   entirely runner-owned: the invoker maintains its own call log (every real capability invoked,
+   plus a separate counter for intercepted `identity.delegate` attempts) and `run_task` overwrites
+   whatever the worker returned via `model_copy` after the fact, unconditionally. None of the four
+   shipped workers needs to (or does) set either field meaningfully as a result.
+2. **A naive "compare invoked capability to declared step, position by position" substitution
+   check would misclassify a legitimate `on_failure: retry`.** A denied step retried once adds a
+   second, same-capability entry to the invocation log at that step's own position, shifting every
+   later position by one relative to the declared plan — the next real step would then appear to
+   have been "substituted" by whatever the retry actually was, even though nothing dishonest
+   happened. Caught by `tests/integration/test_task_workers.py::TestRetryDoesNotFalselyLookLikeSubstitution`
+   before it ever reached the negative-control scenarios. Fixed by collapsing consecutive repeats
+   of one capability in the invocation log (keeping the latest outcome) before the positional
+   comparison runs, in `_collapse_consecutive_repeats`.
+3. **The `substituting` worker's first implementation (reusing an earlier declared step's own
+   capability as its substitute) would have been silently absorbed by finding 2's own fix.** If
+   step 0 is `objectstore.read` and the substitute for the last step is also `objectstore.read`,
+   the two adjacent same-capability log entries collapse into one exactly the way a legitimate
+   retry does, erasing the substitution before the comparison ever sees it. Fixed before it shipped
+   (caught while designing the collapse helper, not by a failing test) by having the worker
+   substitute with `identity.whoami` instead — a control capability no legitimate declared step
+   would plausibly name, so it can never collide with retry-collapsing.
+4. **`scenarios/silent-narrowing/two-step-pipeline.yaml` and `scenarios/stale-authority/
+   deferred-execution.yaml` were both already fully written, committed since M0, in the same
+   "written as if the milestone had already landed" style M3/M5/M10 each left an instance of --
+   and this milestone's own first attempt at authoring `two-step-pipeline.yaml` overwrote one of
+   them with different content before noticing.** The original's premise (Agent B delegated one
+   capability short of what its task needs, run with the *honest* `deterministic.sequential`
+   worker) is EXPERIMENT_PROTOCOL.md section 5's own main procedure (steps 1-6) — a task failing
+   loudly and correctly as `PARTIAL`/`EXPECTED_BEHAVIOR`, distinct from both
+   `nc-silent-success.yaml`'s dishonest-worker case and F7's positive control. Reverted via `git
+   checkout --` before it was ever committed; the positive control (F7, full authority, same task
+   shape) now lives in its own new file, `two-step-pipeline-full-authority.yaml`, alongside the
+   restored original.
+
+Test files: `tests/integration/test_silent_narrowing.py` (10 — the restored `two-step-pipeline.yaml`
+reports `PARTIAL`/`reported_insufficient_authority=True` and no `SILENT_NARROWING` finding, since
+failing loudly is the desired outcome; `two-step-pipeline-full-authority.yaml` (F7) reports
+`COMPLETE` with an independently verified marker; `nc-silent-success.yaml` end to end, `DETECTOR_OK`
+at `HIGH` confidence, every finding's `caveats` naming the worker synthetic per AC5);
+`tests/integration/test_task_workers.py` (10 — AC1, all four workers driven directly against a real
+one-hop graph; the milestone's own explicit "reported distinctly" requirement — substituting and
+redelegating each produce their own `FindingType`, never `SILENT_NARROWING` alone, and every
+finding keeps a distinct `finding_id`); `tests/integration/test_side_effect_verification.py` (8 —
+the milestone's own stated core case: `always-complete`'s self-report is internally consistent
+(`steps_succeeded == steps_total`) yet independent verification still catches it, since it never
+invoked anything at all; run-and-task-scoping; the no-escape-hatch fallback for a future real
+adapter); `tests/unit/test_deterministic_workers.py` (5 — `on_failure: abort`, an all-denied
+`FAILED` status, a non-final step also denied under `substituting`/`redelegating`, the unknown-
+worker-id error). `tests/integration/test_negative_controls.py`'s `nc-silent-success` section,
+previously rule-level only, now runs end to end through the real orchestrator in both directions —
+the "fix" is the same compiled scenario with its `TaskPlan.worker` swapped to
+`deterministic.sequential` via `model_copy`, following the exact migration pattern
+`nc-stale-credential-reuse` used at M13.
+
+Coverage: every M14-proper module (`execution/workers/base.py`, `execution/workers/
+deterministic.py`, `execution/task_runner.py`, `execution/side_effects.py`,
+`analysis/task_contract.py`) finished at exactly 100%. The scenario corpus grew by one file net
+(24, from 23) — `scenarios/stale-authority/deferred-execution.yaml`'s and this milestone's own
+`two-step-pipeline.yaml` M0-era scaffolds are both counted in every prior total already; only
+`two-step-pipeline-full-authority.yaml` is genuinely new.
+
+Verification commands run for real:
+
+```
+$ chainbreak run scenarios/silent-narrowing/two-step-pipeline.yaml --provider fake --seed 17
+chainbreak run: COMPLETED -> runs\01KZNJP4H69J0ME94PEDEB8728
+
+$ chainbreak analyze 01KZNJP4H69J0ME94PEDEB8728
+chainbreak analyze: 2 finding(s), 0 detector check(s) -> runs\...\findings.json
+                                       # both EXPECTED_BEHAVIOR: the honest worker's PARTIAL,
+                                       # insufficient-authority report is not a finding -- failing
+                                       # loudly is the desired outcome, per EXPERIMENT_PROTOCOL.md
+
+$ chainbreak run scenarios/_negative-controls/nc-silent-success.yaml --provider fake --seed 17
+chainbreak run: COMPLETED -> runs\01KZNJPG06ABPDY3SRWXH4E9GS
+$ chainbreak analyze 01KZNJPG06ABPDY3SRWXH4E9GS
+chainbreak analyze: 2 finding(s), 1 detector check(s) -> runs\...\findings.json
+                                       # SILENT_NARROWING at HIGH confidence, DETECTOR_OK
+
+$ pytest -m integration tests/integration/test_side_effect_verification.py -q
+8 passed in 0.17s
+```
+
+**M15 — Per-category scoring.** All five acceptance criteria met. Delivered:
+`scoring/categories.py` (`score_categories`, six evaluators — `_delegation_integrity`,
+`_scope_attenuation`, `_revocation_responsiveness`, `_authority_freshness`,
+`_failure_transparency`, `_credential_hygiene` — every one funnelled through a shared
+`_finalize` that applies F2/F3/F4/S2 identically; `score_bundle(run_dir)` mirroring
+`analysis/drift.py`'s bundle-reading convenience pattern; `not_measured_notice`, the literal
+"NOT_MEASURED is not a pass." sentence SCORING_MODEL.md section 4's report shape requires, kept
+as a standalone pure string function rather than pulled forward from M16); `scoring/coverage.py`
+(`coverage_ratio`, `is_exercised` — the two decisions every evaluator shares: zero applicable
+cells is `NOT_MEASURED` never `CONSISTENT`, and the model itself, not just this module, enforces
+`coverage < 0.7` forcing `PARTIAL`); `scoring/confidence.py` (`category_confidence`, `min()`
+across a coverage-tier baseline and every contributing finding, reusing `core/models.py`'s
+already-existing `min_confidence` primitive rather than reimplementing aggregation);
+`scoring/aggregate.py` (`aggregate_runs`, `RunScoreSet`, `score_set_from_bundle` — F7 refuses
+runs whose `compiled_hash`/`adapter_version`/`catalog_version` differ unless
+`allow_heterogeneous=True`, which only ever marks the result `heterogeneous=True`, never raises
+confidence; F8's n/median/IQR/min/max with `iqr=None` below n=5, and excluded runs counted by
+reason rather than dropped).
+
+Two of the four required files' hardest design decisions turned out to already be half-answered
+by earlier milestones: `min_confidence` (F4) already existed in `core/models.py` since M1, and
+`CategoryResult`'s own model validator already enforced F3's coverage-forces-PARTIAL rule —
+M15's job for both was wiring a category-level *evaluator* around primitives that already
+existed, not inventing the primitives. What did not already exist, and needed real design work
+building `scoring/categories.py`: (1) "applicable cells" per category is not one uniform
+concept — `DelegationEdge`/`EdgeDivergence` (via `graph/divergence.py::analyze_graph`, which
+already restricts to edges with *both* endpoints measured, reused directly rather than
+re-derived) for Delegation Integrity and Scope Attenuation, `PollPlan` count *after excluding a
+scenario's own pre-mutation warm-baseline poll* for Revocation Responsiveness (a naive
+`len(scenario.poll_plans)` double-counted the warm-up poll AUTHORIZATION_MODEL.md section 5.1
+itself recommends, understating coverage on every correctly-authored revocation scenario — caught
+by actually running `scenarios/revocation/inline-deny.yaml` end to end and seeing coverage 0.5
+where it should have been 1.0, not by reasoning about the model in the abstract), capability
+count × trials for Authority Freshness (`DeferredExecutionPlan.capabilities` is a *set*, unlike
+`PollPlan`'s single capability — a naive `len(deferred_execution_plans)` undercounted by exactly
+that multiplier and crashed `coverage_ratio`'s own measured-exceeds-applicable guard the first
+time a real short-defer.yaml run was scored, which is exactly the kind of bug `coverage_ratio`
+raising instead of silently returning >1.0 exists to catch immediately rather than downstream);
+(2) Credential Hygiene's "a credential remained usable after its stated expires_at" check is
+deliberately broader than Authority Freshness's `EXPIRED_CREDENTIAL_ACCEPTED` finding — scanned
+across *every* observation using a credential, not only `DEFERRED_EXECUTION` ones, since the two
+categories measure genuinely different things even though both can fire from the same underlying
+fact; (3) refactored `analysis/pipeline.py::_revocation_findings` to split out a new public
+`revocation_measurements()` (the same measurement list `rule_revocation_delay`/
+`rule_no_transition_observed` were already built from, now reusable by scoring without
+re-parsing `events`/`observations` a second time) and added `AnalysisResult.populated_graph`
+(the final accumulated graph, `None` when no authority-axis phase ran at all) — both additive,
+zero existing tests touched.
+
+Running the real scenario corpus end to end through the actual `scoring/` code (not just unit
+tests against hand-built fixtures) surfaced two genuine findings, neither a scoring defect: three
+of the six negative-control scenarios (`nc-scope-expansion`, `nc-non-monotone-chain`,
+`nc-surviving-authority`) inject their defect only through `tests/fixtures/mini_orchestrator.py`'s
+test-only `adapter.engine.apply_allow(...)` hook or a Terraform infrastructure profile that has
+no fake-provider equivalent — a genuine `chainbreak run --provider fake` on any of the three never
+triggers the defect, so `chainbreak analyze` correctly reports `DETECTOR_FAILED` for each,
+exactly what S2 exists to surface; this is flagged as a follow-up rather than fixed here (a
+fake-provider extension or scenario-language addition, out of M15's own file list — see the
+new known issue below). Separately, `analysis/stale.py` has never populated
+`StaleAuthorityMeasurement.stale_window_seconds` (no mutation-timing input reaches it), so
+`scoring/categories.py::_authority_freshness` omits that `Measurement` entirely rather than
+approximating it from `deferral_seconds` (a different instant — wall_start minus
+credential.issued_at, not minus t_M) — "prefer INCONCLUSIVE over a guess" applied to a missing
+measurement, not just a missing finding.
+
+`cli/analyze.py` now writes `scores.json` alongside `findings.json` on every
+`chainbreak analyze <run-id>` (via `scoring.categories.score_bundle`), echoes each category's
+status/coverage/confidence, and prints the NOT_MEASURED notice when applicable; a new
+`--aggregate-scores --scenario-id <id> [--allow-heterogeneous]` mode wraps
+`scoring.aggregate.aggregate_runs` the same way `--aggregate --scenario-family <family>` already
+wraps M11's depth-sweep aggregation. `evidence/writer.py` gained `write_scores`, structurally
+identical to `write_findings` (redact-then-write, not part of the sealed `ARTIFACT_NAMES` root,
+since both are regenerable from the sealed bundle alone).
+
+Verification commands run for real:
+
+```
+$ chainbreak run scenarios/delegation-drift/four-hop.yaml --provider fake --seed 29
+chainbreak run: COMPLETED -> runs\01KZNP8EH3DY2M14B2N5Q1GHYN
+
+$ chainbreak analyze 01KZNP8EH3DY2M14B2N5Q1GHYN
+chainbreak analyze: 5 finding(s), 0 detector check(s) -> runs\...\findings.json
+chainbreak analyze: 6 categories scored -> runs\...\scores.json
+  DELEGATION_INTEGRITY: CONSISTENT coverage 1.00 confidence HIGH
+  SCOPE_ATTENUATION: CONSISTENT coverage 1.00 confidence HIGH
+  REVOCATION_RESPONSIVENESS: NOT_MEASURED coverage 0.00 confidence INSUFFICIENT
+  AUTHORITY_FRESHNESS: NOT_MEASURED coverage 0.00 confidence INSUFFICIENT
+  FAILURE_TRANSPARENCY: NOT_MEASURED coverage 0.00 confidence INSUFFICIENT
+  CREDENTIAL_HYGIENE: CONSISTENT coverage 1.00 confidence HIGH
+NOT_MEASURED is not a pass. 3 of 6 categories were not exercised by this scenario.
+
+$ pytest -m unit tests/unit/test_scoring.py -q
+31 passed in 0.23s
+
+$ grep -rn "composite\|overall_score\|total_score" src/
+src/chainbreak/core/enums.py:270:    """Six independent categories. There is no composite score (ADR-010)."""
+src/chainbreak/scenarios/export_schema.py:72:        "Per-category result. There is no composite score (ADR-010).",
+src/chainbreak/scoring/categories.py:8:``composite``/``overall_score``/``total_score`` and expects to find nothing.
+src/chainbreak/scoring/categories.py:482:    that section's own order. No composite: this function's return type is
+                              # every hit is a docstring/comment *stating* ADR-010's decision, the
+                              # same self-matching-grep shape M0's history already documents --
+                              # confirmed by grep -rn "def.*score\b" src/chainbreak/scoring/*.py
+                              # returning nothing, and by test_scoring.py's own module-introspection
+                              # and return-type-annotation checks, which are the real assertion
+```
+
+Full suite: 1607 passed, 9 skipped, 23 deselected (was 1548 before M15 — +59 tests: `test_scoring.py`
+31, `test_coverage.py` 12, `test_cross_run_aggregation.py` 12, `test_scoring_categories.py` 4).
+`ruff`/`mypy` both clean across the full tree.
+
+**M16 — Reporting and visualisation.** All five acceptance criteria met. Delivered:
+`reporting/language.py` (EXPERIMENT_PROTOCOL.md section 7's rules as an actually-enforced lint,
+not a style guide — `lint()`/`lint_report()` check forbidden phrases, a timing value with no
+interval indicator on its line, a percentage with no denominator, the limitations section and
+the literal "NOT_MEASURED is not a pass." sentence; `enforce_report()` is what every renderer
+calls immediately before returning, applying the full lint to the report's own authored prose
+and a narrower forbidden-phrases-only check to a `Finding`'s own evidence-derived free text — see
+below for why); `reporting/figures.py` (seven evidence-derived figures — authorization graph,
+per-hop intended-vs-effective, excess/missing capabilities per hop, revocation timeline with the
+transition window shaded, stale-authority window, trial repeatability, cross-run scenario
+comparison — hand-built inline SVG rather than Plotly, a deliberate deviation recorded in the
+module's own docstring, see below); `reporting/data.py` (`gather_report_data`, one bundle-read
+per report shared by all three renderers) and `reporting/render_context.py` (the one template
+context `markdown.py`/`html.py` both render from, including the "blank every finding field and
+re-render" trick that gives `enforce_report` a structural-text lint target with zero
+evidence-derived prose without fragile output-parsing); `reporting/format.py` (`format_timing_result`,
+the one function every renderer calls to print a timing result with n, interval, mechanism and
+region — the four EXPERIMENT_PROTOCOL §7 names explicitly — and the shared `LIMITATIONS` text, so
+the exact wording (and therefore `LIMITATIONS_TERMS`'s substring match against it) cannot drift
+between formats); `reporting/terminal.py` (`rich`, rendered to plain text via
+`Console(record=True)` rather than printed directly, so it is testable by string assertion and
+the CLI decides how it reaches the terminal); `reporting/markdown.py` and `reporting/html.py`
+(Jinja2, `templates/report.md.j2` and `templates/report.html.j2` — HTML with autoescape on and no
+`|safe` anywhere in either template, verified by a grep-based test; Markdown deliberately
+`autoescape=False`, since it is plain text, not an HTML injection surface, with a `noqa`/`nosec`
+recording that as a reviewed decision, not an oversight). `cli/report.py` is now a real
+implementation (`chainbreak report <run-id> --format {terminal,markdown,html} [-o path]
+[--allow-unsealed]`), moved from a sub-`Typer` app to a plain function on the root app —
+the exact `--format` misparse `cli/analyze.py`/`cli/run.py` had already documented and fixed,
+reproduced directly against this module before switching.
+
+Three things worth recording as genuine findings, not just design choices:
+
+1. **Plotly cannot actually satisfy this milestone's own non-functional requirement.** The spec
+   names Plotly for `figures.py`, but its only two paths to a self-contained, no-CDN report each
+   violate a *harder* requirement stated in the same breath: `include_plotlyjs="inline"` embeds a
+   multi-megabyte minified library before a single data point is drawn, alone exceeding "HTML
+   report under 2 MB"; static image export (`kaleido`) needs a headless-browser binary this
+   offline development environment cannot download, which would violate "no network fetches" at
+   *build* time instead of render time. Hand-built inline SVG, generated programmatically from the
+   same evidence Plotly would have been fed, satisfies F3's actual requirement (structured,
+   evidence-derived charts, never hand-written numbers) without either conflict, and is
+   additionally readable without JavaScript — the same category of judgment call M4's
+   `rich_markup_mode` finding recorded, applied here to a harder constraint conflict.
+2. **The language lint, applied naively to the whole rendered report, would have failed on
+   already-shipped, already-tested M7/M13 finding text.** `analysis/rules.py`'s stale-authority
+   caveat said "Not a vulnerability" (a literal forbidden-word hit, negation notwithstanding — the
+   milestone's own instruction describes a blunt grep, not a negation-aware parser) and
+   `rule_lifetime_capped`'s observation ("requested 3600s, granted 3600s") has no interval
+   indicator the timing-heuristic would accept. Fixing every such pre-existing sentence across
+   three earlier milestones' finding-rule text was out of this milestone's scope and risked
+   breaking finding-wording assertions those milestones' own tests already lock in. The bounded
+   fix: `enforce_report()` applies the full lint only to text the reporting layer itself authored,
+   and a narrower forbidden-phrases-only check to verbatim `Finding` fields (ADR-006/F4 already
+   requires rendering them under their own headings, unmodified) — plus the one real hit
+   (`analysis/rules.py`'s "vulnerability") is fixed regardless, since no scoping decision makes a
+   forbidden word in a rendered report acceptable.
+3. **A real, reproducible crash, not a design decision.** `typer.echo()` on a native Windows
+   console (cp1252, no UTF-8 code page) raises `UnicodeEncodeError` on any character outside that
+   encoding — reproduced directly against this module's own en-dash usage before switching every
+   generated string to ASCII (`-` instead of `–`) and, since evidence content itself is not
+   guaranteed ASCII (an identity id, say), making `cli/report.py`'s stdout path write UTF-8 bytes
+   directly with `errors="replace"` rather than trusting `typer.echo`'s console-codepage-dependent
+   encoding. Caught only because this session ran the CLI for real against a real bundle rather
+   than trusting the renderer unit tests (which run under pytest's own captured-output encoding
+   and would never have surfaced it).
+
+Two known gaps surfaced while building `format_timing_result`, neither fixed here because fixing
+either means changing an earlier milestone's evidence schema, out of M16's own file list: (1)
+`Manifest.provenance` has no `region` key — `cli/run.py` (M10) never populated one, so every
+rendered timing result's `region=` field reads a documented placeholder
+(`format.py::REGION_NOT_CAPTURED`) naming the gap rather than inventing a value; (2) `git_dirty`/
+`git_commit` are declared on `core/models.py::Provenance` and already read by
+`evidence/index.py`, but `cli/run.py` never populates them either, so a real run's `git_dirty`
+always renders `false` today — `reporting/terminal.py`'s own rendering of a `True` value is
+proven correct by `tests/unit/test_report_terminal.py` constructing a `ReportData` directly
+rather than depending on a real bundle ever producing one. Both are flagged as follow-ups.
+
+Negative controls, all three performed for real: (1) a `ReportData` built with a `Finding` whose
+`security_interpretation` contains `<script>alert('xss')</script>` renders the literal
+`<script>` nowhere in the HTML output and `&lt;script&gt;` instead
+(`TestXssEscaping` in `test_report_generation.py`); (2) `report.html.j2` was hand-edited to add
+`AWS is vulnerable.` before the `<h1>`, `pytest
+tests/integration/test_report_generation.py::TestAllThreeFormatsRender::test_html` failed with
+`ReportLanguageError: 1 report-language violation(s)`, and the edit was reverted (confirmed by a
+clean `grep -c "AWS is vulnerable"` afterward); (3) every figure's caption and the report header
+carry `FAKE-PROVIDER APPARATUS CHECK` for a `provider: fake` run, asserted by
+`TestFakeProviderStamp` counting occurrences against `1 + len(figures)`, not just checking `>= 1`.
+
+A sample HTML report is committed at
+[examples/reports/sample-scope-attenuation-fake.html](examples/reports/sample-scope-attenuation-fake.html),
+generated for real via `chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake
+--seed 1729`, `chainbreak analyze`, `chainbreak report --format html` — 21 KB, header and every
+figure caption stamped `FAKE-PROVIDER APPARATUS CHECK`.
+
+Verification commands run for real:
+
+```
+$ chainbreak report 01KZNVRCY521JN2YR886MN025N --format terminal
+*** provider: fake -- FAKE-PROVIDER APPARATUS CHECK. This is not a measurement of any real
+provider. ***
+CHAINBREAK -- run 01KZNVRCY521JN2YR886MN025N
+scenario scope-attenuation-basic v1.0.0    provider fake (adapter 0.1.0)
+status COMPLETED    bundle_root_verified True
+                          CATEGORY RESULTS
+┌───────────────────────────┬──────────────┬──────────┬────────────┐
+│ category                  │ status       │ coverage │ confidence │
+├───────────────────────────┼──────────────┼──────────┼────────────┤
+│ DELEGATION_INTEGRITY      │ CONSISTENT   │ 1.00     │ HIGH       │
+│ SCOPE_ATTENUATION         │ CONSISTENT   │ 1.00     │ HIGH       │
+│ REVOCATION_RESPONSIVENESS │ NOT_MEASURED │ --       │ --         │
+│ AUTHORITY_FRESHNESS       │ NOT_MEASURED │ --       │ --         │
+│ FAILURE_TRANSPARENCY      │ NOT_MEASURED │ --       │ --         │
+│ CREDENTIAL_HYGIENE        │ CONSISTENT   │ 1.00     │ HIGH       │
+└───────────────────────────┴──────────────┴──────────┴────────────┘
+NOT_MEASURED is not a pass. 3 of 6 categories were not exercised by this scenario.
+
+$ chainbreak report 01KZNVRCY521JN2YR886MN025N --format html -o /tmp/r.html && du -h /tmp/r.html
+20K     /tmp/r.html
+
+$ grep -rn '|safe' src/chainbreak/reporting/templates/ && echo FAIL || echo "no unsafe filters"
+no unsafe filters
+
+$ pytest -m unit tests/unit/test_report_language.py -q
+32 passed in 0.09s
+```
+
+Full suite: 1693 passed, 9 skipped, 23 deselected (was 1607 before M16 — +87 new tests across
+`test_report_language.py` (32), `test_no_unsafe_template_filters.py` (5),
+`test_cli_report_command.py` (9), `test_report_figures.py` (18), `test_report_terminal.py` (11)
+and `test_report_generation.py` (12), minus one `test_cli_commands.py` case moved out of the
+generic "not yet implemented" sweep now that `report` has real behavior — net +86). `ruff`,
+`mypy`, `lint-imports` (6/6 contracts kept) and `bandit -r src/ -q` all clean across the full tree.
+`reporting/` itself: 99% coverage (`data.py`/`format.py`/`html.py`/`language.py`/`markdown.py`/
+`render_context.py`/`terminal.py` all 100%; `figures.py` 99%, its one uncovered branch a
+defensive guard against an edge referencing an identity outside `graph.nodes` that
+`AuthorizationGraph`'s own validator already makes unreachable, marked `pragma: no cover` with
+that reasoning inline rather than left unexplained).
+
 ### Blocked
 
 M8's remaining acceptance criteria (2, 3, 4) and M9's remaining acceptance criteria (2 in part,
@@ -935,32 +1848,33 @@ account (`checkov`, the other half, is resolved — see the M9 entry above).
 
 ### Not started
 
-M10 through M19 (M8's offline portion and M9's local portion are both done; their real-account
-criteria are blocked, not not-started — see above). See
-[docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M17 through M19 (M8's offline portion and M9's local portion are both done; their real-account
+criteria are blocked, not not-started — see above; M10 through M16 are done, see their entries
+above). See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-1242 passed, 9 skipped, 23 deselected in ~48s   (Python 3.12.7, pytest -m "unit or integration")
-23 skipped, 1251 deselected                     (Python 3.12.7, pytest -m "aws or e2e" -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+1693 passed, 9 skipped, 23 deselected in ~85s   (Python 3.12.7, pytest -m "unit or integration")
+23 skipped, 1557 deselected                     (Python 3.12.7, pytest -m "aws or e2e" -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
 |---|---|---|
 | `tests/unit/test_domain_contract.py` | 41 | Set algebra, secret non-serializability, safety envelope rejection, graph invariants G-1/G-2, divergence at node level, outcome classification, interval ordering, min-confidence, lifetime capping, catalog integrity, binding validation, SI-11 literal-infrastructure rejection, ULID monotonicity |
-| `tests/scenarios/test_scenario_corpus.py` | 28 | Every scenario validates; capability closure (G-4); negative controls are correctly located and marked; all six defect kinds covered; all five families present |
-| `tests/unit/test_import_boundaries.py` | 6 | ARCH-1: core imports nothing internal, graph imports only core, boto3 confined to `providers/aws/`, AWS service strings confined to `providers/` and `AWS_PROVIDER_SPEC.md`, plus two planted-violation negative controls |
+| `tests/scenarios/test_scenario_corpus.py` | 52 | Every scenario validates; capability closure (G-4); negative controls are correctly located and marked; all six defect kinds covered; all five families present (parametrized per scenario, so this grows with the corpus — 24 scenarios as of M14) |
+| `tests/unit/test_import_boundaries.py` | 7 | ARCH-1: core imports nothing internal, graph imports only core, boto3 confined to `providers/aws/`, AWS service strings confined to `providers/` and `AWS_PROVIDER_SPEC.md`, plus two planted-violation negative controls and a third proving a denied teardown unlink warns rather than fails the test and is caught as leftover debris (S1) |
 | `tests/aws/test_placeholder.py` | 1 (skipped by default) | F5: proves the `aws`/`e2e` marker gate in `tests/conftest.py` actually skips, and actually un-gates under `CHAINBREAK_ALLOW_AWS_TESTS=1` |
 | `tests/aws/test_disambiguation.py` | 24 | Explicit-vs-implicit denial message classification against literal AWS strings across all five documented policy-kind nouns; Lambda `FunctionError` vs not; S3 403/404 shape; recognized/unrecognized access-denied codes |
 | `tests/aws/test_retry.py` | 28 | Transient-code classification including the never-retry-wins-over-503 ordering; full-jitter bounds with a seeded RNG; `call_with_retry`'s success, non-transient-immediate, transient-then-succeeds and exhaustion paths, each reporting the correct attempt/retry count |
 | `tests/aws/test_terraform_outputs.py` | 6 | `load_terraform_outputs` against a valid bare-value document, a valid `terraform output -json`-wrapped document, a missing file, malformed JSON, a non-object document, and missing required names |
-| `tests/aws/test_policy_synthesis.py` | 5 | One statement per intended capability plus the always-present whoami grant, never duplicated when requested explicitly, the empty-intent case, the 2048-char STS limit |
-| `tests/aws/test_adapter_moto.py` | 52 | Every AWS adapter module against real boto3 clients hitting moto's in-memory AWS: preflight P1–P4/P6/P7/P8/P9/P10 pass/fail paths, all five delegation mechanisms including the 3600s chain cap and session-policy attachment, all ten probes' success and denial/error-shape paths, all six mutation kinds, policy snapshot fingerprinting and change detection, and a full register→delegate→probe→mutate→snapshot walk through `AwsProviderAdapter` itself |
+| `tests/aws/test_policy_synthesis.py` | 5 | One statement per intended capability plus the always-present whoami grant, never duplicated when requested explicitly, the empty-intent case, the 2048-char STS limit (this is `providers/aws/policy_synthesis.py`, the real session-policy JSON; `tests/unit/test_policy_synthesis.py` below is the unrelated provider-neutral placeholder of the same name in `scenarios/`) |
+| `tests/unit/test_policy_synthesis.py` | 7 | `scenarios/policy_synthesis.py`'s size-checked, fingerprinted placeholder policy: deterministic fingerprint/size for a repeated capability set, the empty-capability-set case still synthesizes rather than erroring, the size-limit error path raises `ScenarioSemanticError` naming the identity, edge (present and absent) and both sizes (S1 — previously exercised only incidentally through `compiler.py`, never on its own error path) |
+| `tests/aws/test_adapter_moto.py` | 68 | Every AWS adapter module against real boto3 clients hitting moto's in-memory AWS: preflight P1–P4/P6/P7/P8/P9/P10 pass/fail paths, all five delegation mechanisms including the 3600s chain cap and session-policy attachment, all ten probes' success and denial/error-shape paths, all six mutation kinds, policy snapshot fingerprinting and change detection, a full register→delegate→probe→mutate→snapshot walk through `AwsProviderAdapter` itself, and (S1) the remaining eight `_build_call` dispatch arms `TestAdapterEndToEnd` didn't reach, `_build_call`'s own unresolved-capability fallback, `delegate()`'s no-live-session guard, the allowlist before-call hook's both branches against a stub client, and `_call_and_classify`'s three post-retry paths (apparatus-fault re-raise, non-`ClientError` re-raise, `ClientError` classified) via a monkeypatched `call_with_retry` |
 | `tests/aws/test_adapter_real.py` | 20 (skipped by default) | The inherited `ProviderContractSuite` (two tests overridden for AWS's fixed identity model) plus eight IAM-semantics tests named in M8's own spec — role-chain capping by real STS, session-policy-cannot-grant, explicit-deny-wins, the denial-message-wording canary, the S3 403/404 precondition proof, missing-marker-is-`CONFIGURATION_ERROR`, whoami-never-denied, out-of-namespace-refused. **Never executed** — gated behind `CHAINBREAK_ALLOW_AWS_TESTS=1` and this module's own `CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS`, neither set anywhere this milestone ran |
-| `tests/unit/test_cli_infra_command.py` | 12 | `plan`/`apply`/`destroy`'s argument handling against an unknown environment and a missing `terraform` binary; `status` against no captured outputs, valid outputs, and malformed outputs; `verify-clean` against `mock_aws()` — nothing tagged, something tagged, no region available, a captured region used automatically, and independence from a never-checked-out environment directory (F5) |
+| `tests/unit/test_cli_infra_command.py` | 21 | `plan`/`apply`/`destroy`'s argument handling against an unknown environment and a missing `terraform` binary; `status` against no captured outputs, valid outputs, and malformed outputs; `verify-clean` against `mock_aws()` — nothing tagged, something tagged, no region available, a captured region used automatically, independence from a never-checked-out environment directory (F5), and a malformed captured `outputs.json` falling back past `_region_hint`; and (S1) `plan`/`apply`/`destroy`'s real command bodies against a mocked `subprocess.run` — an init failure, a missing-tfvars-style plan failure, apply success capturing outputs, apply failure never capturing them, an output-capture failure after a successful apply, and a destroy that partially fails propagating its exit code |
 | `tests/aws/test_cleanup_contract.py` | 2 (skipped by default) | M9's own "Tests" section verbatim: apply → preflight passes → destroy → destroy again (no-op) → verify-clean reports nothing remaining; a second apply is also a no-op. **Never executed** — gated behind `CHAINBREAK_ALLOW_AWS_TESTS=1` and a `terraform.tfvars` file that has never existed in this environment |
 | `tests/unit/test_divergence.py` | 17 | Per-edge divergence (both observed- and expected-baseline variants), the section 7 worked example reproduced exactly, `classify_drift` table including `CORRECTED`, `edge_divergence`'s unmeasured-endpoint guards |
 | `tests/unit/test_first_divergence.py` | 10 | Single-node graphs, an unmeasured node reported rather than skipped, branching graphs analyzed independently, both M1-spec negative controls (hop-3-gain-propagates, hop-4-corrects) |
@@ -975,18 +1889,18 @@ criteria are blocked, not not-started — see above). See
 | `tests/unit/test_operation_allowlist.py` | 8 | `OperationAllowlist` raises on an out-of-band operation even when the probe body raised nothing, and even when it raised something else first |
 | `tests/unit/test_catalog_safety.py` | 9 | SI-9's config+CLI double switch (all four combinations), the restricted YAML loader rejecting an unknown tag and a non-mapping document |
 | `tests/unit/test_preconditions.py` | 7 | `PreconditionRegistry` register/resolve/verify/verify_all, duplicate rejection, the provisioning identity is what gets passed to the verifier |
-| `tests/unit/test_scenario_loader.py` | 21 | All 12 shipped scenarios compile; each of the four invalid fixtures yields its documented exit code (2/3/4/5); an orphaned (never-delegated-to) identity; `load_and_compile`'s exception and success paths |
+| `tests/unit/test_scenario_loader.py` | 26 | All 17 shipped scenarios compile; each of the four invalid fixtures yields its documented exit code (2/3/4/5); an orphaned (never-delegated-to) identity; `load_and_compile`'s exception and success paths |
 | `tests/unit/test_scenario_compiler.py` | 8 | `compiled_hash` determinism across two calls and two independent subprocess interpreters, and that it changes with catalog version; F2 expected-authority derivation against the worked example; auto-inserted `SNAPSHOT`s around a real `MUTATE` phase; one `SynthesizedPolicy` per delegation; negative controls compile without errors |
 | `tests/unit/test_probe_matrix.py` | 7 | `identity.whoami` in every universe; the `scenario` universe includes capabilities a node must *not* hold (the point of the default); `declared` is per-target-identity; `catalog` is everything; one matrix per `PROBE`/`DEFERRED_EXECUTION` phase; trials from the execution block |
 | `tests/unit/test_scenario_safety.py` | 15 | Literal ARN/account-id/region/URL rejection (with `example`/`localhost` exempted); oversized documents; custom and `!!python/object` YAML tags rejected; invalid YAML syntax; non-mapping documents; excessive node count and nesting depth |
 | `tests/unit/test_export_schema.py` | 7 | Every registered schema export is valid draft 2020-12; `main()` writes one file per export with the default and an explicit output directory |
-| `tests/unit/test_scenario_schema_extra.py` | 40 | Every `ScenarioSpec` sub-model validator failure branch: timing/concurrency, root/agent capability declarations, session-policy source exclusivity, delegation mechanism and self-delegation checks, all five `PhaseSpec` kind requirements, all `ExpectationSpec` kind requirements, `ScenarioSpec`'s full referential-integrity sweep, negative-control id marking |
+| `tests/unit/test_scenario_schema_extra.py` | 42 | Every `ScenarioSpec` sub-model validator failure branch: timing/concurrency, root/agent capability declarations, session-policy source exclusivity, delegation mechanism and self-delegation checks, all seven `PhaseSpec` kind requirements (M13 added `WAIT`'s positive-`wait_seconds` and `DEFERRED_EXECUTION`'s `target_identity` checks), all `ExpectationSpec` kind requirements, `ScenarioSpec`'s full referential-integrity sweep, negative-control id marking |
 | `tests/unit/test_config_layering.py` | 18 | All four config layers individually and combined, later-wins semantics, a partial layer never clobbering an untouched field, env tuple/int/bool coercion, a `None` CLI override not overwriting an earlier layer, `resolve_safety_envelope` success/failure, fingerprint determinism |
 | `tests/unit/test_safety_gate.py` | 16 | Missing envelope; wildcard account and duration-over-14400s both collapsing to the envelope-construction-refusal path; account/region/namespace checks (SI-2, SI-5, S1); cost within/over ceiling; `estimate_cost` conservatism (S4) against a real compiled scenario |
 | `tests/unit/test_clock.py` | 12 | `RunClock` before/at/past its deadline via an injected fake monotonic source, `elapsed_seconds`/`remaining_seconds`/`expired`, the real `time.monotonic_ns` default path, `no_offset_estimator` |
 | `tests/unit/test_logging_filter.py` | 14 | AKIA/ASIA keys, a simulated botocore DEBUG record with a JSON-quoted session token (acceptance criterion 3), key=value and JSON-quoted spellings, `install()` idempotence, third-party loggers covered even with `propagate = False` set on themselves |
 | `tests/unit/test_cli_surface.py` | 5 | S1: no option anywhere in the real command tree matches a bypass keyword; `--auto-approve` deliberately not flagged (documented exception); the negative-control detector both catches a planted `--skip-safety` fixture and stays silent on a clean one |
-| `tests/unit/test_cli_commands.py` | 18 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: the remaining three not-yet-implemented commands (`run`, `report`, `compare` — `runs`/`evidence export --public` resolved by M6, `analyze` resolved by M7, `infra {plan,apply,destroy,status,verify-clean}` resolved by M9, see `test_cli_infra_command.py`) exit 2 with "not implemented until M\<n\>", never a stack trace |
+| `tests/unit/test_cli_commands.py` | 17 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: the remaining not-yet-implemented command (`compare` — `runs`/`evidence export --public` resolved by M6, `analyze` resolved by M7, `infra {plan,apply,destroy,status,verify-clean}` resolved by M9, `run --provider fake` resolved by M10, `report` resolved by M16 — see `test_cli_infra_command.py`, `test_cli_run_command.py` and `test_cli_report_command.py` respectively; `run --provider aws` remains a documented stub until M17) exits 2 with "not implemented until M\<n\>", never a stack trace |
 | `tests/unit/test_cli_scenario_command.py` | 6 | `chainbreak scenario validate`/`list` against a real scenario, a missing file, a structurally invalid document, the repo corpus, a missing directory, an empty directory |
 | `tests/unit/test_namespace_guard.py` | 7 | `assert_namespace` exact/embedded/lookalike/empty-ref cases, error context carries both `namespace` and `ref` |
 | `tests/unit/test_fake_policy_engine.py` | 16 | F2's full evaluation order: identity allow alone, explicit deny beating identity and session allow, session intersection never granting, resource policy granting across the intersection, `replace`/`apply_allow`/`remove_allow`, `evaluate_against` against an explicit snapshot with no registered identity at all |
@@ -997,7 +1911,7 @@ criteria are blocked, not not-started — see above). See
 | `tests/unit/test_fake_probes.py` | 2 | A missing precondition marker produces `ERROR_INFRASTRUCTURE`, never a denial; a capability the identity policy grants but the session narrowed away is attributed `SESSION_POLICY`, not `IMPLICIT_NO_ALLOW` |
 | `tests/unit/test_fake_determinism.py` | 4 | Acceptance criterion 3: a realistic multi-step sequence hashes identically for the same seed, differently for a different seed, identically across three independent in-process runs, and identically across two separate Python interpreter processes |
 | `tests/integration/test_provider_contract.py` | 12 | The adapter-agnostic shared contract suite: preflight account check, namespace refused before any evaluation (probe and delegate), every capability classifies allow/deny correctly, the control capability never denied, delegation metadata carries no secret, mutation returns a confirmed receipt, protected-identity mutation refused, lifetime capping reported, snapshot fingerprints stable and change after a mutation |
-| `tests/integration/test_fake_scenario_compatibility.py` | 37 | Acceptance criterion 4: every one of the 12 real shipped scenarios, compiled for real and walked (register, delegate along every edge, probe every matrix cell) through all three fake profiles, crash-free (36 parametrized cases) plus a corpus-count guard |
+| `tests/integration/test_fake_scenario_compatibility.py` | 73 | Acceptance criterion 4: every one of the 24 real shipped scenarios (12 at M5; M11 added the four missing delegation-drift depths plus `role-chain-five-hop.yaml`; M12 added `remove-policy`/`revoke-older-sessions`/`delete-session-scope`; M13 added `short-defer`/`long-defer`/`post-expiry`; M14 added `two-step-pipeline-full-authority.yaml`), compiled for real and walked (register, delegate along every edge, probe every matrix cell) through all three fake profiles, crash-free (72 parametrized cases) plus a corpus-count guard |
 | `tests/unit/test_redaction.py` | 369 | Reflection-discovers every `DomainModel` subclass and every unconstrained-free-text field on it; property sweep over a six-shape secret corpus per field asserting `redact()` raises or the secret appears in no output byte; SecretMaterial/bare-frozenset/opaque-value branches; `redact_message()`'s in-place ARN substitution; the S1 no-unsafe-file-write grep |
 | `tests/unit/test_evidence_schema.py` | 5 | The golden bundle's manifest and per-record artifacts validate against `schemas/*.json`; the embedded SQLite schema stays in sync with `schemas/run-index.sql` |
 | `tests/unit/test_sealing.py` | 13 | Golden bundle verifies, tampered bundle fails verification, sealing refuses an incomplete bundle, the writer's full lifecycle (duplicate dir, context manager on normal/exceptional exit, double close, write-after-close, `manifest.verify()`'s unsealed and artifact-set-mismatch branches), F2's leave-a-partial-bundle guarantee |
@@ -1017,7 +1931,35 @@ criteria are blocked, not not-started — see above). See
 | `tests/integration/test_known_truth_divergence.py` | 2 | C-9: a fake adapter configured with a known authority mismatch produces exactly the expected `AUTHORITY_EXPANSION`/`DELEGATION_DRIFT` findings at exactly the expected confidence |
 | `tests/integration/test_known_truth_timing.py` | 2 | The `eventual` profile's known 2000ms `propagation_delay_ms`; the measured transition window is asserted to contain it, both through the finding layer and directly against the interval math |
 | `tests/integration/test_analyze_idempotence.py` | 2 | F8: `analyze` run twice against the same real (diverging, then clean) bundle produces byte-identical `findings.json` and identical `finding_id`s |
-| `tests/integration/test_negative_controls.py` | 12 | Acceptance criterion 3: all six `nc-*` scenarios against the real fake provider produce their declared finding and `DETECTOR_OK`; the same six with the defect "fixed" produce `DETECTOR_FAILURE` instead |
+| `tests/integration/test_negative_controls.py` | 12 | Acceptance criterion 3: all six `nc-*` scenarios against the real fake provider produce their declared finding and `DETECTOR_OK`; the same six with the defect "fixed" produce `DETECTOR_FAILURE` instead — `nc-stale-credential-reuse` joined this real-orchestrator group at M13 (a `MUTATE`-step-stripped `model_copy` for its "fix"), `nc-silent-success` at M14 (a `TaskPlan.worker`-swapped `model_copy`, dishonest worker replaced with `deterministic.sequential`) |
+| `tests/integration/test_scope_attenuation.py` | 7 | M10 acceptance criteria, through the real `execution/orchestrator.py`: `scope-attenuation/basic.yaml` end to end producing a sealed bundle and findings with no `AUTHORITY_EXPANSION` (criterion 1); both scope-attenuation negative controls in both directions via the same fake-side defect injection `test_negative_controls.py` established (criterion 2); the probe-order seed recorded and replaying it reproducing the identical order, a different seed producing a different one (criterion 4) |
+| `tests/integration/test_control_capability.py` | 4 | C-1/acceptance criterion 3: `calibrate_matrix` succeeds and returns one observation per control capability; a throttled apparatus (every call including `identity.whoami`'s own fails) raises `ControlCapabilityFailedError` naming the identity and matrix; the full orchestrator discards every matrix in the run (not just one identity's row) and writes zero observations for any of them, only a `MATRIX_DISCARDED` event each |
+| `tests/integration/test_probe_matrix_execution.py` | 9 | Trial repetition (every non-control capability gets exactly `matrix.trials` observations, trial numbers `1..trials`); C-6's shuffle reproducing identically for the same `(seed, matrix, identity)` and differing for a different seed; C-2's precondition check raising before any probe runs, naming the failed marker, and passing cleanly when all markers are present; F6's `needs_redelegation` threshold math, `ensure_fresh_credential` actually re-delegating and recording a `CREDENTIAL_REDELEGATED` event, being a no-op for a healthy credential, and never firing for the root identity (no edge, no expiring credential) |
+| `tests/integration/test_orchestrator_error_paths.py` | 9 | An unmapped scenario phase name raising a named `ExecutionError` rather than guessing; a failed preflight aborting before `finalize()` runs (F2: partial evidence left on disk, no `manifest.json`); F6 re-delegation actually firing mid-run and being recorded; the still-unimplemented `WAIT`/`DEFERRED_EXECUTION`/`TASK` `PhaseKind`s raising and naming their milestone; a synthetic `MUTATE`/`POLL` step with no matching compiled `MutationPlan`/`PollPlan` correctly reported as a compiler invariant violation, not "not implemented" (M12: both are real now); `SNAPSHOT` a harmless no-op when reached |
+| `tests/integration/test_cli_run_command.py` | 9 | `chainbreak run`'s CLI-level argument handling (missing/unknown scenario, unknown provider, `--provider aws`'s documented-stub message, an unknown `--fake-profile`, a structurally invalid scenario exiting 1 not a stack trace), the `--fake-profile eventual` happy path, and the fake-provider happy path through a real `CliRunner` invocation, including `chainbreak analyze` consuming the bundle it produced |
+| `tests/unit/test_drift_aggregation.py` | 9 | M11 F6: `build_depth_result`'s hop/divergence/exclusion counting against a hand-built graph (root never counted as a hop); `DepthResult`'s rate properties guard against division by zero; `summarize_depth_sweep`'s confound verdict in both directions (stable or divergence-only-rising rates are not inconclusive; both rates rising together is, and names why) plus depth-order-independent input |
+| `tests/unit/test_chain.py` | 2 | `materialize_chain`'s S1 depth guard: within bound delegates to `delegation.materialize_graph` normally; over bound raises a named `ExecutionError` before any delegation happens |
+| `tests/integration/test_delegation_drift.py` | 6 | M11 acceptance criteria, through the real `execution/orchestrator.py` (via `execution/chain.py`): AUTHORIZATION_MODEL section 7's worked example end to end (hop 3 `ORIGINATED`, hop 4 `PROPAGATED` citing hop 3's finding, first divergence at hop 3 reaching real path-analysis output); hop 4 `CORRECTED` when it drops hop 3's gain, with no finding raised at all; citation surviving three propagated hops past the origin (the bug M11 found and fixed); `nc-non-monotone-chain` in both directions. Uses `role-chain-five-hop.yaml`, a test-support fixture (plain `ROLE_CHAIN` throughout — see its own docstring for why the depth-sweep scenarios can't carry an identity-policy-level defect past their session-policy-scoped hops) |
+| `tests/integration/test_depth_sweep.py` | 10 | M11 acceptance criteria 1 and 4: each of depths 2–6 runs end to end and yields a `DepthResult` with the correct depth, hop count and cell count; a clean five-depth sweep built from real bundles is not inconclusive; a sweep with one synthetic high-divergence/high-exclusion result appended is correctly flagged inconclusive; `chainbreak analyze --aggregate --scenario-family` end to end via `CliRunner`, including its own `--scenario-family`-missing and no-matching-runs error paths |
+| `tests/integration/test_revocation.py` | 15 | M12 acceptance criteria, through the real `execution/orchestrator.py`: all five mechanisms complete and record their kind with a confirmed receipt and a revert log; the three positive mechanisms (`ATTACH_INLINE_DENY`, `REMOVE_INLINE_POLICY`, `REVOKE_OLDER_SESSIONS`) reach `STABLE_DENIAL`; `inline-deny.yaml`'s mutation is actually reverted (`objectstore.read` restored on the live adapter), `revoke-older-sessions.yaml`'s is correctly reported unrevertable; both negative controls (`trust-policy-null-condition.yaml`, `nc-no-revocation.yaml`) report `NO_TRANSITION_OBSERVED`; the measured window contains the true propagation delay at 0/500/2000/10000ms through the real orchestrator (not `mini_orchestrator`); a forced `REVOCATION_DELAY` finding's `transition_window` is a `{low, high}` pair, never a bare scalar (F5) |
+| `tests/integration/test_polling.py` | 5 | `execution/polling.py`'s `STABLE_ALLOW`/`STABLE_DENIAL`/`TIMEOUT` stopping conditions exactly at the right poll count against a real compiled graph and adapter; a `stop_on: TIMEOUT` phase running its full budget even when every poll would have satisfied `STABLE_ALLOW`; the not-materialized-identity guard |
+| `tests/unit/test_revert.py` | 9 | `execution/revert.py`: every `MutationKind`'s actionability and human-readable action text (`ATTACH_INLINE_DENY`/`REMOVE_INLINE_POLICY`/`REPLACE_INLINE_POLICY` actionable, `REVOKE_OLDER_SESSIONS` honestly unrevertable, `UPDATE_TRUST_POLICY`/`DELETE_SESSION_POLICY_SCOPE` nothing to revert); the log event's exact shape; an actionable revert restoring engine state for real; a non-actionable one calling the adapter not at all |
+| `tests/unit/test_mutation.py` | 3 | `execution/mutation.py`'s SI-2 guard (mutation target not materialized in this run); F4's `MutationNotConfirmedError` firing only when `record_receipt` is true, against a stub adapter that always returns an unconfirmed receipt (the real fake adapter never does) |
+| `tests/integration/test_stale_authority.py` | 11 | M13 acceptance criteria 1/3/5, through the real `execution/orchestrator.py`: `short-defer.yaml`/`long-defer.yaml` classify `STALE_AUTHORITY_LIVE_CREDENTIAL` for the mutated capability and `INDETERMINATE` (the ambiguous "not propagated" case) for the untouched one, from the *same* run; `post-expiry.yaml` classifies `CREDENTIAL_EXPIRED` with no mutation involved; `findings.json`'s `STALE_AUTHORITY` finding states the documented-bearer-token-behavior note in the same paragraph as the result; `CURRENT_AUTHORITY`/`SESSION_SCOPE_CACHED` driven directly against `execution/deferred.py` and a real `FakeProviderAdapter`, without a full scenario; `EXPIRED_CREDENTIAL_HONORED`'s pipeline wiring proven by corrupting one real observation the way only a genuine provider defect could |
+| `tests/integration/test_credential_pinning.py` | 3 | M13 acceptance criterion 2: the deferred observation's `credential_id` equals the `after-delegation`-phase credential's, read from `observations.jsonl`/`credentials.jsonl`, never the code path; the paired observation's `credential_id` differs; exactly two credentials recorded for the deferred identity, in issuance order |
+| `tests/integration/test_post_expiry.py` | 4 | M13 acceptance criterion 4: `post-expiry.yaml`'s deferred probe is denied for every capability; every measurement classifies `CREDENTIAL_EXPIRED`; the paired fresh credential is unaffected (still `ALLOWED`); no `STALE_AUTHORITY`/`EXPIRED_CREDENTIAL_ACCEPTED` finding is produced (expected lifetime behavior, not a finding) |
+| `tests/unit/test_credential_store.py` | 3 | `execution/credential_store.py::resolve`'s two failure paths (unknown phase; a phase that ran but recorded no credential, e.g. a root) and the success path |
+| `tests/unit/test_deferred.py` | 2 | `execution/deferred.py` against a target with no delegation edge (F3 requires a delegated identity, never the root); against a stand-in adapter with no `enable_authority_caching` hook, proving the module still runs correctly against a future real-time adapter without it (M17) |
+| `tests/integration/test_silent_narrowing.py` | 10 | M14 acceptance criteria, through the real `execution/orchestrator.py`: the restored `two-step-pipeline.yaml` (honest worker, insufficient authority) reports `PARTIAL`/`reported_insufficient_authority=True` and no finding -- failing loudly is `EXPECTED_BEHAVIOR`; `two-step-pipeline-full-authority.yaml` (F7) reports `COMPLETE` with an independently verified marker; `nc-silent-success.yaml` end to end at `DETECTOR_OK`/`HIGH`; every finding's `caveats` name the worker synthetic (AC5); `TASK_EXECUTION` observations excluded from generic authority findings |
+| `tests/integration/test_task_workers.py` | 10 | M14 acceptance criterion 1, driving `execution/task_runner.py` directly against a real one-hop graph: all four deterministic workers; F5's "reported distinctly" requirement -- `substituting`/`redelegating` each produce their own `FindingType`, never collapsed into `SILENT_NARROWING` alone, every finding its own `finding_id`; a permitted substitution (`must_not_substitute: false`) produces no finding; a same-capability `on_failure: retry` is never mistaken for a substitution |
+| `tests/integration/test_side_effect_verification.py` | 8 | The milestone's own stated core case: `execution/side_effects.py::verify_output_marker` directly (absent/present/run-and-task-scoped/no-escape-hatch); `deterministic.always-complete`'s self-report is internally consistent (`steps_succeeded == steps_total`, no observations at all) yet independent verification still catches it; an honest worker's claim and the independent check agree |
+| `tests/unit/test_deterministic_workers.py` | 5 | `execution/workers/deterministic.py` against a stub invoker: `on_failure: abort` stopping before the next step, an all-denied task reporting `FAILED`, a non-final step also denied under `substituting`/`redelegating`, `resolve_worker`'s unknown-id error |
+| `tests/unit/test_report_language.py` | 32 | EXPERIMENT_PROTOCOL §7's lint: forbidden phrases caught and cleared after removal, a bare timing value without an interval indicator flagged (`window`/`n=`/a dash range all accepted indicators), a percentage without a `(x/y)`/`of y` denominator flagged, the limitations section's five required terms, the NOT_MEASURED sentence present iff required, `enforce`/`enforce_report` raising `ReportLanguageError` on a violation and passing once removed, `enforce_report`'s narrower forbidden-phrases-only bar for finding text (a bare timing value there does not raise) |
+| `tests/unit/test_no_unsafe_template_filters.py` | 5 | S1/T-10: no `\|safe` (in any whitespace spelling) anywhere in the template directory; three planted spellings each caught by the same regex the real scan uses |
+| `tests/unit/test_cli_report_command.py` | 9 | `chainbreak report`'s CLI-level argument handling: missing run_id, unknown `--format`, unknown run id, a real terminal render to stdout, each format written to a file with `-o`, a tampered bundle refused without `--allow-unsealed` and accepted with it |
+| `tests/unit/test_report_figures.py` | 18 | Each of the seven figure builders' not-applicable and applicable branches driven against hand-built evidence objects (the worked-example graph's own injected divergence appears as an "excess" bar; a non-monotonic revocation transition is labeled; a populated vs. unpopulated stale window; unanimous vs. disagreeing trial repeatability; a cross-run comparison mapping) |
+| `tests/unit/test_report_terminal.py` | 13 | `reporting/terminal.py` against hand-built `ReportData`: the fake-provider banner present/absent by provider, `git_dirty`/`bundle_root_verified` warnings rendering prominently and staying silent when clean, an empty findings list rendering "none", a finding's caveats line, a NOT_MEASURED category's dashes, the MEASUREMENTS section's n/interval/mechanism text present only when revocation or stale measurements exist |
+| `tests/integration/test_report_generation.py` | 12 | M16 acceptance criteria, through a real orchestrated `delegation-drift/four-hop.yaml` bundle: all three formats render (criterion 1); the fake-provider stamp in the header and in every one of `1 + len(figures)` occurrences in the HTML output (criterion 4); all five limitations terms present in every format (criterion 5); the NOT_MEASURED sentence; a hand-built `ReportData` with a `<script>` in `security_interpretation` escaped in HTML, not present unescaped (criterion 3); the HTML report under 2 MB and under 3 s to generate |
 
 **Not yet written:** `tests/aws/test_adapter_real.py`'s and `tests/aws/test_cleanup_contract.py`'s
 tests exist but have never executed (no AWS account), `tests/fixtures/provider_responses/` (M8
@@ -1094,18 +2036,43 @@ destructive git operations — landing at commit `830b419`. That push was observ
 ten jobs on the first try
 ([run 31241854761](https://github.com/KubixDesiney/chainbreak/actions/runs/31241854761)).
 
-Coverage: `core/` ~99%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98%, `config/`
-~99%, `cli/` ~96%, `providers/base/` 100%, `providers/fake/` ~99.7%, `evidence/` ~94–100% per
+Coverage: `core/` ~99%, `graph/` ~99%, `capabilities/` 100%, `scenarios/` ~98% (`policy_synthesis.py`
+100%, its size-limit error path directly tested — S1; `compiler.py` 98%, its two new M12 functions
+`_build_mutation_plans`/`_build_poll_plans` themselves fully covered by the five revocation
+scenarios compiling — the two remaining gaps are pre-existing, unrelated to M12), `config/`
+~99%, `cli/` ~95% (`infra.py` 100%, up from 69.4% — S1; `run.py` 88%, its new `--fake-profile`
+validation and `eventual`-profile dispatch both covered — the remaining gaps are pre-existing
+settings-fallback branches), `providers/base/` 100%, `providers/fake/` ~99.7%, `evidence/` ~94–100% per
 module (`redaction.py`/`writer.py`/`manifest.py`/`export.py`/`verify.py` 100%, `reader.py`
-~98%, `index.py` ~94%), `analysis/` 97% under `pytest -m "unit or integration"` (`authority.py`
-100%, `divergence.py` 100%, `confidence.py` 100%, `detector.py` ~95%, `rules.py` ~97%,
-`timing.py` ~98%, `pipeline.py` ~93% — see the M7 entry above for exactly which branches are
-uncovered and why), `providers/aws/` 93% offline-only (`retry.py`/`session.py`/`policy.py`/
-`policy_synthesis.py`/`bindings.py`/`disambiguation.py` 100%, `probes.py` ~95%, `mutation.py`
-~92%, `preflight.py` ~94%, `adapter.py` ~85% — see the M8 entry above for why `adapter.py` is
-the floor) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%,
+~98%, `index.py` ~94%), `analysis/` 98% under `pytest -m "unit or integration"` (`authority.py`
+100%, `divergence.py` 100%, `confidence.py` 100%, `drift.py` 100% — M11 — `detector.py` ~95%,
+`rules.py` ~97%, `timing.py` ~98%, `pipeline.py` ~96% — up from ~93% at M7, the citation-chaining
+fix and path-analysis wiring both fully covered by M11's own tests; the remaining gaps are
+pre-existing M7-era revocation/execution-error paths that M12's execution wiring does not touch —
+`analysis/timing.py` and `analysis/rules.py` themselves needed no changes at all this milestone,
+only real evidence to consume; see the M7 entry above for the fuller original accounting),
+`providers/aws/` ~97% offline-only (`retry.py`/`session.py`/`policy.py`/
+`policy_synthesis.py`/`bindings.py`/`disambiguation.py`/`adapter.py` 100%, `probes.py` ~95%, `mutation.py`
+~92%, `preflight.py` ~94%; `adapter.py` was ~85% and the module floor as of the M8 entry above —
+S1 raised it to 100% by dispatching every `_build_call` match arm (only two of ten were ever
+driven through `adapter.probe()` before), covering `delegate()`'s no-live-session guard, testing
+the allowlist before-call hook's both branches directly against a stub client, and reaching
+`_call_and_classify`'s three post-retry paths via a monkeypatched `call_with_retry` rather than
+relying on moto's approximate IAM enforcement to reproduce a specific failure shape on demand;
+`mutation.py`'s and `preflight.py`'s remaining gaps are still genuinely real-AWS-only, per the
+M8 entry) (all exceed their TESTING.md bars, where one is stated — 95%, 95%, 90%, 90%,
 **100%**, 95% respectively; `config/`, `cli/` and `providers/` have no stated bar in TESTING.md's
 per-module table, so M5's own 90% acceptance criterion is the one actually gating `providers/`).
+`execution/` ~99% (M10/M11/M12; `control.py`, `delegation.py`, `preconditions.py`, `_records.py`,
+`chain.py`, `mutation.py`, `revert.py` all 100% — `chain.py`'s S1 depth-guard branch covered by
+`test_chain.py`; `matrix.py`'s one genuinely unreachable branch — G-2's own reachability
+guarantee: an unmeasured identity is a compile-time `ScenarioSemanticError`, never a compiled
+matrix — is marked `# pragma: no cover` rather than counted against coverage; `orchestrator.py`
+and `polling.py` are each 99%, a couple of branch-coverage partials on the MUTATE/POLL/SNAPSHOT
+paths M12 added, not a functional gap — every line those branches guard is exercised by
+`tests/integration/test_revocation.py`'s and `test_polling.py`'s combined 20 tests, just not
+every arc of every branch from a single test), comfortably over M10's own 90% acceptance
+criterion.
 `core/safety.py` is exactly 100%, its own acceptance criterion. The SI-1 redaction
 `--cov-fail-under=100` gate is now active and passing — the first CI push to activate it will be
 the first time this gate has run for real, the same way M4's push was the first real run of the
@@ -1115,17 +2082,25 @@ SI-5 SafetyGate gate. Coverage is otherwise not enforced project-wide.
 
 ## Measured experiments
 
-**None.**
+**None.** "Run against fake" below means the execution engine actually runs that family end to
+end against the deterministic fake provider — an apparatus check, not a measurement (see "The
+honest headline"). No family has been run against real infrastructure; no row here is a result.
 
 | Family | Implemented | Run against fake | Run against AWS |
 |---|---|---|---|
-| Scope attenuation | no | no | no |
-| Delegation drift | no | no | no |
-| Revocation propagation | no | no | no |
-| Stale authority | no | no | no |
-| Silent narrowing | no | no | no |
+| Scope attenuation | yes (M10) | yes | no |
+| Delegation drift | yes (M11) | yes | no |
+| Revocation propagation | yes (M12) | yes | no |
+| Stale authority | yes (M13) | yes | no |
+| Silent narrowing | yes (M14) | yes | no |
 
-Negative controls authored: 6 of 6. Executed: 0 of 6.
+Negative controls authored: 6 of 6. Executed against fake: 6 of 6 (`nc-scope-expansion`,
+`nc-surviving-authority`, `nc-non-monotone-chain` via `tests/fixtures/mini_orchestrator.py`'s
+real-fake-adapter-calls-without-the-real-orchestrator stand-in; `nc-no-revocation`,
+`nc-stale-credential-reuse` and `nc-silent-success` via the real `execution/orchestrator.py`
+directly — M12 moved `nc-no-revocation` there first, M13 added `nc-stale-credential-reuse`, M14
+added `nc-silent-success`).
+Executed against AWS: 0 of 6.
 
 [docs/research/lab-log.md](docs/research/lab-log.md) is empty and will receive its first entry
 at M17.
@@ -1219,16 +2194,18 @@ at M17.
     resolves. Deliberately out of M6's scope (the milestone's file list is `evidence/` plus
     tests, not `config/`); worth folding into `Settings` if a later milestone's CLI surface
     needs it configured once rather than passed on every invocation.
-13. **`analysis/pipeline.py` does not automatically extract `STALE_AUTHORITY`,
+13. ~~`analysis/pipeline.py` does not automatically extract `STALE_AUTHORITY`,
     `EXPIRED_CREDENTIAL_ACCEPTED`, `SILENT_NARROWING` or `CONFIGURATION_ERROR` findings from a
-    bundle.** Their rule functions exist, are implemented against AUTHORIZATION_MODEL.md's
-    six-row stale-authority table and are directly unit-tested in `test_finding_rules.py` and
-    `test_stale_classification.py`, but the deferred-execution polling and task-worker data
-    (`DEFERRED_EXECUTION` phase samples, `TaskOutcome` records) their predicates take as input
-    are produced by machinery M13/M14 have not built yet, so `analyze_bundle` has nothing to
-    call them with today. `chainbreak analyze` against any real bundle currently reports
-    findings only from the authority/divergence and revocation-timing families. Stated
-    explicitly in `pipeline.py`'s own module docstring rather than silently doing nothing.
+    bundle.~~ **`STALE_AUTHORITY`/`EXPIRED_CREDENTIAL_ACCEPTED` resolved by M13; `SILENT_NARROWING`
+    (plus the two new `CAPABILITY_SUBSTITUTED`/`REDELEGATION_ATTEMPTED` types) resolved by M14.**
+    `analysis/stale.py::stale_authority_measurements` extracts `DEFERRED_EXECUTION`/
+    `PAIRED_FRESH_CREDENTIAL` observation pairs from any bundle and `analyze_bundle` now calls
+    `rule_stale_authority`/`rule_expired_credential_accepted` on the result automatically, the
+    same way `_revocation_findings` already did for the timing family since M12;
+    `analysis/task_contract.py::extract_task_outcomes` extracts `TASK_OUTCOME_RECORDED` events the
+    same way, and `task_contract_findings` calls all three task-contract rules automatically.
+    `CONFIGURATION_ERROR` remains open with no milestone currently named to close it. `chainbreak
+    analyze` against any real bundle now reports findings from every family except that one.
 14. **No AWS account or Terraform infrastructure exists; nothing in `providers/aws/` has ever
     executed against real AWS.** Every behavior verified so far is either pure logic (message
     parsing, retry math, policy-document synthesis) or verified against moto's in-memory
@@ -1271,6 +2248,65 @@ at M17.
     no Docker/LocalStack available either, so even the LocalStack-compatible path is unverified
     beyond `terraform validate`. Every module's actual provisioning behavior — not just its HCL
     syntax — remains unconfirmed until a real (or LocalStack) apply happens.
+20. ~~`test_import_boundaries.py`'s planted-violation teardown called `planted.unlink()`
+    unconditionally.~~ **Resolved by S1 (2026-08-09).** On a filesystem where the removal is
+    denied, the bare `unlink()` raised from the `finally` block, failing the test for the wrong
+    reason (its own detection assertion had already passed) and leaving the planted file behind
+    under `src/chainbreak/core/` or `src/chainbreak/graph/` — which the *next* run's
+    `_iter_source_files()` scan would then pick up silently and misreport as a genuine ARCH-1
+    violation, with nothing pointing at stale test debris as the actual cause. Fixed with a
+    `_safe_unlink` helper that warns instead of raising on `OSError`, plus a
+    `_warn_on_leftover_planted_violations` check run at module-collection time that loudly names
+    any surviving planted file before the ordinary boundary checks run. Verified by monkeypatching
+    `os.unlink` to raise `PermissionError` and asserting both the original detection assertion and
+    the leftover-file warning still fire (`test_denied_unlink_warns_instead_of_failing_and_leftover_is_reported`).
+21. **Three of the six negative-control scenarios cannot be triggered by a real
+    `chainbreak run --provider fake` invocation.** `nc-scope-expansion.yaml`,
+    `nc-non-monotone-chain.yaml` and `nc-surviving-authority.yaml` each declare their injected
+    defect as an out-of-band extra grant on the target's role (an infrastructure-level policy,
+    per each scenario's own `negative_control.rationale`) — the only place that currently
+    simulates this is `tests/integration/test_negative_controls.py`'s use of
+    `tests/fixtures/mini_orchestrator.py`, which calls a test-only
+    `adapter.engine.apply_allow(identity, capability)` hook directly, bypassing
+    `execution/orchestrator.py` entirely. A genuine end-to-end run of any of the three (verified
+    directly while building M15 — see the M15 entry above) produces only `EXPECTED_BEHAVIOR`
+    findings, so `chainbreak analyze` correctly reports `DETECTOR_FAILED` for each — S2 doing its
+    job, not a scoring defect, but it means these three negative controls are currently only
+    exercised through a test-only shortcut, never through the real orchestrator, against the fake
+    provider. `nc-no-revocation`, `nc-stale-credential-reuse` and `nc-silent-success` do not have
+    this problem — their defects (an unrelated identity being polled, natural WAIT/DEFERRED_EXECUTION
+    timing, and the `always-complete` deterministic worker, respectively) are all things the real
+    execution path produces on its own. Fix is either extending the fake provider with a
+    scenario-declared "extra grant"/infrastructure-profile injection mechanism, or explicitly
+    documenting these three as AWS/M17-only; a follow-up task was spawned for this rather than
+    fixed inline, since it is a different, larger scope than M15's own file list.
+22. **`StaleAuthorityMeasurement.stale_window_seconds` is never populated.** `analysis/stale.py`
+    has no mutation-timing (`t_M`) input reaching it, so the field stays `None` for every
+    measurement it builds — `deferral_seconds` (wall_start minus credential.issued_at) exists
+    instead, but that is a different instant, not a substitute. `scoring/categories.py`'s
+    Authority Freshness evaluator omits the `stale_window_seconds` `Measurement` entirely rather
+    than approximating it from `deferral_seconds`. SCORING_MODEL.md section 2.4 names
+    `stale_window_seconds` as the category's primary timing measurement; until `analysis/stale.py`
+    is threaded a mutation-sent timestamp (the same `t_M` `analysis/timing.py::compute_revocation_window`
+    already reads for the revocation family), this measurement stays structurally absent rather
+    than reported.
+23. **`Manifest.provenance` carries no `region` field.** `cli/run.py` (M10) never added one to
+    the `provenance={...}` dict it builds, so `reporting/format.py::format_timing_result` — which
+    EXPERIMENT_PROTOCOL §7 requires to name a region on every timing result — renders
+    `region=REGION_NOT_CAPTURED`, a documented placeholder, rather than a real value, for every
+    report M16 can currently produce. Surfaced while building M16's own required rendering
+    surface, not an M16 defect: fixing it means adding a `region` key to `cli/run.py`'s
+    provenance dict (and, for AWS runs, to whatever M17 builds), out of M16's own file list.
+24. **`Provenance.git_dirty`/`git_commit` are declared but never populated.** Both fields exist
+    on `core/models.py::Provenance` and `evidence/index.py` already reads them expecting they
+    might be present, but `cli/run.py` has never actually computed a `git status --porcelain`/
+    `git rev-parse HEAD` and included them in the `provenance={...}` dict it hands
+    `BundleWriter` — so every real bundle's `git_dirty` renders `false` today regardless of the
+    working tree's actual state. M16's F7 requirement ("`git_dirty: true` renders prominently")
+    is implemented correctly in `reporting/terminal.py`/`markdown.py`/`html.py` and proven so by
+    `tests/unit/test_report_terminal.py` constructing a `ReportData` with `git_dirty=True`
+    directly — the rendering is real, only the upstream population is missing. Fix belongs in
+    `cli/run.py`, out of M16's own file list.
 
 ---
 
@@ -1293,6 +2329,15 @@ Recorded now so it is deliberate rather than discovered later.
   every CI run; whether it correctly blocks a real drifted PR is unverified until GitHub
   Actions runs it against a real drift, which has not happened yet.
 - **`docs/research/` has a lab log and nothing else.** `results-v0.1.md` arrives at M17.
+- **`reporting/figures.py` uses hand-built inline SVG, not Plotly, despite M16's own spec text
+  naming Plotly.** Recorded as a design decision in the module's own docstring and the M16 entry
+  above (both of Plotly's self-contained-HTML paths violate a harder requirement the milestone
+  states in the same breath), not treated as a gap to close later — if a future milestone adds
+  genuinely interactive dashboards (explicitly out of M16's own scope), Plotly becomes worth
+  revisiting then, with kaleido or a CDN-hosted deployment target where the 2 MB/no-network
+  constraints no longer apply the same way. `plotly` remains an installable (unused) member of
+  the `report` extras group in `pyproject.toml` rather than removed, since nothing about this
+  decision is permanent.
 
 ---
 
@@ -1318,51 +2363,49 @@ again once M8/M9 are settled.
 ## Current next action
 
 **M8's offline portion and M9's local portion are both done (`checkov` now included — see the
-M9 entry above). Three things can happen next, and none requires waiting on the others: (a) an
-operator provisions the dedicated AWS benchmark account and IAM identity, after which
-`tests/aws/test_adapter_real.py` can finally run, a real `terraform apply`/`destroy` cycle can
-happen, and both M8 and M9 can actually be marked complete; (b) `tflint` gets installed to close
-the other, still-open half of M9's criterion 2; (c) implementation continues to M10 — the
-scope-attenuation benchmark — which depends only on M7 and runs entirely against the fake
-provider, so it is fully unblocked by the AWS account either of the other two paths needs.**
+M9 entry above); M10 through M16 are all done (see their entries above). M10–M14 run every one
+of the five benchmark families end to end against the fake provider; M15 turns that evidence
+into six independent category results, with no composite score anywhere (ADR-010); M16 renders
+that evidence into terminal, Markdown and self-contained HTML reports, with the reporting-
+language rules enforced by lint at render time. Every fully-unblocked fake-provider-only
+milestone `docs/implementation/NEXT_PROMPTS.md` names (S1 through S8) is now done. Two things
+can happen next, and neither requires waiting on the other: (a) an operator provisions the
+dedicated AWS benchmark account and IAM identity, after which `tests/aws/test_adapter_real.py`
+can finally run, a real `terraform apply`/`destroy` cycle can happen, both M8 and M9 can
+actually be marked complete (`tflint` also still needs installing to close the other half of M9
+criterion 2), and M17 (the full AWS experiment suite) can start; (b) parts of M18
+(reproducibility) that do not themselves depend on a real M17 run — `evidence/archive.py`,
+`evidence/migrate.py`, the Dockerfile, a hashed lockfile — can be pulled forward and built
+against fake-provider bundles already on disk, per `NEXT_PROMPTS.md`'s own closing note.**
 
-Prompt: [docs/CLAUDE_CODE_HANDOFF.md](docs/CLAUDE_CODE_HANDOFF.md) § M10.
-Specification:
-[docs/implementation/milestones/M10-scope-attenuation.md](docs/implementation/milestones/M10-scope-attenuation.md).
+M17 needs the account, real spend, and block-randomized wall-clock time; it cannot be prompted
+ahead of time, since its output depends on what actually happens. There is no more
+fully-unblocked, fully-specified fake-provider-only milestone left to hand to a session the way
+S1–S8 were — the next piece of work is either the AWS account becoming available, or a scoped
+decision about which M18 pieces to pull forward now.
 
-M10 depends on M7 (analysis pipeline) only — not M8 or M9 — and wires the execution engine end to
-end for real for the first time: `execution/orchestrator.py` (phase loop, deadline, cleanup
-`finally`), `execution/matrix.py` (probe matrix execution, trial repetition, seeded shuffle per
-control C-6), `execution/delegation.py` (walk edges, issue credentials, track lifetimes),
-`execution/preconditions.py`, `execution/control.py` (`identity.whoami` calibration). This is the
-milestone `chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729` —
-named in M5's own verification commands but not implementable until now (known issue 10) —
-finally becomes real.
-
-Before starting, confirm M0-M9's toolchain and domain/capability/scenario/CLI/provider/evidence/
-analysis/AWS-adapter-offline/Terraform-local layers are intact:
+Verification commands for the full fake-provider-only surface (M0 through M16), run for real
+this session:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
 ruff check . && ruff format --check .              # clean
-mypy                                                # clean
+mypy                                                # clean, 119 source files
 lint-imports                                        # 6 contracts kept
-bandit -r src/ -q                                   # clean (M8's own pre-push habit)
-pytest -m "unit or integration" -q                  # expect 1242 passed, 9 skipped, 23 deselected
-pytest -m "aws or e2e" -q                           # expect 23 skipped
+bandit -r src/ -q                                   # clean
+pytest -m "unit or integration" -q                  # 1693 passed, 9 skipped, 23 deselected
 pytest -m unit tests/unit/test_redaction.py \
-  --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # expect 100%
-pytest --cov=chainbreak.core --cov=chainbreak.graph --cov=chainbreak.capabilities \
-  --cov=chainbreak.scenarios --cov=chainbreak.config --cov=chainbreak.cli \
-  --cov=chainbreak.providers.base --cov=chainbreak.providers.fake --cov=chainbreak.evidence \
-  --cov=chainbreak.analysis --cov=chainbreak.providers.aws --cov-report=term-missing \
-  -m "unit or integration"
-     # expect core/ ~99%, graph/ ~99%, capabilities/ 100%, scenarios/ ~98%, config/ ~99%,
-     # cli/ ~96%, providers/base/ 100%, providers/fake/ ~99.7%, evidence/ ~94-100% per module,
-     # analysis/ ~97%, providers/aws/ ~93% offline-only (adapter.py ~85% is the floor)
-chainbreak --help                                   # expect < 500ms
-terraform -chdir=infra/terraform/environments/aws-sandbox fmt -check -recursive   # clean
-terraform -chdir=infra/terraform/environments/aws-sandbox validate                # clean (needs init -backend=false first)
+  --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # 100%
+pytest --cov=chainbreak.reporting --cov-report=term-missing -q \
+  tests/unit/test_report_* tests/unit/test_no_unsafe_template_filters.py \
+  tests/unit/test_cli_report_command.py tests/integration/test_report_generation.py
+     # 99% -- every reporting/ module 100% except figures.py's one pragma:no-cover branch
+chainbreak --help                                   # ~360ms, under the 500ms budget
+chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729
+chainbreak analyze <run-id>
+chainbreak report <run-id> --format terminal        # renders; stamped FAKE-PROVIDER APPARATUS CHECK
+chainbreak report <run-id> --format html -o /tmp/r.html   # 20K, well under 2MB
+grep -rn '|safe' src/chainbreak/reporting/templates/ && echo FAIL || echo "no unsafe filters"
 ```
 
 ---

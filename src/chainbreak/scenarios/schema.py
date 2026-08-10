@@ -166,10 +166,21 @@ class PhaseSpec(ScenarioModel):
             raise ValueError(f"phase {self.name}: MUTATE requires a mutation block")
         if self.kind is PhaseKind.POLL and not (self.target_identity and self.capability):
             raise ValueError(f"phase {self.name}: POLL requires target_identity and capability")
-        if self.kind is PhaseKind.DEFERRED_EXECUTION and not self.credential_source:
+        if self.kind is PhaseKind.DEFERRED_EXECUTION:
+            if not self.credential_source:
+                raise ValueError(
+                    f"phase {self.name}: DEFERRED_EXECUTION requires credential_source "
+                    "(the point is to reuse an earlier credential)"
+                )
+            if not self.target_identity:
+                raise ValueError(
+                    f"phase {self.name}: DEFERRED_EXECUTION requires target_identity "
+                    "(the pinned-credential/fresh-credential pair is measured for one identity)"
+                )
+        if self.kind is PhaseKind.WAIT and self.wait_seconds <= 0:
             raise ValueError(
-                f"phase {self.name}: DEFERRED_EXECUTION requires credential_source "
-                "(the point is to reuse an earlier credential)"
+                f"phase {self.name}: WAIT requires a positive wait_seconds "
+                "(a zero-second WAIT is not a deferral -- it tests nothing)"
             )
         if self.kind is PhaseKind.TASK and not self.task:
             raise ValueError(f"phase {self.name}: TASK requires a task reference")

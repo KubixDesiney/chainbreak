@@ -1,0 +1,66 @@
+# CHAINBREAK -- run {{ run_id }}
+
+{% if fake_provider_banner %}
+> **{{ fake_provider_banner }}**
+{% endif %}
+
+scenario `{{ scenario_id }}` v{{ scenario_version }} ({{ scenario_family }}) -- provider `{{ provider }}` (adapter {{ adapter_version }})
+status `{{ status }}` -- bundle_root_verified `{{ bundle_root_verified }}`
+{% if not bundle_root_verified %}
+> **bundle_root_verified: false -- integrity check failed.**
+{% endif %}
+{% if git_dirty %}
+> **git_dirty: true -- this run's code state was not clean.**
+{% endif %}
+{% if warnings %}
+
+## Warnings
+
+{% for w in warnings %}
+- {{ w }}
+{% endfor %}
+{% endif %}
+
+## Category results
+
+| category | status | coverage | confidence |
+|---|---|---|---|
+{% for c in categories %}
+| {{ c.category }} | {{ c.status }} | {{ "--" if c.not_measured else c.coverage }} | {{ "--" if c.not_measured else c.confidence }} |
+{% endfor %}
+
+{% if not_measured_notice %}
+{{ not_measured_notice }}
+{% endif %}
+
+{% if measurement_lines %}
+## Measurements
+
+{% for line in measurement_lines %}
+- {{ line }}
+{% endfor %}
+{% endif %}
+
+## Findings
+
+{% if not findings %}
+None.
+{% endif %}
+{% for f in findings %}
+### {{ f.type }} ({{ f.severity_hint }}, confidence {{ f.confidence }})
+
+- observation: {{ f.observation }}
+- expected_state: {{ f.expected_state }}
+- observed_state: {{ f.observed_state }}
+- security_interpretation: {{ f.security_interpretation }}
+{% if f.caveats %}
+- caveats: {{ f.caveats }}
+{% endif %}
+
+{% endfor %}
+
+## Limitations
+
+{% for line in limitations %}
+- {{ line }}
+{% endfor %}

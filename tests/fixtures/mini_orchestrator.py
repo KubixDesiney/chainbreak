@@ -1,5 +1,16 @@
-"""A test-only stand-in for the M10 orchestrator (``execution/orchestrator.py``
-does not exist yet).
+"""A test-only stand-in for the parts of the orchestrator M10 did not build.
+
+``execution/orchestrator.py`` exists now (M10-M13) and handles the
+``PROBE``/``MUTATE``/``POLL``/``WAIT``/``DEFERRED_EXECUTION`` families end to
+end -- see ``tests/integration/test_scope_attenuation.py``,
+``test_revocation.py`` and ``test_stale_authority.py``, which drive it
+directly rather than through this module. What M10-M13 did not build is a
+``TASK`` phase reader (M14's job); this module remains the stand-in for
+that, still used by ``tests/integration/test_negative_controls.py``'s one
+remaining rule-level-only family (silent narrowing,
+``nc-silent-success`` -- ``nc-stale-credential-reuse`` joined the real
+orchestrator's negative controls at M13, following the same migration
+``nc-no-revocation`` made at M12).
 
 Extends the walk ``tests/integration/test_fake_scenario_compatibility.py``
 established at M5 (compile a real scenario, delegate along every edge,

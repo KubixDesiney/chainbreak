@@ -165,14 +165,18 @@ class TestUnimplementedCommandsExitTwoNotAStackTrace:
     @pytest.mark.parametrize(
         "args",
         [
-            ["run"],
-            ["report"],
             # `runs list|show|reindex` and `evidence export --public` were
             # resolved by M6; see test_cli_runs_command.py for their real
             # behavior. `evidence export` without --public remains a stub.
             # `analyze` was resolved by M7; see test_cli_analyze_command.py.
             # `infra plan|apply|destroy|status|verify-clean` were resolved
-            # by M9; see test_cli_infra_command.py.
+            # by M9; see test_cli_infra_command.py. `run` (with
+            # `--provider fake`) was resolved by M10; see
+            # test_cli_run_command.py for its real behavior --
+            # `--provider aws` remains a documented stub until M17.
+            # `report` was resolved by M16; see test_cli_report_command.py
+            # for its real behavior (its own missing-run_id path exits 2
+            # with "run_id is required", not this generic sweep's message).
             ["compare"],
         ],
     )

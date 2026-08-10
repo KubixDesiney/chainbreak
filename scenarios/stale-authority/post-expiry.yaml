@@ -1,0 +1,103 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: stale-authority-post-expiry
+  version: 1.0.0
+  family: stale-authority
+  title: Deferred probe using a credential that has already passed expires_at
+  description: >
+    F7/H6, isolated from any policy mutation: Agent C's session credential is
+    requested with the shortest lifetime the scenario language allows
+    (900 s). After a 1000 s deferral -- longer than the credential's own
+    granted lifetime, no mutation involved at all -- the deferred phase
+    probes using exactly that now-expired credential. The expected
+    classification is CREDENTIAL_EXPIRED (a correctly denied, already-
+    expired credential), never EXPIRED_CREDENTIAL_HONORED (which would mean
+    the adapter under test wrongly continued to honor it -- the one
+    classification in AUTHORIZATION_MODEL.md section 5.2's table that would
+    contradict documented lifetime behavior).
+  authors: [operator]
+  tags: [timing, stale-authority, credential-lifetime]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1
+    timing_sensitive: true
+    concurrency: 1
+    max_duration_seconds: 900
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-c
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 900
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-c]
+
+    - name: past-expiry
+      kind: WAIT
+      wait_seconds: 1000
+
+    - name: deferred-expired-credential
+      kind: DEFERRED_EXECUTION
+      target_identity: agent-c
+      credential_source: phase:after-delegation
+
+  expectations:
+    - kind: node_authority
+      identity: agent-c
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - identity.delegate

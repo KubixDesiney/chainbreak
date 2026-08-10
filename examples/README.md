@@ -2,11 +2,14 @@
 
 ## Current contents
 
-Nothing yet. This directory will hold:
-
-- `reports/` — a scrubbed sample HTML report (M16 adds a fake-provider sample; M19 adds one
-  from a real run).
-- `bundles/` — a small exported evidence bundle demonstrating the format.
+- `reports/sample-scope-attenuation-fake.html` — a self-contained HTML report (M16) rendered
+  from `chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729`
+  followed by `chainbreak analyze` and `chainbreak report --format html`. Its header and every
+  figure caption are stamped `FAKE-PROVIDER APPARATUS CHECK` — this demonstrates the report
+  structure, the finding layout and the figures, and says nothing about AWS. M19 adds a sample
+  from a real run.
+- `bundles/` — not yet populated; will hold a small exported evidence bundle demonstrating the
+  format.
 
 ## Reading a sample report
 

@@ -343,7 +343,9 @@ sentence in a report is traceable to a probe. See [EVIDENCE_SCHEMA.md](EVIDENCE_
 | `REVOCATION_DELAY` | `transition_window` lower bound > `config.revocation_expectation_s` |
 | `STALE_AUTHORITY` | classification ∈ {`STALE_AUTHORITY_LIVE_CREDENTIAL`, `SESSION_SCOPE_CACHED`} |
 | `EXPIRED_CREDENTIAL_ACCEPTED` | classification = `EXPIRED_CREDENTIAL_HONORED` |
-| `SILENT_NARROWING` | task reported success while `required ⊄ observed` |
+| `SILENT_NARROWING` | task reported `COMPLETE` while `steps_succeeded < steps_total`, or a claimed output marker is independently unverified |
+| `CAPABILITY_SUBSTITUTED` | `completion_contract.must_not_substitute` and the task's own invocation log invoked a capability other than a declared step's, in that step's place |
+| `REDELEGATION_ATTEMPTED` | `completion_contract.must_not_redelegate` and the task attempted `identity.delegate` (refused and recorded, never permitted — S2) |
 | `LIFETIME_CAPPED` | `granted_duration < requested_duration` |
 | `INCONCLUSIVE` | confidence gate failed |
 | `EXECUTION_ERROR` | orchestration failed |

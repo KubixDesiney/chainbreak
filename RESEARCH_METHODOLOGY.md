@@ -234,8 +234,31 @@ Deliberately conservative, because n is small and the distributions are unknown.
   control. Mitigation of last resort: publish bundles for third-party re-analysis.
 - *Ordering effects.* Mitigated by C-6.
 - *Carryover between trials.* Mitigated by run-scoped scratch prefixes, baseline policy
-  fingerprint comparison, and revert-in-`finally`.
+  fingerprint comparison, and revert-in-`finally`. **Implemented (M12,
+  `execution/revert.py`):** every mutation's revert log is written *before* the mutation itself
+  runs (so a killed run still leaves actionable recovery information), and the mutation is
+  reverted from `execution/orchestrator.py`'s own `finally` block regardless of whether the run
+  completed, raised a `ChainbreakError`, or an uncaught exception propagated out. Reverting
+  restores the target's *declared* authority rather than replaying an adapter-internal
+  pre-mutation snapshot (exposing that would mean carrying an unredacted policy document through
+  the evidence pipeline); `REVOKE_OLDER_SESSIONS` is honestly reported as unrevertable rather
+  than silently no-op'd, since a revoked session can only be replaced, never un-revoked.
 - *Provider-side load confound.* Mitigated by C-7 block randomization; not eliminated.
+- *Depth vs. total-probe-count confound (H8/RQ5).* A depth-6 chain issues more probes, runs
+  longer, and has strictly more opportunity for a transient fault to exclude a cell than a
+  depth-2 chain does — a naive raw divergence *count* across the depth sweep would make deeper
+  chains look more drift-prone for a reason that has nothing to do with delegation drift
+  itself. **Implemented (M11, `analysis/drift.py`):** divergence is reported as a rate per hop
+  (diverged hops ÷ total hops), never a raw per-chain count, with the exclusion rate computed
+  identically and reported alongside it (`DepthResult`). If both rates rise together across
+  increasing depth, `summarize_depth_sweep` reports the sweep `INCONCLUSIVE` by name rather than
+  asserting a depth effect — the pattern cannot be attributed to depth alone when it coincides
+  with more exclusion opportunity. This is the *treatment*, not a *result*: no AWS depth sweep
+  has been run (M17), so H8 itself remains exactly as unknown as the table above states: the
+  fake-provider depth sweep (`scenarios/delegation-drift/{two,three,four,five,six}-hop.yaml`) is
+  a clean, correctly-attenuating chain family by construction and is expected to show zero
+  divergence at every depth, which is what it does — proving the apparatus and the confound
+  treatment work, not measuring H8.
 
 **External validity**
 

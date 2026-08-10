@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CHAINBREAK -- run {{ run_id }}</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 960px; margin: 2rem auto;
+         padding: 0 1rem; color: #1a1a1a; background: #fff; line-height: 1.5; }
+  header.banner { background: #fff3cd; border: 2px solid #f2b701; padding: 0.75rem 1rem;
+                  margin-bottom: 1rem; font-weight: bold; }
+  .warn { background: #fdecea; border: 2px solid #e45756; padding: 0.5rem 1rem; margin: 0.5rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+  th { background: #f5f5f5; }
+  .finding { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+  .finding h3 { margin-top: 0; }
+  .finding dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+  .finding dt { font-weight: bold; }
+  figure { margin: 1.5rem 0; }
+  figcaption { font-size: 0.85rem; color: #555; margin-top: 0.25rem; }
+  code, pre { font-family: ui-monospace, monospace; }
+  .not-measured { font-weight: bold; }
+  ul.limitations li { margin-bottom: 0.25rem; }
+</style>
+</head>
+<body>
+{% if fake_provider_banner %}
+<header class="banner">{{ fake_provider_banner }}</header>
+{% endif %}
+
+<h1>CHAINBREAK &mdash; run {{ run_id }}</h1>
+<p>
+  scenario <code>{{ scenario_id }}</code> v{{ scenario_version }} ({{ scenario_family }})
+  &mdash; provider <code>{{ provider }}</code> (adapter {{ adapter_version }})<br>
+  status <code>{{ status }}</code> &mdash; bundle_root_verified <code>{{ bundle_root_verified }}</code>
+</p>
+{% if not bundle_root_verified %}
+<div class="warn"><strong>bundle_root_verified: false &mdash; integrity check failed.</strong></div>
+{% endif %}
+{% if git_dirty %}
+<div class="warn"><strong>git_dirty: true &mdash; this run's code state was not clean.</strong></div>
+{% endif %}
+
+{% if warnings %}
+<h2>Warnings</h2>
+<ul>
+{% for w in warnings %}
+  <li>{{ w }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+<h2>Category results</h2>
+<table>
+<thead><tr><th>category</th><th>status</th><th>coverage</th><th>confidence</th></tr></thead>
+<tbody>
+{% for c in categories %}
+<tr>
+  <td>{{ c.category }}</td>
+  <td>{{ c.status }}</td>
+  <td>{{ "--" if c.not_measured else c.coverage }}</td>
+  <td>{{ "--" if c.not_measured else c.confidence }}</td>
+</tr>
+{% if c.caveats %}
+<tr><td colspan="4"><em>{{ c.caveats }}</em></td></tr>
+{% endif %}
+{% endfor %}
+</tbody>
+</table>
+{% if not_measured_notice %}
+<p class="not-measured">{{ not_measured_notice }}</p>
+{% endif %}
+
+{% if measurement_lines %}
+<h2>Measurements</h2>
+<ul>
+{% for line in measurement_lines %}
+  <li>{{ line }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+<h2>Figures</h2>
+{% for figure in figures %}
+<figure>
+  {{ figure.svg }}
+  <figcaption><strong>{{ figure.title }}</strong> &mdash; {{ figure.caption }}</figcaption>
+</figure>
+{% endfor %}
+
+<h2>Findings</h2>
+{% if not findings %}
+<p>None.</p>
+{% endif %}
+{% for f in findings %}
+<div class="finding">
+  <h3>{{ f.type }} <small>({{ f.severity_hint }}, confidence {{ f.confidence }})</small></h3>
+  <dl>
+    <dt>observation</dt><dd>{{ f.observation }}</dd>
+    <dt>expected_state</dt><dd>{{ f.expected_state }}</dd>
+    <dt>observed_state</dt><dd>{{ f.observed_state }}</dd>
+    <dt>security_interpretation</dt><dd>{{ f.security_interpretation }}</dd>
+    {% if f.caveats %}
+    <dt>caveats</dt><dd>{{ f.caveats }}</dd>
+    {% endif %}
+  </dl>
+</div>
+{% endfor %}
+
+<h2>Limitations</h2>
+<ul class="limitations">
+{% for line in limitations %}
+  <li>{{ line }}</li>
+{% endfor %}
+</ul>
+
+</body>
+</html>

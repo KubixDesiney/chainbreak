@@ -196,3 +196,18 @@ class HeterogeneousComparisonError(AnalysisError):
     """Refused to aggregate runs with differing compiled/adapter/catalog versions."""
 
     machine_reason = "HETEROGENEOUS_COMPARISON_REFUSED"
+
+
+# --- Reporting -----------------------------------------------------------
+
+
+class ReportingError(ChainbreakError):
+    machine_reason = "REPORTING_ERROR"
+
+
+class ReportLanguageError(ReportingError):
+    """A rendered report violates EXPERIMENT_PROTOCOL.md section 7 (M16 F: the
+    language rules are enforced by lint at render time, not left to good
+    intentions -- every renderer calls this before returning output)."""
+
+    machine_reason = "REPORT_LANGUAGE_VIOLATION"

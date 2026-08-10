@@ -216,6 +216,11 @@ would make the whole apparatus untrustworthy.
 
 ## Part 5 — Milestone prompts
 
+> **Stale for M10–M16.** These prompts were written before implementation started and describe
+> an empty repository. M0–M7 are now complete and M8/M9 are code-complete. Use
+> [implementation/NEXT_PROMPTS.md](implementation/NEXT_PROMPTS.md) for anything still to be
+> built. Parts 1–4 above remain current and every prompt in that file references them.
+
 Each prompt is self-contained. Copy it verbatim.
 
 ### Common preamble (already embedded in each prompt below)

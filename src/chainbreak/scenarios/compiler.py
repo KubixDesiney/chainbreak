@@ -25,10 +25,16 @@ from chainbreak.core.models import (
     CompiledExpectedFinding,
     CompiledScenario,
     CompileWarning,
+    DeferredExecutionPlan,
     DelegationEdge,
     ExpectedAuthority,
     IdentityNode,
+    MutationPlan,
+    PollPlan,
     ProbeMatrix,
+    TaskPlan,
+    TaskStepPlan,
+    WaitPlan,
 )
 from chainbreak.graph.builder import build_graph
 from chainbreak.scenarios.plan import build_plan
@@ -67,6 +73,11 @@ def compile_scenario(
     resolve_bindings(catalog, referenced, registry.for_provider(spec.provider), spec.provider)
 
     probe_matrices = _build_probe_matrices(spec, graph, catalog)
+    mutation_plans = _build_mutation_plans(spec)
+    poll_plans = _build_poll_plans(spec)
+    wait_plans = _build_wait_plans(spec)
+    deferred_execution_plans = _build_deferred_execution_plans(spec, graph, catalog)
+    task_plans = _build_task_plans(spec)
     plan = build_plan(spec.phases)
 
     edges_by_id = {edge.edge_id: edge for edge in edges}
@@ -89,6 +100,11 @@ def compile_scenario(
         adapter_version=adapter_version,
         graph=graph,
         probe_matrices=probe_matrices,
+        mutation_plans=mutation_plans,
+        poll_plans=poll_plans,
+        wait_plans=wait_plans,
+        deferred_execution_plans=deferred_execution_plans,
+        task_plans=task_plans,
         plan=plan,
         policy_artifacts=policy_artifacts,
         warnings=warnings,
@@ -207,6 +223,29 @@ def _named_capabilities(spec: ScenarioSpec) -> AuthoritySet:
     return AuthoritySet.from_iterable(caps)
 
 
+def _capability_universe(
+    spec: ScenarioSpec,
+    graph: AuthorizationGraph,
+    catalog: CapabilityCatalog,
+    named: AuthoritySet,
+    identities: tuple[str, ...],
+) -> AuthoritySet:
+    """F3's probe-universe selection, shared by ``_build_probe_matrices`` and
+    ``_build_deferred_execution_plans``: every capability the scenario
+    names, not only what a node is expected to hold -- you cannot detect
+    expansion by testing only for what you expect."""
+    if spec.execution.probe_universe == "catalog":
+        capabilities = catalog.ids()
+    elif spec.execution.probe_universe == "declared":
+        declared: set[str] = set()
+        for identity_id in identities:
+            declared |= set(graph.node(identity_id).expected_authority.capabilities)
+        capabilities = AuthoritySet.from_iterable(declared)
+    else:
+        capabilities = named
+    return capabilities | AuthoritySet.of(_WHOAMI)
+
+
 def _build_probe_matrices(
     spec: ScenarioSpec, graph: AuthorizationGraph, catalog: CapabilityCatalog
 ) -> tuple[ProbeMatrix, ...]:
@@ -220,27 +259,141 @@ def _build_probe_matrices(
         if not identities:
             continue
 
-        if spec.execution.probe_universe == "catalog":
-            capabilities = catalog.ids()
-        elif spec.execution.probe_universe == "declared":
-            declared: set[str] = set()
-            for identity_id in identities:
-                declared |= set(graph.node(identity_id).expected_authority.capabilities)
-            capabilities = AuthoritySet.from_iterable(declared)
-        else:
-            capabilities = named
-
-        capabilities = capabilities | AuthoritySet.of(_WHOAMI)
+        capabilities = _capability_universe(spec, graph, catalog, named, identities)
         matrices.append(
             ProbeMatrix(
                 matrix_id=f"pm-{phase.name}",
                 phase_name=phase.name,
                 identities=identities,
                 capabilities=capabilities,
-                trials=spec.execution.trials,
+                # DEFERRED_EXECUTION issues two real probes per capability
+                # (pinned credential, then a freshly minted one -- F3): S4's
+                # "never underestimate" applies to this matrix's own
+                # contribution to estimate_cost even though
+                # execution/deferred.py, not this matrix, actually runs it.
+                trials=2 if phase.kind is PhaseKind.DEFERRED_EXECUTION else spec.execution.trials,
             )
         )
     return tuple(matrices)
+
+
+def _build_wait_plans(spec: ScenarioSpec) -> tuple[WaitPlan, ...]:
+    """M13: strips each ``WAIT`` phase down to exactly what
+    ``execution/deferred.py`` needs."""
+    return tuple(
+        WaitPlan(phase_name=phase.name, wait_seconds=phase.wait_seconds)
+        for phase in spec.phases
+        if phase.kind is PhaseKind.WAIT
+    )
+
+
+def _build_deferred_execution_plans(
+    spec: ScenarioSpec, graph: AuthorizationGraph, catalog: CapabilityCatalog
+) -> tuple[DeferredExecutionPlan, ...]:
+    """M13: strips each ``DEFERRED_EXECUTION`` phase down to exactly what
+    ``execution/deferred.py`` needs -- the compiler's own analogue of
+    :class:`MutationPlan`/:class:`PollPlan` for the stale-authority family."""
+    named = _named_capabilities(spec)
+    plans: list[DeferredExecutionPlan] = []
+    for phase in spec.phases:
+        if phase.kind is not PhaseKind.DEFERRED_EXECUTION:
+            continue
+        if phase.target_identity is None or phase.credential_source is None:
+            continue  # pragma: no cover -- PhaseSpec's own validator guarantees this
+        capabilities = _capability_universe(spec, graph, catalog, named, (phase.target_identity,))
+        plans.append(
+            DeferredExecutionPlan(
+                phase_name=phase.name,
+                target_identity=phase.target_identity,
+                capabilities=capabilities,
+                credential_source=phase.credential_source,
+            )
+        )
+    return tuple(plans)
+
+
+def _build_task_plans(spec: ScenarioSpec) -> tuple[TaskPlan, ...]:
+    """M14: strips each ``TASK`` phase down to exactly what
+    ``execution/task_runner.py`` needs -- the compiler's own analogue of
+    :class:`MutationPlan`/:class:`PollPlan`/:class:`DeferredExecutionPlan`
+    for the silent-narrowing family. Keyed by ``phase_name``, not
+    ``task_id``: a scenario's ``tasks`` list is declared separately from the
+    ``phases`` list that references it by name (``phase.task``), matching
+    how ``ScenarioSpec._referential_integrity`` already validates that
+    reference exists before compilation reaches here."""
+    tasks_by_id = {task.id: task for task in spec.tasks}
+    plans: list[TaskPlan] = []
+    for phase in spec.phases:
+        if phase.kind is not PhaseKind.TASK:
+            continue
+        if phase.task is None:  # pragma: no cover -- PhaseSpec's own validator guarantees this
+            continue
+        task = tasks_by_id[phase.task]
+        plans.append(
+            TaskPlan(
+                phase_name=phase.name,
+                task_id=task.id,
+                worker=task.worker,
+                target_identity=task.identity,
+                requires_capabilities=AuthoritySet.of(*task.requires_capabilities),
+                steps=tuple(
+                    TaskStepPlan(capability_id=step.use, on_failure=step.on_failure)
+                    for step in task.steps
+                ),
+                must_report_partial=task.completion_contract.must_report_partial,
+                must_not_substitute=task.completion_contract.must_not_substitute,
+                must_not_redelegate=task.completion_contract.must_not_redelegate,
+            )
+        )
+    return tuple(plans)
+
+
+def _build_mutation_plans(spec: ScenarioSpec) -> tuple[MutationPlan, ...]:
+    """M12: strips each ``MUTATE`` phase down to exactly what
+    ``execution/mutation.py`` needs -- the same "compile once, execute from
+    the compiled form only" discipline ``_build_probe_matrices`` already
+    applies to ``PROBE`` phases."""
+    plans: list[MutationPlan] = []
+    for phase in spec.phases:
+        if phase.kind is not PhaseKind.MUTATE:
+            continue
+        mutation = phase.mutation
+        if mutation is None:  # pragma: no cover -- PhaseSpec's own validator guarantees this
+            continue
+        plans.append(
+            MutationPlan(
+                phase_name=phase.name,
+                target_identity=mutation.target_identity,
+                kind=mutation.kind,
+                denies_capabilities=AuthoritySet.of(*mutation.denies),
+                grants_capabilities=AuthoritySet.of(*mutation.grants),
+                record_receipt=mutation.record_receipt,
+            )
+        )
+    return tuple(plans)
+
+
+def _build_poll_plans(spec: ScenarioSpec) -> tuple[PollPlan, ...]:
+    """M12: strips each ``POLL`` phase down to exactly what
+    ``execution/polling.py`` needs."""
+    plans: list[PollPlan] = []
+    for phase in spec.phases:
+        if phase.kind is not PhaseKind.POLL:
+            continue
+        if phase.target_identity is None or phase.capability is None:
+            continue  # pragma: no cover -- PhaseSpec's own validator guarantees this
+        plans.append(
+            PollPlan(
+                phase_name=phase.name,
+                target_identity=phase.target_identity,
+                capability_id=phase.capability,
+                interval_ms=phase.interval_ms,
+                max_duration_seconds=phase.max_duration_seconds,
+                stop_on=phase.stop_on,
+                stability_count=phase.stability_count,
+            )
+        )
+    return tuple(plans)
 
 
 def _compiled_expected_finding(spec: ScenarioSpec) -> CompiledExpectedFinding | None:

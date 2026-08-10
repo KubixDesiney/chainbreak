@@ -9,7 +9,9 @@ themselves are misconfigured.
 from __future__ import annotations
 
 import ast
+import os
 import re
+import warnings
 from pathlib import Path
 
 import pytest
@@ -18,6 +20,56 @@ pytestmark = pytest.mark.unit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "chainbreak"
+
+_PLANTED_VIOLATION_NAME = "_zz_planted_violation.py"
+
+
+def _safe_unlink(path: Path) -> None:
+    """Best-effort removal of a planted-violation fixture file.
+
+    A denied unlink (e.g. a filesystem where unlink is refused) must not fail a test
+    whose assertion already ran -- that would fail the test for the wrong reason. A
+    file that survives is instead caught loudly by ``_warn_on_leftover_planted_violations``
+    rather than being left to silently pollute a later ``_iter_source_files`` scan.
+    """
+    try:
+        path.unlink()
+    except OSError as exc:
+        warnings.warn(
+            f"Failed to remove planted-violation fixture {path}: {exc}. It was not "
+            "deleted and will be flagged as leftover debris the next time this module "
+            "is collected.",
+            stacklevel=2,
+        )
+
+
+def _leftover_planted_violation_files() -> list[Path]:
+    return sorted(SRC_ROOT.rglob(_PLANTED_VIOLATION_NAME))
+
+
+def _warn_on_leftover_planted_violations() -> None:
+    """Loudly flag planted-violation fixtures a prior failed teardown left behind.
+
+    Without this check, a leftover file under ``src/`` is picked up silently by
+    ``_iter_source_files`` and misreported by the checks above as a genuine boundary
+    violation, rather than being diagnosed as stale test debris from an earlier run.
+    """
+    leftover = _leftover_planted_violation_files()
+    if leftover:
+        warnings.warn(
+            "Leftover import-boundary planted-violation file(s) from a previous test "
+            f"session's failed teardown were found and were NOT removed: "
+            f"{[str(p) for p in leftover]}. Delete them manually -- until then, the "
+            "checks in this module may report violations that do not exist in the "
+            "real source tree.",
+            stacklevel=2,
+        )
+
+
+# Run at collection time (session start for this module) rather than only from within
+# a test, so a leftover file is surfaced before the ordinary boundary checks above run
+# and potentially misattribute it.
+_warn_on_leftover_planted_violations()
 
 # Source files allowed to name AWS service/action strings literally. Scoped to the
 # implementation tree only -- design docs (ARCHITECTURE.md, THREAT_MODEL.md, ...) and
@@ -185,7 +237,7 @@ class TestPlantedViolationsAreDetected:
             }
             assert non_core, "planted violation should have been detected"
         finally:
-            planted.unlink()
+            _safe_unlink(planted)
 
     def test_boto3_check_fails_on_a_planted_import(self, tmp_path: Path) -> None:
         planted = SRC_ROOT / "graph" / "_zz_planted_violation.py"
@@ -198,4 +250,43 @@ class TestPlantedViolationsAreDetected:
             }
             assert boto_imports, "planted boto3 import should have been detected"
         finally:
-            planted.unlink()
+            _safe_unlink(planted)
+
+    def test_denied_unlink_warns_instead_of_failing_and_leftover_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A filesystem that refuses unlink must not fail a test whose assertion already
+        passed, and the file it leaves behind must be surfaced as a loud warning rather
+        than silently absorbed into a later boundary scan."""
+        planted = SRC_ROOT / "core" / "_zz_planted_violation.py"
+        planted.write_text("from chainbreak.graph import something\n", encoding="utf-8")
+
+        def _deny_unlink(path: object, *args: object, **kwargs: object) -> None:
+            raise PermissionError("simulated: unlink denied")
+
+        monkeypatch.setattr(os, "unlink", _deny_unlink)
+
+        try:
+            chainbreak_imports = {
+                name
+                for name in _top_level_imports(planted)
+                if name == "chainbreak" or name.startswith("chainbreak.")
+            }
+            non_core = {
+                name
+                for name in chainbreak_imports
+                if not (name == "chainbreak.core" or name.startswith("chainbreak.core."))
+            }
+
+            with pytest.warns(UserWarning, match="Failed to remove planted-violation fixture"):
+                _safe_unlink(planted)
+
+            assert non_core, "the detection assertion must still pass despite the denied unlink"
+            assert planted.exists(), "a denied unlink must leave the file in place, not raise"
+
+            with pytest.warns(UserWarning, match="Leftover import-boundary planted-violation"):
+                _warn_on_leftover_planted_violations()
+        finally:
+            monkeypatch.undo()
+            if planted.exists():
+                planted.unlink()

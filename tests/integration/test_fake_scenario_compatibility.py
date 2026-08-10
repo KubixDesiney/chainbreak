@@ -1,20 +1,22 @@
 """M05-fake-provider.md acceptance criterion 4: all three fake profiles run
 all 12 scenarios without crashing.
 
-There is no ``execution/`` orchestrator yet -- that is M10's job
-(`execution/orchestrator.py`, `execution/matrix.py`, `execution/delegation.py`).
-This milestone's own verification command (``chainbreak run
-scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729``) is
-therefore unrunnable today for the same reason M3's nc-scope-expansion
-negative control turned out to be premature: it is written as if a later
-milestone had already landed. What this test verifies instead is the
-substance of the acceptance criterion at the layer that actually exists at
-M5 -- every real compiled scenario's authorization graph (identities, edges,
-capability sets) can be walked end-to-end through the fake adapter's
-``delegate``/``probe`` calls, for every profile, without an exception. Once
-M10 builds the real orchestrator, it drives the same adapter calls this test
-does; this is the fake's half of that contract, proven now rather than left
-unverified until M10.
+Written at M5, when there was no ``execution/`` orchestrator yet -- that was
+M10's job (`execution/orchestrator.py`, `execution/matrix.py`,
+`execution/delegation.py`, now built; see
+``tests/integration/test_scope_attenuation.py`` for the real orchestrator
+exercised the same way). At the time this was written, this milestone's own
+verification command (``chainbreak run scenarios/scope-attenuation/basic.yaml
+--provider fake --seed 1729``) was unrunnable for the same reason M3's
+nc-scope-expansion negative control turned out to be premature: it was
+written as if a later milestone had already landed. What this test verified
+instead was the substance of the acceptance criterion at the layer that
+actually existed at M5 -- every real compiled scenario's authorization graph
+(identities, edges, capability sets) can be walked end-to-end through the
+fake adapter's ``delegate``/``probe`` calls, for every profile, without an
+exception. It is kept as a broader, faster crash-only sweep across the whole
+corpus (M10's own tests are narrower and scope-attenuation-specific) rather
+than superseded outright.
 """
 
 from __future__ import annotations
@@ -109,8 +111,28 @@ class TestAllScenariosRunAgainstAllProfilesWithoutCrashing:
     ):
         _walk(profile_name, scenario_path, synthetic_aws_registry)
 
-    def test_exactly_twelve_scenarios_were_discovered(self):
+    def test_exactly_twenty_four_scenarios_were_discovered(self):
         # Guards the parametrization itself: if the corpus count ever
         # changes, this test (not a silent drop to fewer parametrized cases)
-        # is what should fail.
-        assert len(SCENARIO_PATHS) == 12
+        # is what should fail. 12 at M5; M11 added the four missing
+        # delegation-drift depths (two/three/five/six-hop -- four-hop
+        # already existed) plus role-chain-five-hop.yaml, a test-support
+        # fixture for identity-policy-level defect injection (see its own
+        # docstring for why the depth-sweep scenarios themselves can't be
+        # reused for that); M12 added the three remaining revocation
+        # mechanism scenarios (remove-policy, revoke-older-sessions,
+        # delete-session-scope -- inline-deny and trust-policy-null-condition
+        # already existed); M13 added three stale-authority scenarios
+        # (short-defer, long-defer, post-expiry -- deferred-execution.yaml
+        # already existed, a "written as if the milestone had already
+        # landed" M0 scaffold in the same vein as M3/M5/M10's own instances
+        # of the pattern, which M13's own scenario/schema/compiler changes
+        # made runnable for the first time without needing to be rewritten)
+        # for 23; M14 found silent-narrowing/two-step-pipeline.yaml was
+        # *also* one such M0 scaffold -- already exactly the family's
+        # documented "honest worker, insufficient authority" case
+        # (EXPERIMENT_PROTOCOL.md section 5, steps 1-6) -- and added one
+        # more, two-step-pipeline-full-authority.yaml, for the family's
+        # still-missing F7 positive control (full authority, same task),
+        # for 24.
+        assert len(SCENARIO_PATHS) == 24

@@ -129,6 +129,40 @@ class FakeProviderAdapter:
     _pending: dict[IdentityId, _PendingTransition] = field(
         init=False, default_factory=dict, repr=False
     )
+    #: M13, opt-in only (``enable_authority_caching``): identities whose
+    #: probes consult *their current credential's own* issuance-time
+    #: snapshot rather than live/pending state -- modelling a bearer-token/
+    #: session-policy credential that never re-checks. Deliberately *not*
+    #: derived automatically from delegation mechanism: every M10-M12
+    #: scenario delegates its polled/probed identities via
+    #: ``SESSION_POLICY_SCOPED`` too, and the revocation family's whole
+    #: measurement depends on that identity's *same* session observing a
+    #: live transition over time -- unconditionally caching by mechanism
+    #: would silently break every one of those. Only
+    #: ``execution/deferred.py`` opts an identity in, and only for the one
+    #: it is about to run a deferred/paired-fresh probe against.
+    _authority_cached_identities: set[IdentityId] = field(
+        init=False, default_factory=set, repr=False
+    )
+    #: Every ``delegate()`` call captures its issuing identity's *live*
+    #: (allow, deny) here, keyed by the new credential's own id -- always,
+    #: regardless of whether caching is enabled for that identity yet, since
+    #: a credential's snapshot must reflect what was true *at its own
+    #: issuance*, which by definition cannot be reconstructed later once the
+    #: identity's live policy has since changed. Cheap and harmless for
+    #: every identity that never opts into caching -- nothing ever reads it.
+    _credential_snapshot: dict[str, tuple[AuthoritySet, AuthoritySet]] = field(
+        init=False, default_factory=dict, repr=False
+    )
+    #: M14 escape hatch (see ``record_scratch_marker``/``scratch_marker_exists``
+    #: below): the fake has no real object storage to read back, so a
+    #: successful ``WRITE_SCRATCH``-kind capability invocation is recorded
+    #: here by the caller (``execution/task_runner.py``), and independent
+    #: verification (``execution/side_effects.py``) consults it directly --
+    #: never through the identity that supposedly wrote it, matching F4's
+    #: "the bootstrap identity checks" requirement structurally rather than
+    #: by convention.
+    _scratch_markers: set[str] = field(init=False, default_factory=set, repr=False)
     _snapshot_counter: int = field(init=False, default=0, repr=False)
     _call_count: int = field(init=False, default=0, repr=False)
     _fault_rng: random.Random = field(init=False, repr=False)
@@ -155,6 +189,36 @@ class FakeProviderAdapter:
 
     def advance_clock(self, milliseconds: int) -> None:
         self.clock.advance(milliseconds)
+
+    def record_scratch_marker(self, marker_id: str) -> None:
+        """M14 escape hatch, not part of the Protocol (matching
+        ``advance_clock``'s own precedent): called by
+        ``execution/task_runner.py`` immediately after a task's designated
+        output-writing step actually succeeds through the real capability
+        invoker -- never by a worker directly, and never merely because a
+        worker *claims* to have written something."""
+        self._scratch_markers.add(marker_id)
+
+    def scratch_marker_exists(self, marker_id: str) -> bool:
+        """M14 escape hatch: the independent check ``execution/side_effects.py``
+        calls. Deliberately reads the same store ``record_scratch_marker``
+        writes rather than trusting any ``TaskOutcome`` field."""
+        return marker_id in self._scratch_markers
+
+    def enable_authority_caching(self, identity_id: IdentityId) -> None:
+        """M13 escape hatch (not part of the ``ProviderAdapter`` Protocol,
+        matching ``advance_clock``'s own precedent): from this call onward,
+        ``identity_id``'s probes consult *its currently-held credential's
+        own* issuance-time snapshot (``_credential_snapshot``, captured by
+        every ``delegate()`` call regardless of whether caching was enabled
+        yet) instead of live/pending state. Called by
+        ``execution/deferred.py`` immediately before it pins a credential for
+        a ``DEFERRED_EXECUTION`` phase -- never automatically, and never for
+        an identity a PROBE/POLL/MUTATE phase alone ever touches. Enabling
+        this does not retroactively change what any already-captured
+        snapshot contains -- it only changes which state a *probe* consults
+        from here on."""
+        self._authority_cached_identities.add(identity_id)
 
     def register_identity(
         self, identity_id: IdentityId, *, allow: AuthoritySet = EMPTY_AUTHORITY
@@ -244,6 +308,15 @@ class FakeProviderAdapter:
         self._credentials_by_identity.setdefault(request.target_identity_id, []).append(
             result.record.credential_id
         )
+        # M13: captured unconditionally -- see this dict's own field comment
+        # for why "only if caching is enabled" would be too late to ever be
+        # correct (a snapshot must reflect state at issuance, and caching is
+        # typically enabled long after issuance, by execution/deferred.py,
+        # not at delegation time).
+        self._credential_snapshot[result.record.credential_id] = (
+            self.engine.identity_allow(request.target_identity_id),
+            self.engine.identity_deny(request.target_identity_id),
+        )
         scopes_session = request.mechanism in (
             DelegationMechanism.SESSION_POLICY_SCOPED,
             DelegationMechanism.ROLE_CHAIN_WITH_SESSION_POLICY,
@@ -307,6 +380,34 @@ class FakeProviderAdapter:
             )
 
         session_allow = self._session_scope.get(identity_id)
+
+        # M13: a caching identity's probes never consult live/pending state
+        # at all -- they use whatever snapshot was frozen at its *currently
+        # held* credential's own issuance (enable_authority_caching's
+        # docstring). Checked before the pending-transition logic below,
+        # which exists for exactly the opposite modelling need (M12's
+        # revocation family: the *same* session observing a live transition
+        # over time).
+        latest_credential_id = credential_ids[-1] if credential_ids else None
+        snapshot = (
+            self._credential_snapshot.get(latest_credential_id)
+            if latest_credential_id is not None
+            else None
+        )
+        if identity_id in self._authority_cached_identities and snapshot is not None:
+            snap_allow, snap_deny = snapshot
+            outcome_class = PolicyEngine.evaluate_against(
+                snap_allow, snap_deny, capability.id, session_allow=session_allow
+            )
+            return build_probe_outcome(
+                preconditions=self.preconditions,
+                provisioning_identity=self._make_ref(identity_id),
+                capability=capability,
+                outcome_class=outcome_class,
+                identity_allow=snap_allow,
+                session_allow=session_allow,
+            )
+
         pending = self._pending.get(identity_id)
         # Only drop pending tracking once fully settled -- deleting it the
         # first time is_visible() happens to return True would end an

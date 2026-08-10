@@ -1,0 +1,191 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: delegation-drift-role-chain-five-hop
+  version: 1.0.0
+  family: delegation-drift
+  title: Five-hop chain narrowing entirely through ROLE_CHAIN (no session policy)
+  description: >
+    A test-support fixture, not part of the depth sweep proper (two through
+    six-hop.yaml already cover depth as the swept variable, using
+    ROLE_CHAIN_WITH_SESSION_POLICY for their later hops). This scenario
+    exists because a session-policy-scoped hop's effective authority is
+    intersected with that hop's own *declared* intended_capabilities
+    (PROV-1: a session can only narrow, never grant) -- which makes it
+    structurally impossible to observe an identity-policy-level defect
+    injected at a session-scoped hop propagate to its child, the same
+    reason nc-scope-expansion.yaml and nc-non-monotone-chain.yaml both use
+    plain ROLE_CHAIN throughout. Every hop here does too, specifically so
+    tests can inject an excess capability into an intermediate hop's
+    identity policy and observe it (or not) survive several further hops,
+    exercising the ORIGINATED -> PROPAGATED (-> PROPAGATED -> PROPAGATED)
+    citation chain past the single hop four-hop.yaml's own structure allows.
+    Also requests a lifetime above AWS's 3600s chained-role cap at every
+    hop, exercising F1's LIFETIME_CAPPED at each one.
+  authors: [operator]
+  tags: [multi-hop, role-chain, test-support]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 3
+    timing_sensitive: false
+    max_duration_seconds: 1200
+    probe_universe: scenario
+    concurrency: 4
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - keyvalue.write
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_role_arn
+
+    - id: agent-d
+      role: agent
+      provider_binding:
+        terraform_output: agent_d_role_arn
+
+    - id: agent-e
+      role: agent
+      provider_binding:
+        terraform_output: agent_e_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - function.invoke
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 7200
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 7200
+
+    - id: hop-3
+      from: agent-b
+      to: agent-c
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - objectstore.list
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 7200
+
+    - id: hop-4
+      from: agent-c
+      to: agent-d
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 7200
+
+    - id: hop-5
+      from: agent-d
+      to: agent-e
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      credential:
+        requested_lifetime_seconds: 7200
+
+  phases:
+    - name: baseline
+      kind: PROBE
+      targets: [principal]
+
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-a, agent-b, agent-c, agent-d, agent-e]
+
+  expectations:
+    - kind: node_authority
+      identity: agent-d
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - keyvalue.read
+        - identity.whoami
+        - identity.delegate
+      deny:
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.write
+        - function.invoke
+
+    - kind: node_authority
+      identity: agent-e
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - objectstore.write
+        - objectstore.list
+        - keyvalue.read
+        - keyvalue.write
+        - function.invoke
+        - identity.delegate
+
+    - kind: attenuation_monotone
+      path: [principal, agent-a, agent-b, agent-c, agent-d, agent-e]
+      mode: set
+
+    - kind: no_first_divergence
+      path: [principal, agent-a, agent-b, agent-c, agent-d, agent-e]

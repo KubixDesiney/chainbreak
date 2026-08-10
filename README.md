@@ -11,7 +11,17 @@ and the authority a delegated workload *actually* holds when it executes.
 > pipeline, redaction and sealing) and M7 (analysis, findings and the confidence gate)
 > complete. M8 (AWS provider adapter)'s offline portion and M9 (Terraform AWS sandbox)'s
 > local portion are both complete; both milestones' real-account acceptance criteria are
-> blocked pending an operator-provisioned AWS account.**
+> blocked pending an operator-provisioned AWS account. M10 (the scope-attenuation benchmark),
+> M11 (the delegation-drift benchmark), M12 (the revocation-propagation benchmark), M13 (the
+> stale-authority benchmark) and M14 (the silent-narrowing benchmark) are all complete against
+> the fake provider — every one of the five benchmark families runs end to end, including
+> multi-hop chains to depth 6, all five revocation mechanisms with a pre-mutation revert log,
+> paired pinned/fresh-credential deferred-execution probes, and four deterministic task workers
+> with independent side-effect verification. M15 (per-category scoring) turns that evidence into
+> six independent category results with no composite score anywhere (ADR-010), and M16
+> (reporting and visualisation) renders it into terminal, Markdown and self-contained HTML
+> reports, with the reporting-language rules enforced by lint at render time rather than left to
+> operator discipline — see `examples/reports/` for a sample.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -19,24 +29,51 @@ and the authority a delegated workload *actually* holds when it executes.
 > model, all 10 capability bindings), the evidence pipeline (append-only sealed bundles,
 > a `redact()` choke point at exactly 100% coverage, a SQLite run index, and a bounded reader
 > and public-export scrub for untrusted bundles), the analysis pipeline (unanimity-based
-> cell resolution, divergence/drift classification, the revocation-window and stale-authority
+> cell resolution, divergence/drift classification with cause citation surviving any number
+> of propagated hops, first-divergence-per-path, the revocation-window and stale-authority
 > math, the confidence gate, one rule per finding type, the negative-control detector, and
-> `chainbreak analyze` turning a sealed bundle into `findings.json`), and the AWS provider
+> `chainbreak analyze` turning a sealed bundle into `findings.json`, now including
+> stale-authority and silent-narrowing findings extracted automatically from any bundle), the
+> `TaskWorker` Protocol and four deterministic workers (honest, always-claims-complete,
+> capability-substituting, redelegation-attempting) with independent bootstrap-attributed
+> output-marker verification never trusting a worker's self-report, the AWS provider
 > adapter (preflight P1–P11, STS delegation for all five mechanisms, the ten capability probes
 > with content verification and denial-message disambiguation, the mutation choke point,
-> full-jitter retry, policy snapshotting), and all five Terraform modules plus both
+> full-jitter retry, policy snapshotting), all five Terraform modules plus both
 > environments (`benchmark-account`, `resources`, `identities`, `delegation`, `observability`;
 > `aws-sandbox`, `local-development`) wired to a real `chainbreak infra
-> plan/apply/destroy/status/verify-clean` are implemented and verified (1242 passing tests;
+> plan/apply/destroy/status/verify-clean`, and the execution engine (`execution/orchestrator.py`,
+> `chain.py`, `mutation.py`, `polling.py`, `revert.py`, `deferred.py`, `credential_store.py` and
+> friends: the phase loop against the full `PhaseKind` enum, C-1 control-capability calibration,
+> C-2 precondition checks, C-6 seeded probe-order shuffling, F6 credential-lifetime
+> re-delegation, F6's divergence-rate-per-hop depth-sweep aggregation with an explicit
+> `INCONCLUSIVE` verdict when divergence and exclusions rise together, serial polling with
+> `STABLE_DENIAL`/`STABLE_ALLOW`/`TIMEOUT` stability detection, a revert log written before every
+> mutation and reverted in a `finally` block regardless of how the run ends, and a deferred probe
+> against a pinned credential immediately paired with one against a freshly, unconditionally
+> re-delegated credential, and `execution/task_runner.py`'s objective invocation log —
+> `redelegation_attempts`/`substituted_capabilities` are computed there, never trusted from a
+> worker's own returned `TaskOutcome`) driving `chainbreak run
+> scenarios/scope-attenuation/basic.yaml --provider fake`, the full
+> `scenarios/delegation-drift/{two,three,four,five,six}-hop.yaml` depth sweep, all five
+> `scenarios/revocation/*.yaml` mechanisms, the `scenarios/stale-authority/*.yaml` deferral
+> sweep, and the `scenarios/silent-narrowing/*.yaml` task-contract scenarios to sealed bundles
+> and findings in well under a second each, are implemented and verified, along with the
+> six independent per-category scoring evaluators (`scoring/`, ADR-010: no composite score
+> anywhere) and the terminal/Markdown/HTML reporting layer (`reporting/`: hand-built
+> evidence-derived SVG figures, Jinja2 with autoescape on and no `|safe` anywhere, a `provider:
+> fake` run stamped in the header and every figure caption)
+> (1693 passing tests;
 > `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
 > `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
-> `providers/fake/` ~99.7%, `analysis/` 97%, `providers/aws/` 93% **against moto and pure
-> logic only**, Terraform modules `fmt`/`validate`-clean against a real Terraform binary but
-> never applied — no real AWS account exists, so no IAM behavior in `providers/aws/` and no
-> provisioning behavior in `infra/terraform/` has been confirmed against real AWS), and CI
-> enforces lint, types, import boundaries, and security scans on every push. **No benchmark
-> has been executed and no AWS experiment has been run**, so no number anywhere in this
-> repository is a measurement.
+> `providers/fake/` ~99.7%, `analysis/` 98%, `execution/` ~99% (every M13/M14-proper module at
+> exactly 100%), `reporting/` 99%, `providers/aws/` ~97% **against
+> moto and pure logic only**, Terraform modules `fmt`/`validate`-clean against a real Terraform
+> binary but never applied — no real AWS account exists, so no IAM behavior in `providers/aws/`
+> and no provisioning behavior in `infra/terraform/` has been confirmed against real AWS), and CI
+> enforces lint, types, import boundaries, and security scans on every push. **The benchmark
+> has been executed against the deterministic fake provider only; no AWS experiment has been
+> run**, so no number anywhere in this repository is a measurement against real infrastructure.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.
 
 ---

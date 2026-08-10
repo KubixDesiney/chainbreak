@@ -1,0 +1,24 @@
+# Normalise line endings so generated artifacts are byte-identical across
+# platforms. Without this, schemas/*.json written on Windows carry CRLF while
+# CI regenerates them with LF, and `git diff --exit-code schemas/` fails on a
+# Linux runner even though the content is identical.
+* text=auto eol=lf
+
+# Generated, hash-compared, or otherwise byte-sensitive.
+*.json   text eol=lf
+*.yaml   text eol=lf
+*.yml    text eol=lf
+*.sql    text eol=lf
+*.tf     text eol=lf
+*.py     text eol=lf
+*.md     text eol=lf
+*.toml   text eol=lf
+
+# Evidence bundles are append-only JSONL whose hashes are recorded in the
+# manifest; a line-ending rewrite would invalidate the seal.
+*.jsonl  -text
+
+# Binary.
+*.png    binary
+*.pdf    binary
+*.parquet binary

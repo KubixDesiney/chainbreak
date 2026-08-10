@@ -1,0 +1,112 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: stale-authority-long-defer
+  version: 1.0.0
+  family: stale-authority
+  title: Deferred execution against a pinned credential, 600 s after a policy mutation
+  description: >
+    The same measurement as short-defer.yaml, at the longest interval of the
+    {30, 120, 600} s sweep F6 calls for. The session credential's lifetime
+    (3600 s, comfortably longer than the deferral) is unchanged from
+    short-defer.yaml so this scenario isolates deferral length as the only
+    varying factor: objectstore.read is expected to classify
+    STALE_AUTHORITY_LIVE_CREDENTIAL exactly as it does at 30 s, demonstrating
+    that the pinned credential's authority does not "self-correct" merely
+    because more time passed -- the credential itself, not the clock, is
+    what determines the outcome for as long as it remains unexpired. See
+    post-expiry.yaml for what happens once the credential itself expires.
+  authors: [operator]
+  tags: [timing, stale-authority, paired-credential]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1
+    timing_sensitive: true
+    concurrency: 1
+    max_duration_seconds: 900
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-c
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-c]
+
+    - name: revoke
+      kind: MUTATE
+      mutation:
+        target_identity: agent-c
+        kind: ATTACH_INLINE_DENY
+        denies:
+          - objectstore.read
+        record_receipt: true
+
+    - name: long-defer
+      kind: WAIT
+      wait_seconds: 600
+
+    - name: deferred-old-credential
+      kind: DEFERRED_EXECUTION
+      target_identity: agent-c
+      credential_source: phase:after-delegation
+
+  expectations:
+    - kind: node_authority
+      identity: agent-c
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - identity.delegate

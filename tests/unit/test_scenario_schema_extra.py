@@ -123,6 +123,14 @@ class TestPhaseSpecKindRequirements:
         with pytest.raises(ValidationError, match="DEFERRED_EXECUTION requires"):
             PhaseSpec(name="p1", kind="DEFERRED_EXECUTION")
 
+    def test_deferred_execution_requires_target_identity(self):
+        with pytest.raises(ValidationError, match="DEFERRED_EXECUTION requires target_identity"):
+            PhaseSpec(name="p1", kind="DEFERRED_EXECUTION", credential_source="phase:baseline")
+
+    def test_wait_requires_positive_wait_seconds(self):
+        with pytest.raises(ValidationError, match="WAIT requires a positive wait_seconds"):
+            PhaseSpec(name="p1", kind="WAIT", wait_seconds=0)
+
     def test_task_requires_a_task_reference(self):
         with pytest.raises(ValidationError, match="TASK requires a task reference"):
             PhaseSpec(name="p1", kind="TASK")
@@ -324,6 +332,7 @@ class TestScenarioSpecReferentialIntegrity:
                     "name": "deferred-1",
                     "kind": "DEFERRED_EXECUTION",
                     "targets": ["principal"],
+                    "target_identity": "principal",
                     "credential_source": "phase:ghost-phase",
                 }
             ]

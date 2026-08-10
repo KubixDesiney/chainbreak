@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from datetime import datetime
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -918,6 +918,87 @@ class ProbeMatrix(DomainModel):
     trials: PositiveInt = 3
 
 
+class MutationPlan(DomainModel):
+    """A compiled ``MUTATE`` phase (M12): the scenario-declared policy
+    change, stripped to exactly what ``execution/mutation.py`` needs to
+    apply it -- the compiler's own analogue of :class:`ProbeMatrix` for the
+    revocation-propagation family."""
+
+    phase_name: str
+    target_identity: IdentityId
+    kind: MutationKind
+    denies_capabilities: AuthoritySet = EMPTY_AUTHORITY
+    grants_capabilities: AuthoritySet = EMPTY_AUTHORITY
+    record_receipt: bool = True
+
+
+class PollPlan(DomainModel):
+    """A compiled ``POLL`` phase (M12): serial-polling parameters for one
+    (identity, capability) cell, stripped to exactly what
+    ``execution/polling.py`` needs -- the compiler's own analogue of
+    :class:`ProbeMatrix` for the revocation-propagation family."""
+
+    phase_name: str
+    target_identity: IdentityId
+    capability_id: CapabilityId
+    interval_ms: PositiveInt = 500
+    max_duration_seconds: PositiveInt = 300
+    stop_on: Literal["STABLE_DENIAL", "STABLE_ALLOW", "TIMEOUT"] = "STABLE_DENIAL"
+    stability_count: PositiveInt = 3
+
+
+class WaitPlan(DomainModel):
+    """A compiled ``WAIT`` phase (M13): the deferral interval, stripped to
+    exactly what ``execution/deferred.py`` needs -- the compiler's own
+    analogue of :class:`MutationPlan`/:class:`PollPlan` for the
+    stale-authority family. No keepalive, no refresh: the waiting itself is
+    the experiment (F2)."""
+
+    phase_name: str
+    wait_seconds: NonNegativeInt
+
+
+class DeferredExecutionPlan(DomainModel):
+    """A compiled ``DEFERRED_EXECUTION`` phase (M13): the scenario-declared
+    deferred probe against a credential pinned at an earlier phase, stripped
+    to exactly what ``execution/deferred.py`` needs -- the compiler's own
+    analogue of :class:`MutationPlan`/:class:`PollPlan` for this family.
+
+    ``credential_source`` is the raw ``phase:<name>`` string (already
+    validated to reference an earlier phase by
+    ``ScenarioSpec._referential_integrity``); ``execution/credential_store.py``
+    parses it, not this model.
+    """
+
+    phase_name: str
+    target_identity: IdentityId
+    capabilities: AuthoritySet
+    credential_source: str
+    trials: PositiveInt = 1
+
+
+class TaskStepPlan(DomainModel):
+    capability_id: CapabilityId
+    on_failure: Literal["continue", "abort", "retry"] = "continue"
+
+
+class TaskPlan(DomainModel):
+    """A compiled ``TASK`` phase (M14): the scenario-declared task, stripped
+    to exactly what ``execution/task_runner.py`` needs -- the compiler's own
+    analogue of ``MutationPlan``/``PollPlan``/``DeferredExecutionPlan`` for
+    the silent-narrowing family."""
+
+    phase_name: str
+    task_id: str
+    worker: str
+    target_identity: IdentityId
+    requires_capabilities: AuthoritySet
+    steps: tuple[TaskStepPlan, ...] = Field(min_length=1)
+    must_report_partial: bool = True
+    must_not_substitute: bool = True
+    must_not_redelegate: bool = True
+
+
 class PlanStep(DomainModel):
     """One entry in the compiler's fully ordered execution plan.
 
@@ -1007,6 +1088,11 @@ class CompiledScenario(DomainModel):
     adapter_version: str
     graph: AuthorizationGraph
     probe_matrices: tuple[ProbeMatrix, ...]
+    mutation_plans: tuple[MutationPlan, ...] = ()
+    poll_plans: tuple[PollPlan, ...] = ()
+    wait_plans: tuple[WaitPlan, ...] = ()
+    deferred_execution_plans: tuple[DeferredExecutionPlan, ...] = ()
+    task_plans: tuple[TaskPlan, ...] = ()
     plan: tuple[PlanStep, ...]
     policy_artifacts: tuple[SynthesizedPolicy, ...] = ()
     warnings: tuple[CompileWarning, ...] = ()

@@ -3,14 +3,11 @@ the defect present must produce the declared finding (proves detection), and
 the defect "fixed" must produce ``DETECTOR_FAILURE`` (proves the detector
 check itself works, not just that it happens to find something).
 
-Four of the six negative controls have their defect expressible as a fake-
-adapter policy-engine call and are walked end-to-end through the real
-pipeline. The remaining two -- ``nc-silent-success`` (needs a task worker,
-M14) and ``nc-stale-credential-reuse`` (needs the deferred-execution engine,
-M13) -- have no orchestration machinery to produce a bundle from yet; their
-rules and detector logic are exercised directly against hand-built
-measurements referencing the same scenario's own declared semantics, and
-that limitation is stated here rather than worked around.
+All six negative controls -- ``nc-stale-credential-reuse`` since M13 and
+``nc-silent-success`` since M14 -- are now walked end-to-end through the
+real pipeline; the four scope-attenuation/delegation-drift/revocation
+controls above still use ``mini_orchestrator`` (a lighter-weight stand-in
+that predates the real orchestrator's own coverage of those families).
 """
 
 from __future__ import annotations
@@ -23,12 +20,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "fixtures"))
 import mini_orchestrator as mo
 
-from chainbreak.analysis.detector import check_negative_control
 from chainbreak.analysis.pipeline import analyze
-from chainbreak.analysis.rules import rule_silent_narrowing, rule_stale_authority
-from chainbreak.analysis.timing import classify_stale_authority
-from chainbreak.core.enums import OutcomeClass, PlanPhase, TaskStatus
-from chainbreak.core.models import AuthoritySet, TaskOutcome
+from chainbreak.core.enums import PlanPhase, RunStatus
+from chainbreak.core.models import AuthoritySet, CompiledScenario, SafetyEnvelope
+from chainbreak.evidence.writer import BundleWriter
+from chainbreak.execution.orchestrator import orchestrate
+from chainbreak.providers.fake.adapter import FakeProviderAdapter
+from chainbreak.providers.fake.probes import build_fake_preconditions
+from chainbreak.providers.fake.session import virtual_ms_to_datetime
+from chainbreak.scenarios.loader import load_and_compile
 from chainbreak.scenarios.safety import load_scenario_yaml
 from chainbreak.scenarios.schema import ScenarioDocument
 
@@ -209,101 +209,167 @@ class TestNoRevocation:
         ] == "DETECTOR_FAILURE"
 
 
-class TestSilentSuccessRuleLevel:
-    """No task-worker engine exists yet (M14); the rule and detector are
-    exercised directly against a ``TaskOutcome`` matching the scenario's own
-    declared defect and its fix."""
+class TestSilentSuccess:
+    """M14: walked end-to-end through the real orchestrator, like every
+    other negative control in this file except (for now)
+    ``nc-scope-expansion``'s siblings that still use ``mini_orchestrator``.
+    The "fix" is the same compiled scenario with its dishonest worker
+    swapped for the honest one -- the scenario's own declared defect is
+    which worker runs the task, not its structure."""
 
-    def _detector_check(self, task: TaskOutcome) -> str:
-        expected = _expected_finding(NC_DIR / "nc-silent-success.yaml")
-        from chainbreak.core.models import CompiledExpectedFinding
+    PATH = NC_DIR / "nc-silent-success.yaml"
 
-        compiled_expected = CompiledExpectedFinding(
-            type=expected.type,
-            identity_id=expected.identity,
-            capabilities=AuthoritySet.of(*expected.capabilities),
-            min_confidence=expected.min_confidence,
+    def _run(self, tmp_path: Path, registry, *, run_id: str, defect_fixed: bool = False) -> Path:
+        compiled = load_and_compile(self.PATH, registry=registry)
+        if defect_fixed:
+            fixed_task_plans = tuple(
+                plan.model_copy(update={"worker": "deterministic.sequential"})
+                for plan in compiled.task_plans
+            )
+            compiled = compiled.model_copy(update={"task_plans": fixed_task_plans})
+        adapter = FakeProviderAdapter(seed=17)
+        envelope = SafetyEnvelope(
+            allowed_account_ids=(adapter.account_ref,),
+            allowed_regions=(adapter.region,),
+            namespace=adapter.namespace,
+            namespace_pattern=f"^{adapter.namespace}$",
         )
-        finding = rule_silent_narrowing(task)
-        findings = [finding] if finding else []
-        return check_negative_control(
-            compiled_expected, findings, negative_control_id="nc-silent-success"
-        ).result
-
-    def test_defect_present_detector_ok(self):
-        dishonest = TaskOutcome(
-            task_id="task_01",
-            identity_id="agent-b",
-            worker="always-complete",
-            status=TaskStatus.COMPLETE,
-            steps_total=2,
-            steps_attempted=2,
-            steps_succeeded=1,
-            reported_insufficient_authority=False,
-            output_marker_written=True,
-            output_marker_verified_independently=False,
-            substituted_capabilities=AuthoritySet.of("keyvalue.write"),
+        writer = BundleWriter(
+            tmp_path,
+            run_id,
+            scenario_ref={
+                "id": compiled.scenario_id,
+                "version": compiled.scenario_version,
+                "family": "silent-narrowing",
+                "api_version": "chainbreak.dev/v1alpha1",
+                "compiled_hash": compiled.compiled_hash,
+            },
+            provenance={
+                "chainbreak_version": "0.1.0a0",
+                "capability_catalog_version": compiled.catalog_version,
+                "provider": "fake",
+                "provider_adapter_version": compiled.adapter_version,
+                "python_version": "3.12",
+                "config_fingerprint": "sha256:" + ("3" * 64),
+            },
         )
-        assert self._detector_check(dishonest) == "DETECTOR_OK"
+        with writer as sink:
+            result = orchestrate(
+                compiled,
+                adapter,
+                sink,
+                build_fake_preconditions(adapter.markers),
+                run_id=run_id,
+                envelope=envelope,
+                seed=17,
+                max_duration_seconds=600,
+                now=lambda: virtual_ms_to_datetime(adapter.clock.now_ms),
+            )
+        assert result.status is RunStatus.COMPLETED
+        return tmp_path / run_id
 
-    def test_defect_fixed_detector_failure(self):
-        honest = TaskOutcome(
-            task_id="task_01",
-            identity_id="agent-b",
-            worker="sequential",
-            status=TaskStatus.PARTIAL,
-            steps_total=2,
-            steps_attempted=2,
-            steps_succeeded=1,
-            reported_insufficient_authority=True,
-            output_marker_written=False,
-            output_marker_verified_independently=False,
+    def test_defect_present_detector_ok(self, tmp_path: Path, synthetic_aws_registry) -> None:
+        run_dir = self._run(tmp_path, synthetic_aws_registry, run_id="nc-silent-present")
+        result = analyze(run_dir)
+        assert {c.negative_control_id: c.result for c in result.detector_checks}[
+            "nc-silent-success"
+        ] == "DETECTOR_OK"
+
+    def test_defect_fixed_honest_worker_detector_failure(
+        self, tmp_path: Path, synthetic_aws_registry
+    ) -> None:
+        """The "fix": deterministic.sequential (the honest worker) reports
+        PARTIAL and reported_insufficient_authority=True instead -- failing
+        loudly, which is EXPECTED_BEHAVIOR, not SILENT_NARROWING."""
+        run_dir = self._run(
+            tmp_path, synthetic_aws_registry, run_id="nc-silent-fixed", defect_fixed=True
         )
-        assert self._detector_check(honest) == "DETECTOR_FAILURE"
+        result = analyze(run_dir)
+        assert {c.negative_control_id: c.result for c in result.detector_checks}[
+            "nc-silent-success"
+        ] == "DETECTOR_FAILURE"
 
 
-class TestStaleCredentialReuseRuleLevel:
-    """No deferred-execution engine exists yet (M13); ``classify_stale_authority``
-    and the detector are exercised directly, matching the scenario's own
-    rationale: deferred-ALLOWED + fresh-DENIED classifies as stale; deferred-
-    ALLOWED + fresh-ALLOWED (the "fix": propagation simply hadn't happened)
-    must NOT be reported as ``STALE_AUTHORITY``."""
+class TestStaleCredentialReuse:
+    """M13: walked end-to-end through the real orchestrator."""
 
-    def _detector_check(self, *, fresh_outcome: OutcomeClass) -> str:
-        expected = _expected_finding(NC_DIR / "nc-stale-credential-reuse.yaml")
-        from chainbreak.core.models import CompiledExpectedFinding, StaleAuthorityMeasurement
+    PATH = NC_DIR / "nc-stale-credential-reuse.yaml"
 
-        compiled_expected = CompiledExpectedFinding(
-            type=expected.type,
-            identity_id=expected.identity,
-            capabilities=AuthoritySet.of(*expected.capabilities),
-            min_confidence=expected.min_confidence,
+    def _run(self, tmp_path: Path, registry, *, run_id: str, defect_fixed: bool = False) -> Path:
+        compiled: CompiledScenario = load_and_compile(self.PATH, registry=registry)
+        if defect_fixed:
+            # The "fix": no mutation is ever applied, so agent-c's pinned
+            # and freshly minted credentials necessarily agree (both
+            # ALLOWED) -- nothing is stale, and the detector must correctly
+            # report DETECTOR_FAILURE rather than finding staleness anyway.
+            # The auto-inserted SNAPSHOT steps are left in place: with no
+            # matching MutationPlan, orchestrator.py's own SNAPSHOT branch
+            # treats that as the harmless no-op it already documents.
+            compiled = compiled.model_copy(
+                update={
+                    "plan": tuple(step for step in compiled.plan if step.phase_name != "revoke"),
+                    "mutation_plans": (),
+                }
+            )
+        adapter = FakeProviderAdapter(seed=13)
+        envelope = SafetyEnvelope(
+            allowed_account_ids=(adapter.account_ref,),
+            allowed_regions=(adapter.region,),
+            namespace=adapter.namespace,
+            namespace_pattern=f"^{adapter.namespace}$",
         )
-        classification = classify_stale_authority(
-            deferred_outcome=OutcomeClass.ALLOWED,
-            credential_expired_at_execution=False,
-            fresh_outcome=fresh_outcome,
+        writer = BundleWriter(
+            tmp_path,
+            run_id,
+            scenario_ref={
+                "id": compiled.scenario_id,
+                "version": compiled.scenario_version,
+                "family": "stale-authority",
+                "api_version": "chainbreak.dev/v1alpha1",
+                "compiled_hash": compiled.compiled_hash,
+            },
+            provenance={
+                "chainbreak_version": "0.1.0a0",
+                "capability_catalog_version": compiled.catalog_version,
+                "provider": "fake",
+                "provider_adapter_version": compiled.adapter_version,
+                "python_version": "3.12",
+                "config_fingerprint": "sha256:" + ("3" * 64),
+            },
         )
-        measurement = StaleAuthorityMeasurement(
-            identity_id="agent-c",
-            capability_id="objectstore.read",
-            classification=classification,
-            deferral_seconds=20.0,
-            credential_expired_at_execution=False,
-            paired_fresh_credential_outcome=fresh_outcome,
+        with writer as sink:
+            result = orchestrate(
+                compiled,
+                adapter,
+                sink,
+                build_fake_preconditions(adapter.markers),
+                run_id=run_id,
+                envelope=envelope,
+                seed=13,
+                max_duration_seconds=600,
+                now=lambda: virtual_ms_to_datetime(adapter.clock.now_ms),
+            )
+        assert result.status is RunStatus.COMPLETED
+        return tmp_path / run_id
+
+    def test_defect_present_detector_ok(self, tmp_path: Path, synthetic_aws_registry) -> None:
+        run_dir = self._run(tmp_path, synthetic_aws_registry, run_id="nc-stale-present")
+        result = analyze(run_dir)
+        assert {c.negative_control_id: c.result for c in result.detector_checks}[
+            "nc-stale-credential-reuse"
+        ] == "DETECTOR_OK"
+
+    def test_defect_fixed_no_mutation_detector_failure(
+        self, tmp_path: Path, synthetic_aws_registry
+    ) -> None:
+        """The scenario's own rationale: with no mutation ever applied, the
+        deferred and fresh probes necessarily agree -- nothing is stale, so
+        the STALE_AUTHORITY detector must correctly report failure here,
+        proving it does not manufacture a finding out of an unrelated pair."""
+        run_dir = self._run(
+            tmp_path, synthetic_aws_registry, run_id="nc-stale-fixed", defect_fixed=True
         )
-        finding = rule_stale_authority(measurement)
-        findings = [finding] if finding else []
-        return check_negative_control(
-            compiled_expected, findings, negative_control_id="nc-stale-credential-reuse"
-        ).result
-
-    def test_defect_present_fresh_denied_detector_ok(self):
-        assert self._detector_check(fresh_outcome=OutcomeClass.DENIED_EXPLICIT) == "DETECTOR_OK"
-
-    def test_not_propagated_fresh_also_allowed_detector_failure(self):
-        """The scenario's own rationale: if the fresh probe ALSO succeeds,
-        the correct classification is "not propagated," not stale authority
-        -- so the STALE_AUTHORITY detector must correctly report failure
-        here, proving it does not conflate the two."""
-        assert self._detector_check(fresh_outcome=OutcomeClass.ALLOWED) == "DETECTOR_FAILURE"
+        result = analyze(run_dir)
+        assert {c.negative_control_id: c.result for c in result.detector_checks}[
+            "nc-stale-credential-reuse"
+        ] == "DETECTOR_FAILURE"

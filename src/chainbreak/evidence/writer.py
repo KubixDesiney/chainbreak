@@ -186,3 +186,15 @@ def write_findings(run_dir: Path, findings_document: Mapping[str, Any]) -> None:
     document = dict(findings_document)
     redact(document)
     write_text_artifact(run_dir / "findings.json", canonical.dumps(document))
+
+
+def write_scores(run_dir: Path, scores_document: Mapping[str, Any]) -> None:
+    """``scores.json`` (M15) -- produced by ``analyze`` alongside
+    ``findings.json``, from which it is entirely regenerable (it is a pure
+    function of the same sealed bundle -- ``scoring/categories.py`` reads no
+    other input). Not part of ``ARTIFACT_NAMES`` for the same reason
+    ``findings.json`` is not (ADR-006 made physical). Same redact-then-write
+    path as every other evidence-bundle write (S1)."""
+    document = dict(scores_document)
+    redact(document)
+    write_text_artifact(run_dir / "scores.json", canonical.dumps(document))

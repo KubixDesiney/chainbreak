@@ -1,0 +1,121 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: revocation-delete-session-scope
+  version: 1.0.0
+  family: revocation
+  title: Within-experiment null condition -- deleting a session-policy scope on a live session
+  description: >
+    A session-policy scope narrows what a *future* delegation using the same
+    mechanism may grant; it is not consulted again once a credential has
+    already been issued under it, so deleting it should observe NO
+    transition for a session already in flight (AWS_PROVIDER_SPEC section
+    4). If CHAINBREAK reports a fast transition here, the measurement
+    apparatus is wrong and every timing result in the same block must be
+    discarded -- the same instrument-check role trust-policy-null-
+    condition.yaml plays for UPDATE_TRUST_POLICY. Run this in every
+    revocation block alongside the positive scenarios.
+  authors: [operator]
+  tags: [timing, null-condition, instrument-check]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1
+    timing_sensitive: true
+    concurrency: 1
+    max_duration_seconds: 900
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-b
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: confirm-present
+      kind: PROBE
+      targets: [agent-b]
+
+    - name: warm-baseline
+      kind: POLL
+      target_identity: agent-b
+      capability: objectstore.read
+      interval_ms: 500
+      max_duration_seconds: 30
+      stop_on: STABLE_ALLOW
+      stability_count: 3
+
+    - name: delete-scope
+      kind: MUTATE
+      mutation:
+        target_identity: agent-b
+        kind: DELETE_SESSION_POLICY_SCOPE
+        record_receipt: true
+
+    # Expected outcome: TIMEOUT with no transition. That is a PASS for the
+    # instrument check and is reported as NO_TRANSITION_OBSERVED, not as a
+    # revocation failure.
+    - name: poll-transition
+      kind: POLL
+      target_identity: agent-b
+      capability: objectstore.read
+      interval_ms: 500
+      max_duration_seconds: 180
+      stop_on: TIMEOUT
+      stability_count: 3
+
+  expectations:
+    - kind: node_authority
+      identity: agent-b
+      phase: confirm-present
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - identity.delegate

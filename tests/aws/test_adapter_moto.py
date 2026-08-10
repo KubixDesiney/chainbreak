@@ -1196,3 +1196,309 @@ class TestAdapterEndToEnd:
         )
         with pytest.raises(CapabilityResolutionError):
             adapter.resolve_capability("nonexistent.capability")
+
+
+class TestAllowlistHookBeforeCallGuard:
+    """`_install_allowlist_hook`'s `_before_call` closure, tested directly
+    against a stub botocore client -- covers both branches of "is an
+    allowlist currently open" and both branches of "did this call carry a
+    model", none of which a live probe (which always has both true) reaches."""
+
+    @staticmethod
+    def _stub_client(service_name: str) -> tuple[Any, dict[str, Any]]:
+        from types import SimpleNamespace
+
+        registered: dict[str, Any] = {}
+
+        def register(_event_pattern: str, handler: Any) -> None:
+            registered["handler"] = handler
+
+        events = SimpleNamespace(register=register)
+        meta = SimpleNamespace(
+            service_model=SimpleNamespace(service_name=service_name), events=events
+        )
+        return SimpleNamespace(meta=meta), registered
+
+    def test_no_recording_when_no_allowlist_is_currently_open(self) -> None:
+        from chainbreak.providers.aws.adapter import _AllowlistHookState, _install_allowlist_hook
+
+        client, registered = self._stub_client("s3")
+        state = _AllowlistHookState()  # .current defaults to None
+        _install_allowlist_hook(client, state)
+
+        class _Model:
+            name = "GetObject"
+
+        registered["handler"](model=_Model())  # must not raise
+
+    def test_no_recording_when_the_call_carries_no_model(self) -> None:
+        from chainbreak.providers.aws.adapter import _AllowlistHookState, _install_allowlist_hook
+
+        class _RecordingSpy:
+            def __init__(self) -> None:
+                self.recorded: list[str] = []
+
+            def record(self, action: str) -> None:
+                self.recorded.append(action)
+
+        client, registered = self._stub_client("s3")
+        state = _AllowlistHookState()
+        spy = _RecordingSpy()
+        state.current = spy  # type: ignore[assignment]
+        _install_allowlist_hook(client, state)
+
+        registered["handler"]()  # no "model" kwarg at all
+        assert spy.recorded == []
+
+    def test_records_the_overridden_iam_action_when_open(self) -> None:
+        from chainbreak.providers.aws.adapter import _AllowlistHookState, _install_allowlist_hook
+
+        class _RecordingSpy:
+            def __init__(self) -> None:
+                self.recorded: list[str] = []
+
+            def record(self, action: str) -> None:
+                self.recorded.append(action)
+
+        client, registered = self._stub_client("s3")
+        state = _AllowlistHookState()
+        spy = _RecordingSpy()
+        state.current = spy  # type: ignore[assignment]
+        _install_allowlist_hook(client, state)
+
+        class _Model:
+            name = "HeadObject"  # HeadObject -> s3:GetObject override
+
+        registered["handler"](model=_Model())
+        assert spy.recorded == ["s3:GetObject"]
+
+
+def _delegated_agent_a_ref(
+    moto_fixture: Any, run_id: str
+) -> tuple[AwsProviderAdapter, IdentityRef]:
+    """Registers `principal` and delegates to `agent-a`, granting every
+    non-whoami/non-objectstore.read capability so `TestAdapterProbeDispatch`
+    can probe each of `_build_call`'s remaining match arms for real."""
+    fixture, _clients = moto_fixture
+    from chainbreak.providers.base.types import DelegationRequest
+
+    operator_session = boto3.Session(region_name=_REGION)
+    adapter = AwsProviderAdapter(
+        operator_session=operator_session, outputs=fixture.outputs, run_id=run_id
+    )
+    principal = adapter.register_identity("principal")
+    delegation = adapter.delegate(
+        DelegationRequest(
+            source_identity=principal,
+            target_identity_id="agent-a",
+            mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+            requested_duration_s=900,
+            intended_capabilities=AuthoritySet.of(
+                "identity.whoami",
+                "objectstore.read",
+                "objectstore.write",
+                "objectstore.list",
+                "keyvalue.read",
+                "keyvalue.write",
+                "function.invoke",
+                "queue.send",
+                "queue.receive",
+                "identity.delegate",
+            ),
+        )
+    )
+    return adapter, delegation.identity_ref
+
+
+def _probe(adapter: AwsProviderAdapter, identity_ref: IdentityRef, capability_id: str) -> Any:
+    from chainbreak.providers.base.types import ProbeRequest
+
+    return adapter.probe(
+        ProbeRequest(
+            identity_ref=identity_ref,
+            capability_id=capability_id,
+            binding=adapter.resolve_capability(capability_id),
+            namespace=_NAMESPACE,
+        )
+    )
+
+
+class TestAdapterProbeDispatch:
+    """`_build_call`'s match/case, one test per arm that `TestAdapterEndToEnd`
+    doesn't already exercise (it only drives `identity.whoami` and
+    `objectstore.read` through `adapter.probe()`; `TestProbes` above calls
+    the probe functions directly, bypassing this dispatch entirely)."""
+
+    def test_objectstore_write_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-1")
+        result = _probe(adapter, ref, "objectstore.write")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_objectstore_list_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-2")
+        result = _probe(adapter, ref, "objectstore.list")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_keyvalue_read_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-3")
+        result = _probe(adapter, ref, "keyvalue.read")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_keyvalue_write_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-4")
+        result = _probe(adapter, ref, "keyvalue.write")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_function_invoke_dispatches_through_the_adapter(self, moto_fixture):
+        from moto.awslambda_simple.models import lambda_simple_backends
+
+        fixture, _clients = moto_fixture
+        backend = lambda_simple_backends[_ACCOUNT][_REGION]
+        backend.lambda_simple_results_queue.append(
+            json.dumps({"ok": True, "nonce": fixture.outputs.namespace})
+        )
+
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-5")
+        result = _probe(adapter, ref, "function.invoke")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_queue_send_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-6")
+        result = _probe(adapter, ref, "queue.send")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_queue_receive_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-7")
+        result = _probe(adapter, ref, "queue.receive")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_identity_delegate_dispatches_through_the_adapter(self, moto_fixture):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-8")
+        result = _probe(adapter, ref, "identity.delegate")
+        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+
+    def test_unresolved_capability_id_reaching_build_call_directly_raises(self, moto_fixture):
+        """CAP-1's normal guard is `resolve_capability`, checked before
+        `_build_call` is ever reached; this exercises `_build_call`'s own
+        defensive fallback directly; in case the catalog ever grows a
+        capability without a matching dispatch arm here, it must fail loudly
+        rather than silently doing nothing."""
+        from chainbreak.core.errors import CapabilityResolutionError
+
+        adapter, _ref = _delegated_agent_a_ref(moto_fixture, "run-dispatch-9")
+        with pytest.raises(CapabilityResolutionError):
+            adapter._build_call(
+                "nonexistent.capability",
+                clients=None,
+                identity_id="agent-a",
+                run_id="run-dispatch-9",
+                probe_id="p-1",
+                nonce="n" * 16,
+            )
+
+
+class TestDelegateWithoutALiveSession:
+    def test_delegating_from_an_unregistered_identity_raises(self, moto_fixture):
+        """`delegate()` requires the source identity to already have a live
+        session from a prior `register_identity`/`delegate` call -- there is
+        no way to delegate authority from an identity this adapter has never
+        actually assumed."""
+        fixture, _clients = moto_fixture
+        from chainbreak.core.errors import DelegationError
+        from chainbreak.providers.base.types import DelegationRequest
+
+        operator_session = boto3.Session(region_name=_REGION)
+        adapter = AwsProviderAdapter(
+            operator_session=operator_session, outputs=fixture.outputs, run_id="run-no-session"
+        )
+        never_registered = IdentityRef(
+            provider=Provider.AWS,
+            kind="role",
+            value=fixture.outputs.principal_role_arn,
+            region=_REGION,
+            account_ref=_ACCOUNT,
+        )
+        with pytest.raises(DelegationError, match="no live session"):
+            adapter.delegate(
+                DelegationRequest(
+                    source_identity=never_registered,
+                    target_identity_id="agent-a",
+                    mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+                    requested_duration_s=900,
+                    intended_capabilities=AuthoritySet.of("identity.whoami"),
+                )
+            )
+
+
+class TestCallAndClassifyErrorPaths:
+    """`_call_and_classify`'s three post-retry branches, reached only once a
+    call has definitively failed. `call_with_retry` is monkeypatched for
+    deterministic control over which path fires -- moto's IAM enforcement is
+    only an approximation (see module docstring) and cannot be trusted to
+    reproduce one specific failure shape on demand."""
+
+    def test_whoami_failure_is_raised_as_an_apparatus_fault_not_a_denial(
+        self, moto_fixture, monkeypatch
+    ):
+        """AWS_PROVIDER_SPEC section 6.2: a failed identity.whoami is never
+        classified as a denial, regardless of the underlying exception -- the
+        run aborts instead."""
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-classify-1")
+
+        from chainbreak.providers.aws import retry as retry_mod
+
+        boom = RuntimeError("simulated apparatus fault")
+
+        def fake_call_with_retry(call, **kwargs):
+            return None, boom, retry_mod.RetryOutcome(attempt_number=1, retries=0)
+
+        monkeypatch.setattr(
+            "chainbreak.providers.aws.adapter.call_with_retry", fake_call_with_retry
+        )
+
+        with pytest.raises(RuntimeError, match="simulated apparatus fault"):
+            _probe(adapter, ref, "identity.whoami")
+
+    def test_non_client_error_on_a_non_whoami_path_is_reraised(self, moto_fixture, monkeypatch):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-classify-2")
+
+        from chainbreak.providers.aws import retry as retry_mod
+
+        boom = TimeoutError("simulated connection timeout")
+
+        def fake_call_with_retry(call, **kwargs):
+            return None, boom, retry_mod.RetryOutcome(attempt_number=3, retries=2)
+
+        monkeypatch.setattr(
+            "chainbreak.providers.aws.adapter.call_with_retry", fake_call_with_retry
+        )
+
+        with pytest.raises(TimeoutError, match="simulated connection timeout"):
+            _probe(adapter, ref, "objectstore.read")
+
+    def test_client_error_on_a_non_whoami_path_is_classified_not_raised(
+        self, moto_fixture, monkeypatch
+    ):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-classify-3")
+
+        from botocore.exceptions import ClientError
+
+        from chainbreak.providers.aws import retry as retry_mod
+
+        denial = ClientError(
+            {
+                "Error": {"Code": "AccessDenied", "Message": "simulated denial"},
+                "ResponseMetadata": {"HTTPStatusCode": 403},
+            },
+            "GetObject",
+        )
+
+        def fake_call_with_retry(call, **kwargs):
+            return None, denial, retry_mod.RetryOutcome(attempt_number=1, retries=0)
+
+        monkeypatch.setattr(
+            "chainbreak.providers.aws.adapter.call_with_retry", fake_call_with_retry
+        )
+
+        result = _probe(adapter, ref, "objectstore.read")
+        assert result.outcome.provider_error_code == "AccessDenied"

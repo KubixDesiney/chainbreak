@@ -378,6 +378,51 @@ def _plan_step_kwargs() -> dict[str, Any]:
     return {"order": 0, "phase_name": "baseline", "kind": PhaseKind.PROBE}
 
 
+def _mutation_plan_kwargs() -> dict[str, Any]:
+    return {
+        "phase_name": "revoke",
+        "target_identity": "agent-b",
+        "kind": MutationKind.ATTACH_INLINE_DENY,
+        "denies_capabilities": _authority_set(),
+    }
+
+
+def _poll_plan_kwargs() -> dict[str, Any]:
+    return {
+        "phase_name": "poll-transition",
+        "target_identity": "agent-b",
+        "capability_id": "objectstore.read",
+    }
+
+
+def _wait_plan_kwargs() -> dict[str, Any]:
+    return {"phase_name": "short-defer", "wait_seconds": 30}
+
+
+def _deferred_execution_plan_kwargs() -> dict[str, Any]:
+    return {
+        "phase_name": "deferred-old-credential",
+        "target_identity": "agent-c",
+        "capabilities": _authority_set(),
+        "credential_source": "phase:after-delegation",
+    }
+
+
+def _task_step_plan_kwargs() -> dict[str, Any]:
+    return {"capability_id": "keyvalue.write", "on_failure": "continue"}
+
+
+def _task_plan_kwargs() -> dict[str, Any]:
+    return {
+        "phase_name": "run-task",
+        "task_id": "two-step-pipeline",
+        "worker": "deterministic.sequential",
+        "target_identity": "agent-b",
+        "requires_capabilities": _authority_set(),
+        "steps": (m.TaskStepPlan(**_task_step_plan_kwargs()),),
+    }
+
+
 def _synthesized_policy_kwargs() -> dict[str, Any]:
     return {
         "identity_id": "agent-a",
@@ -517,6 +562,12 @@ _FACTORIES: dict[type[m.DomainModel], Any] = {
     m.Measurement: _measurement_kwargs,
     m.CategoryResult: _category_result_kwargs,
     m.ProbeMatrix: _probe_matrix_kwargs,
+    m.MutationPlan: _mutation_plan_kwargs,
+    m.PollPlan: _poll_plan_kwargs,
+    m.WaitPlan: _wait_plan_kwargs,
+    m.DeferredExecutionPlan: _deferred_execution_plan_kwargs,
+    m.TaskStepPlan: _task_step_plan_kwargs,
+    m.TaskPlan: _task_plan_kwargs,
     m.PlanStep: _plan_step_kwargs,
     m.SynthesizedPolicy: _synthesized_policy_kwargs,
     m.CompileWarning: _compile_warning_kwargs,

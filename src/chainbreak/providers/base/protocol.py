@@ -15,8 +15,10 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from chainbreak.core.ids import CapabilityId
+from chainbreak.core.ids import CapabilityId, IdentityId
 from chainbreak.core.models import (
+    EMPTY_AUTHORITY,
+    AuthoritySet,
     IdentityRef,
     MutationReceipt,
     PolicyMutation,
@@ -43,6 +45,20 @@ class ProviderAdapter(Protocol):  # pragma: no cover -- structural interface, ne
 
     name: str
     adapter_version: str
+
+    def register_identity(
+        self, identity_id: IdentityId, *, allow: AuthoritySet = EMPTY_AUTHORITY
+    ) -> IdentityRef:
+        """Materializes a root/ungoverned identity directly, with no
+        delegation (e.g. a scenario's ``principal``, or the bootstrap
+        identity ``execution/`` uses to verify preconditions). Added to the
+        Protocol at M10: both existing adapters already implement it (the
+        AWS adapter's own docstring already frames its ``allow`` parameter
+        as "accepted for surface compatibility" with this one), and
+        ``execution/`` needs it to materialize a graph's root generically,
+        without reaching into either adapter's provider-specific internals.
+        """
+        ...
 
     def preflight(self, envelope: SafetyEnvelope) -> PreflightReport: ...
 

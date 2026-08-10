@@ -1,0 +1,117 @@
+apiVersion: chainbreak.dev/v1alpha1
+kind: Scenario
+
+metadata:
+  id: stale-authority-short-defer
+  version: 1.0.0
+  family: stale-authority
+  title: Deferred execution against a pinned credential, 30 s after a policy mutation
+  description: >
+    Agent C's session is delegated, confirmed, then Agent C's own identity
+    policy is mutated to deny objectstore.read. After a 30 s deferral --
+    during which the pinned credential is never touched, no keepalive, no
+    refresh -- Agent C's deferred phase probes using exactly the credential
+    minted before the mutation, then immediately probes again with a freshly
+    minted one. The pair is the measurement (EXPERIMENT_PROTOCOL.md section
+    4, step 6): a deferred ALLOWED alone cannot distinguish "the old
+    credential still carries pre-mutation authority" from "the mutation
+    simply has not propagated anywhere yet"; only the fresh probe's outcome
+    can. objectstore.read is expected to classify
+    STALE_AUTHORITY_LIVE_CREDENTIAL (the pinned session-policy-scoped
+    credential's identity.whoami was never mutated and is expected to
+    classify the ambiguous case (INDETERMINATE) instead -- both probes agree
+    it was never touched, which is correctly *not* reported as staleness.
+    This is the shortest of the {30, 120, 600} s deferral sweep F6 calls for.
+  authors: [operator]
+  tags: [timing, stale-authority, paired-credential]
+
+spec:
+  provider: aws
+  requires:
+    catalog_version: ">=1.0.0,<2.0.0"
+    adapter_version: ">=0.1.0"
+    infrastructure_profile: standard
+
+  execution:
+    trials: 1
+    timing_sensitive: true
+    concurrency: 1
+    max_duration_seconds: 900
+    probe_universe: declared
+
+  identities:
+    - id: principal
+      role: root
+      provider_binding:
+        terraform_output: principal_role_arn
+      capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+
+    - id: agent-a
+      role: agent
+      provider_binding:
+        terraform_output: agent_a_role_arn
+
+    - id: agent-c
+      role: agent
+      provider_binding:
+        terraform_output: agent_c_role_arn
+
+  delegations:
+    - id: hop-1
+      from: principal
+      to: agent-a
+      mechanism: ROLE_CHAIN
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-2
+      from: agent-a
+      to: agent-c
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+      session_policy:
+        derive_from: intended_capabilities
+      credential:
+        requested_lifetime_seconds: 3600
+
+  phases:
+    - name: after-delegation
+      kind: PROBE
+      targets: [agent-c]
+
+    - name: revoke
+      kind: MUTATE
+      mutation:
+        target_identity: agent-c
+        kind: ATTACH_INLINE_DENY
+        denies:
+          - objectstore.read
+        record_receipt: true
+
+    - name: short-defer
+      kind: WAIT
+      wait_seconds: 30
+
+    - name: deferred-old-credential
+      kind: DEFERRED_EXECUTION
+      target_identity: agent-c
+      credential_source: phase:after-delegation
+
+  expectations:
+    - kind: node_authority
+      identity: agent-c
+      phase: after-delegation
+      allow:
+        - objectstore.read
+        - identity.whoami
+      deny:
+        - identity.delegate

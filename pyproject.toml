@@ -125,6 +125,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "T20"]
 "src/chainbreak/reporting/**" = ["T20"]
+# Operator-facing setup scripts: printing to the terminal is the entire point,
+# and the subprocess arguments are built from argparse values, not free input.
+"scripts/**" = ["T20", "S603"]
 "src/chainbreak/cli/**" = ["T20"]  # the CLI layer's whole job is printing to the terminal
 # A standalone `python -m` diagnostic entry point, not the CLI proper --
 # M06-evidence-pipeline.md's own verification command names it directly.
