@@ -37,7 +37,9 @@
         "PRE_MUTATION",
         "POST_MUTATION",
         "DEFERRED_EXECUTION",
+        "PAIRED_FRESH_CREDENTIAL",
         "POST_EXPIRY",
+        "TASK_EXECUTION",
         "FINAL"
       ],
       "title": "PlanPhase",
