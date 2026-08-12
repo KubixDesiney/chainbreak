@@ -1,409 +1,310 @@
-# Ready-to-run Claude Code prompts — unblocked work only
+# Ready-to-run Claude Code prompts — final phase
 
-Every prompt here runs **entirely offline** against the deterministic fake provider. None
-needs the AWS account, credentials, spend, or your presence. They can proceed in parallel
-with the M8/M9 real-account work.
+**State verified 2026-08-11.** M0–M16 complete. M8 and M9 are code-complete with only their
+real-account acceptance criteria outstanding. 1,693 tests passing (1,454 unit, 239 integration),
+119 source files clean under `ruff` and `mypy --strict`, 6/6 import-linter contracts kept,
+21 `aws`-marked tests written and waiting.
 
-**State these prompts assume** (verified 2026-08-09): M0–M7 complete, M8 and M9 code-complete
-but awaiting a real account, 1,242 tests passing, 96.8% coverage, `ruff`/`mypy` clean,
-6/6 import-linter contracts kept, 12 scenarios validating.
+**The AWS account exists**: `REDACTED_ACCOUNT_ID`, region `eu-west-3`, namespace `cb-ec11b3c2`,
+infrastructure applied, all 12 IAM roles present, both markers verified, $5 Budgets alarm live.
 
-**Run them in the listed order.** S1 is independent; S2 through S8 form a dependency chain.
-One session per prompt — do not merge two.
-
-Superseded: [CLAUDE_CODE_HANDOFF.md](../CLAUDE_CODE_HANDOFF.md) § M10–M16 were written before
-implementation started and describe a repository that no longer exists. Use this file instead.
-The handoff's Part 1–4 (invariants, conventions, how the pieces fit) is still current and every
-prompt below references it.
+S1–S8 from the previous edition are all done. This edition covers what remains: two offline
+sessions, two AWS sessions, and the release.
 
 ---
 
-## S1 — Housekeeping, no dependencies
-
-Do this first. It is short, and it removes two known defects that will otherwise be rediscovered
-during a later milestone.
+## Ordering
 
 ```
-Housekeeping session for CHAINBREAK. Two known defects and two coverage gaps. No new features.
-
-Read docs/CLAUDE_CODE_HANDOFF.md Part 2 (invariants) before touching anything. Run
-`pytest -m "unit or integration" -q` first and record the baseline count.
-
-1. tests/unit/test_import_boundaries.py plants a violating module under src/ and deletes it in
-   teardown. On a filesystem where unlink is denied the delete raises, the test fails for the
-   wrong reason, and a stray module is left in src/ that breaks every subsequent run. Make the
-   teardown fault-tolerant: the planted file must be removed on a best-effort basis, a failed
-   removal must not fail the test that already made its assertion, and a leftover file must be
-   detected and reported loudly at session start rather than silently importing. Verify by
-   simulating an unlink failure (monkeypatch os.unlink to raise PermissionError) and asserting
-   the detection assertion still passes and the failure is surfaced as a warning, not an error.
-
-2. Raise coverage on src/chainbreak/cli/infra.py, currently 69.4% — the lowest module in the
-   tree. Do not add tests that assert implementation details to inflate the number. Cover the
-   real branches: missing Terraform binary, missing tfvars, a plan that returns a non-zero exit,
-   a destroy that partially fails, and verify-clean finding leftover resources. Mock the
-   subprocess boundary, not the module's own logic.
-
-3. Raise coverage on src/chainbreak/scenarios/policy_synthesis.py (85.7%). The uncovered
-   branches are most likely the size-limit error path and the empty-capability-set case — check
-   before assuming.
-
-4. providers/aws/adapter.py is at 85.5%. Some of its paths genuinely cannot be exercised
-   without an account. Cover what can be covered with moto or a stubbed client, and for anything
-   that truly requires AWS, add an explicit comment naming which aws-marked test covers it.
-   Do NOT mock the AWS API so thoroughly that the test proves nothing — if a path can only be
-   validated against real IAM, say so rather than faking a pass.
-
-Do not change .gitattributes or .gitignore; both were fixed already.
-
-Preserve every invariant in handoff Part 2. Run the verification commands, paste real output,
-and confirm the test count went up and no existing test was weakened. Update PROJECT_STATUS.md
-under "Known issues" and "Technical debt". Stop only when ruff, mypy, and the full suite are
-green.
+P1 (offline, now)  ─┐
+P2 (offline, now)  ─┼─→  P3 (AWS, needs outputs.json)  →  P4 (AWS, needs ≥3 blocks)  →  P5 (release)
+                    ┘
 ```
+
+P1 and P2 need nothing from you and can run today, in either order, in parallel.
+P3 needs one command from you first. P4 needs P3 green and a day of elapsed time.
 
 ---
 
-## S2 — M10 scope attenuation
+## P1 — Documentation truth pass (offline, ~30 min)
 
-The first benchmark family. Everything M11–M14 adds is a variation on the execution machinery
-this builds, so getting the phase loop right here matters more than the family itself.
+Small, and it removes the one thing a reviewer would catch immediately.
 
 ```
-Implement milestone M10 for CHAINBREAK — the scope attenuation benchmark.
+Documentation consistency session for CHAINBREAK. No new features, no behaviour changes.
 
-Inspect the repository first. Read docs/CLAUDE_CODE_HANDOFF.md (all of Parts 1-4),
-docs/implementation/milestones/M10-scope-attenuation.md, EXPERIMENT_PROTOCOL.md section 1, and
-RESEARCH_METHODOLOGY.md section 4 (the nine experimental controls). Run
-`pytest -m "unit or integration" -q` and confirm the existing suite passes.
+Read docs/CLAUDE_CODE_HANDOFF.md Part 2 first. Run `pytest -m "unit or integration" -q` and
+record the baseline — it must be identical at the end.
 
-M0-M7 are complete. providers/fake/ is a real authorization engine with deny-over-allow
-precedence, session-policy intersection, credential lifetimes and an injectable consistency
-model — use it, do not rebuild it. analysis/ already produces findings from evidence. Your job
-is the execution layer that sits between them.
+1. ARCHITECTURE.md section 2 shows `delegation/` and `observation/` as layers in the mermaid
+   diagram (lines ~53 and ~62) and describes them in sections 3.7 and 3.12. Both packages are
+   empty on disk: delegation planning landed in execution/delegation.py and outcome
+   classification in execution/matrix.py and execution/_records.py. The consolidation was the
+   right call — do NOT reverse it by creating those packages. Fix the documentation instead:
+   update the diagram, rewrite 3.7 and 3.12 to describe where the responsibility actually
+   lives, and add a one-line note in docs/DECISIONS.md under "Smaller decisions" recording
+   that the two layers folded into execution/ and why. Then delete the two empty package
+   directories so the tree matches the docs.
 
-Implement execution/: orchestrator.py, matrix.py, delegation.py, preconditions.py, control.py.
+2. Audit every root document for claims that no longer match the code. Specifically check:
+   the CLI command list in ARCHITECTURE.md 3.1 against `chainbreak --help`; the module list in
+   TESTING.md against what exists; the file layout in README.md; and any "not implemented"
+   or "pending" marker that is now stale. Report what you found before changing it.
 
-Design the phase loop against the FULL PhaseKind enum from the start — PROBE, MUTATE, POLL,
-WAIT, DEFERRED_EXECUTION, TASK, SNAPSHOT — even though only PROBE is exercised here. Building
-orchestration that only handles this family means rewriting it in M12, and the rewrite will be
-worse because it will be retrofitted around assumptions PROBE alone let you make.
+3. Verify every internal markdown link still resolves. There should be zero broken links.
 
-Four controls are requirements, not nice-to-haves:
+4. Confirm PROJECT_STATUS.md's milestone table matches reality: M0-M16 complete, M8/M9
+   real-account criteria outstanding, M17-M19 remaining.
 
-- C-6: probe order shuffled with a RECORDED seed. Without it, whichever capability is probed
-  last systematically carries more credential age and more accumulated throttling pressure than
-  the first, which is a confound that looks exactly like a real finding.
-- C-1: identity.whoami probed in every matrix. Its failure raises ControlCapabilityFailedError
-  and DISCARDS the matrix. It must never be recorded as a wave of denials — that is the failure
-  mode this control exists to prevent.
-- C-2: preconditions verified by the provisioning identity before every read matrix.
-- Credential lifetime checked before each matrix; re-delegate if the remaining lifetime is under
-  2x the estimated matrix duration, and record the re-delegation as an event.
+Do not touch src/ except to delete the two empty package directories. The test count must be
+unchanged at the end — if it moved, something was not a documentation change.
 
-Run both scope-attenuation negative controls. nc-surviving-authority is the one that matters:
-it fails if divergence is computed only at node level, because a node's derived expectation can
-coincide with its observed set while the EDGE's intent was violated. If your implementation
-passes nc-scope-expansion but fails nc-surviving-authority, the edge-level check is missing.
-
-Preserve every invariant in handoff Part 2, especially SI-7 (deadline checked at every phase
-boundary) and the rule that write probes are confined to scratch/{run_id}/.
-
-Run the verification commands from the milestone file and paste real output. Update
-PROJECT_STATUS.md marking Family A implemented AND explicitly noting it has not been run against
-AWS. Stop only when every acceptance criterion passes.
+Paste real output for the link check and the test run. Update PROJECT_STATUS.md. Stop when
+docs and code agree.
 ```
 
 ---
 
-## S3 — M11 delegation drift
+## P2 — M18 offline portion (offline, ~half a day)
+
+Everything in M18 except the parts that need real runs to compare.
 
 ```
-Implement milestone M11 for CHAINBREAK — the delegation drift benchmark.
+Implement the offline portion of milestone M18 for CHAINBREAK — reproducibility tooling.
 
-Inspect the repository. Read docs/CLAUDE_CODE_HANDOFF.md,
-docs/implementation/milestones/M11-delegation-drift.md, AUTHORIZATION_MODEL.md sections 4.4,
-4.5 and 7, and EXPERIMENT_PROTOCOL.md section 2. Run the suite and confirm M10 is green.
+Read docs/CLAUDE_CODE_HANDOFF.md, docs/implementation/milestones/M18-reproducibility-hardening.md,
+and REPRODUCIBILITY.md in full. Run the suite and confirm 1,693 tests pass.
 
-Implement execution/chain.py and analysis/drift.py, and author the depth-2, depth-3, depth-5 and
-depth-6 scenarios (four-hop already exists). Each depth is a SEPARATE file so compiled_hash
-differs and results can never be accidentally pooled — do not parameterise one file.
+Note the scope boundary: `chainbreak compare` and `chainbreak evidence export` already exist as
+CLI commands, but analysis/compare.py, evidence/archive.py and evidence/migrate.py do not exist
+and `export` has no --archive flag. Build those. Do NOT attempt the parts of M18 that require
+real AWS runs to compare — Level 3 distributional comparison can be exercised against two
+fake-provider runs with different seeds, which is sufficient to validate the logic.
 
-Reproduce the AUTHORIZATION_MODEL section 7 worked example end to end as a test: divergence at
-hop 3 classified ORIGINATED, hop 4 PROPAGATED, first divergence reported as hop 3, and hop 4's
-finding citing hop 3 as its cause rather than raising an independent alarm.
+Implement:
 
-Then construct the case a naive implementation gets wrong: hop 3 gains a capability and hop 4
-drops it. Hop 4 must classify CORRECTED. A benchmark that reports that as a failure would flag
-working defence-in-depth as a problem, which is worse than missing it.
+1. analysis/compare.py implementing the three levels from REPRODUCIBILITY section 1:
+   - Level 1 analytical: same bundle re-analyzed, byte-identical findings.
+   - Level 2 structural: set-valued results (observed authority, divergence, first divergence
+     hop) match exactly. A Level 2 failure is itself a finding — it means authorization
+     behaviour was non-deterministic where it should not have been. Report it as such, not as
+     a tool error.
+   - Level 3 distributional: timing results overlap with a comparable median. Exact
+     reproduction is NOT expected and the output must say so in words, not just in a status
+     code. Anyone claiming exact timing reproducibility on a shared cloud control plane is
+     mistaken, and the tool should not imply otherwise.
 
-Depth and total probe count are confounded — a depth-6 chain issues more calls, takes longer,
-and has more opportunity for transient error than a depth-2 chain. Report divergence as a RATE
-PER HOP, not per chain, and report the excluded-trial count per depth alongside it. If deeper
-chains show both more divergence and more exclusions, the result is inconclusive and the
-analysis must say so rather than reporting a depth effect. This is requirement F6 and it is the
-difference between a real finding and an artifact.
+2. Refuse to compare across differing compiled_hash, adapter_version or catalog_version
+   without --allow-heterogeneous, which lowers reported confidence. --cross-operator relaxes
+   the environment checks and must print a prominent note that environment equivalence is
+   assumed and unverified.
 
-Preserve every invariant in handoff Part 2. Run the verification commands, paste real output,
-update PROJECT_STATUS.md. Stop only when every acceptance criterion passes.
-```
+3. evidence/archive.py and an --archive flag on `evidence export`. The tarball contains the
+   bundle, the resolved scenario, the capability catalog AS IT WAS AT RUN TIME, the JSON
+   schemas, and a generated REPRODUCE.md with exact commands and versions. Schemas are
+   included because a bundle without its schema is uninterpretable once schemas evolve.
+   --archive implies --public scrubbing; there is no unscrubbed archive path.
+   Test self-containment by extracting into a directory with no repository present and
+   asserting every referenced file resolves.
 
----
+4. evidence/migrate.py for evidence format version transitions, preserving the original.
 
-## S4 — M12 revocation propagation
+5. A Dockerfile producing byte-identical fake-provider runs. Verify by running the same
+   scenario with the same seed inside and outside the container and diffing the observation
+   stream hashes.
 
-The first family whose output is a measurement rather than a comparison. Highest risk of
-producing a confident wrong number.
+6. A dependency lockfile with hashes, and `pip install --require-hashes` wired into CI
+   (threat T-14).
 
-```
-Implement milestone M12 for CHAINBREAK — the revocation propagation benchmark.
-
-Inspect the repository. Read docs/CLAUDE_CODE_HANDOFF.md,
-docs/implementation/milestones/M12-revocation.md, AUTHORIZATION_MODEL.md section 5.1,
-RESEARCH_METHODOLOGY.md sections 6 and 7, EXPERIMENT_PROTOCOL.md section 3, and ADR-011.
-Run the suite and confirm M11 is green.
-
-Implement execution/mutation.py, execution/polling.py, execution/revert.py, and the timing
-extensions in analysis/timing.py. Author the three remaining revocation scenarios.
-
-These requirements determine whether the numbers mean anything:
-
-- t_M is the monotonic instant the mutation request was SENT. Confirmation latency is recorded
-  separately. Using the send instant is the conservative choice — it can only make the measured
-  window appear longer, never shorter.
-- Warm baseline before mutation: poll to stable allow first, so the first post-mutation poll is
-  not systematically slower than the rest because of a cold connection pool.
-- The window is [t_last_allow - t_M, t_first_deny - t_M] with a midpoint and a half-width. There
-  is NO scalar representation anywhere. Add a test that scans findings.json for a bare timing
-  value and fails if it finds one.
-- NON_MONOTONIC_TRANSITION preserved with the full timeline. Do not smooth it. Oscillation is
-  the most interesting possible result in this family and hiding it would be a research failure
-  dressed up as a usability improvement.
-- NO_TRANSITION_OBSERVED_WITHIN_WINDOW with the window length — an honest negative, never a pass.
-- The revert log is written BEFORE each mutation so a SIGKILL still leaves actionable recovery
-  information. Test this by actually killing the orchestrator mid-phase.
-- Between trials: revert, confirm, wait for stable allow before the next mutation.
-
-Validate the interval maths against known answers, which is the only place this is possible:
-set the fake provider's propagation_delay_ms to 0, 500, 2000 and 10000 in turn, and assert the
-measured window contains the true value every time. If it does not, the maths is wrong and no
-AWS run will reveal that.
-
-Run nc-no-revocation — it must yield NO_TRANSITION_OBSERVED — and
-revocation/trust-policy-null-condition, which must show NO transition at all. The second is
-control C-5, the instrument check: a transition there means the apparatus is broken.
-
-Preserve every invariant in handoff Part 2, especially SI-12 (mutations refuse bootstrap and
-principal). Run the verification commands, paste real output, and update PROJECT_STATUS.md
-stating plainly that no AWS revocation measurement exists yet. Stop only when every acceptance
-criterion passes.
+Preserve every invariant in handoff Part 2 — especially that --archive cannot bypass scrubbing.
+Run the verification commands, paste real output including the two-seed comparison and the
+container determinism check. Update PROJECT_STATUS.md. Stop only when every offline acceptance
+criterion in the milestone file passes.
 ```
 
 ---
 
-## S5 — M13 stale authority
+## P3 — Close M8 and M9 against the real account (AWS, ~1 hour)
+
+**Prerequisite from you:** `outputs.json` must exist. One command, listed in the section below.
 
 ```
-Implement milestone M13 for CHAINBREAK — the stale authority benchmark.
+Close the real-account acceptance criteria for milestones M8 and M9 of CHAINBREAK.
 
-Inspect the repository. Read docs/CLAUDE_CODE_HANDOFF.md,
-docs/implementation/milestones/M13-stale-authority.md, AUTHORIZATION_MODEL.md section 5.2, and
-EXPERIMENT_PROTOCOL.md section 4. Run the suite and confirm M12 is green.
+This session spends real money (well under $1) and creates and destroys real IAM roles in the
+operator's dedicated benchmark account. Confirm with the operator before the first billable
+command, and again before `terraform destroy`.
 
-Implement execution/deferred.py, execution/credential_store.py and analysis/stale.py, and author
-the short-defer, long-defer and post-expiry scenarios.
+Read docs/CLAUDE_CODE_HANDOFF.md, docs/implementation/milestones/M08-aws-adapter.md and
+M09-terraform-sandbox.md, and AWS_PROVIDER_SPEC.md sections 2, 6 and 10.
 
-The design element that makes this family interpretable at all is the PAIRED FRESH CREDENTIAL.
-After the deferred probe using the pinned pre-mutation credential, immediately probe the same
-capability with a freshly minted one. Without the pair, an ALLOWED at t_exec is ambiguous
-between "the policy change never propagated" and "the old credential retained old authority" —
-two completely different findings with different remediations. Implement this as F3 and test the
-ambiguous case explicitly: configure the fake so the change has not propagated at all, and
-assert the classification is "not propagated", NOT stale authority.
+Environment, already verified:
+  account   REDACTED_ACCOUNT_ID   region eu-west-3   namespace cb-ec11b3c2
+  infra applied, 12 IAM roles, both markers present, $5 Budgets alarm live
+  chainbreak.toml present and resolving
+  auth is an IAM user (cb-terraform-sandbox), not SSO — note this in the run record
 
-WAIT phases must not touch the credential. No keepalive, no refresh. The waiting is the
-experiment.
+Sequence:
 
-Assert credential pinning from the EVIDENCE STREAM — the deferred observation's credential_id
-must equal the one recorded for the earlier phase — not from the code path. A refactor must not
-be able to silently break it while the test still passes.
+1. `chainbreak validate` — all eleven preflight checks P1 through P11 must pass. Paste the
+   full output. If P9 warns about production-tagged resources, STOP and report rather than
+   passing --i-know-what-i-am-doing.
 
-STALE_AUTHORITY_LIVE_CREDENTIAL is documented bearer-token behaviour, not a defect. Reports must
-say so in the same paragraph as the result. Only EXPIRED_CREDENTIAL_HONORED contradicts
-documented behaviour, and that one is genuinely serious.
+2. Run the 21 aws-marked tests: `CHAINBREAK_ALLOW_AWS_TESTS=1 pytest -m aws -q`.
+   These are the only place real IAM semantics get validated. Pay particular attention to two:
+   - test_denial_message_attribution is the canary for AWS changing its error message format.
+     If it fails, denial_attribution classification is silently degraded across the whole
+     project. Do not "fix" it by loosening the assertion — report the actual message shape you
+     observed so the classifier can be updated deliberately.
+   - test_s3_403_404_ambiguity confirms the documented behaviour the marker precondition exists
+     to handle. If it does NOT reproduce, that is more interesting than if it does, and it means
+     the precondition control may be guarding against something that is not happening here.
 
-Use the fake's virtual clock so a 600-second deferral test runs instantly in CI while the
-measurement code still goes through the clock abstraction. Confirm the SI-7 run deadline
-accounts for deferral time — a 600s deferral inside a 900s run must not silently truncate.
+3. Confirm the AWS adapter passes the M5 provider contract suite UNMODIFIED. If a contract test
+   fails against real AWS, the finding is in the adapter or the contract, never in the test's
+   strictness. Do not weaken it.
 
-Preserve every invariant in handoff Part 2. Run the verification commands, paste real output,
-update PROJECT_STATUS.md. Stop only when every acceptance criterion passes.
-```
+4. Verify the H7 chained-role cap empirically: request 7200s on a chained hop, assert the grant
+   is 3600s and LIFETIME_CAPPED is emitted.
 
----
+5. Verify SI-12 with iam:SimulatePrincipalPolicy: bootstrap must be denied PutRolePolicy on
+   both principal and itself, and allowed on agent-b. Note the operator's IAM user currently
+   lacks iam:SimulatePrincipalPolicy — if the call is denied, either request that permission or
+   verify by reading the bootstrap policy's Resource list and say which method you used.
 
-## S6 — M14 silent narrowing
+6. `terraform destroy`, then `terraform destroy` again (must be a clean no-op), then
+   `chainbreak infra verify-clean` showing zero resources tagged Project=CHAINBREAK remaining.
+   Then re-apply, because M17 needs the infrastructure back.
 
-Can run in parallel with S4/S5 — it depends only on M11.
+7. If `tflint` is installed, run it to close the remaining half of M9 criterion 2. If it is
+   not, say so plainly rather than marking the criterion met.
 
-```
-Implement milestone M14 for CHAINBREAK — the silent narrowing benchmark.
-
-Inspect the repository. Read docs/CLAUDE_CODE_HANDOFF.md,
-docs/implementation/milestones/M14-silent-narrowing.md, SCENARIO_SPECIFICATION.md section 6,
-EXPERIMENT_PROTOCOL.md section 5, and ADR-007. Run the suite and confirm M11 is green.
-This milestone depends on M11 only — it does not need M12 or M13.
-
-Implement execution/workers/base.py and deterministic.py, execution/task_runner.py,
-execution/side_effects.py and analysis/task_contract.py.
-
-Define the TaskWorker Protocol purely in terms of a capability-invoker and a returned
-TaskOutcome — nothing about how the worker decides what to do. A v0.4 LLM-backed worker must be
-able to implement the same interface with no downstream change. Building the Protocol around the
-deterministic implementation would foreclose the comparison that makes this family worth having.
-
-Ship four deterministic workers: sequential (honest), always-complete (the negative-control
-liar), substituting, and redelegating.
-
-The core requirement is INDEPENDENT SIDE-EFFECT VERIFICATION. After the task runs, the bootstrap
-identity checks whether the output marker the task claims to have written actually exists. The
-worker's self-report is never trusted. A task reporting COMPLETE while its output marker is
-absent is the purest form of silent failure, and this check catches it even when the worker's
-step counts are internally consistent — which is exactly what a dishonest worker would ensure.
-
-Workers invoke capabilities only through the executor's capability-invoker, never a raw provider
-client, so SI-2 and SI-3 apply to task actions exactly as they do to probes. A redelegation
-attempt is RECORDED and refused, not permitted.
-
-Include a positive control: the same task with full authority must report COMPLETE and the
-marker must exist.
-
-Every report including this family must state that v0.1's worker is synthetic, so the family
-measures the harness's contract-checking rather than agent behaviour.
-
-Preserve every invariant in handoff Part 2. Run the verification commands, paste real output,
-update PROJECT_STATUS.md. Stop only when every acceptance criterion passes.
+Paste real command output for every step — not a description of it. Update PROJECT_STATUS.md
+marking M8 and M9 genuinely complete, recording the date, the hashed account, the region, and
+which tests actually ran. Never mark a criterion met that you did not observe pass.
 ```
 
 ---
 
-## S7 — M15 per-category scoring
+## P4 — M17, the first real measurements (AWS, ~1 day elapsed)
+
+This is the one that produces the actual research result. It is mostly discipline, not code.
 
 ```
-Implement milestone M15 for CHAINBREAK — per-category scoring.
+Execute milestone M17 for CHAINBREAK — the full AWS experiment suite. This produces the
+project's first real measurements.
 
-Inspect the repository. Read docs/CLAUDE_CODE_HANDOFF.md,
-docs/implementation/milestones/M15-scoring.md, SCORING_MODEL.md in full, and ADR-010.
-Run the suite and confirm M13 and M14 are green.
+Read EXPERIMENT_PROTOCOL.md IN FULL and RESEARCH_METHODOLOGY.md IN FULL before running anything.
+Read docs/implementation/milestones/M17-aws-experiment-suite.md. Confirm P3 completed and both
+M8 and M9 are marked genuinely complete.
 
-Implement scoring/: categories.py, coverage.py, confidence.py, aggregate.py.
+This is an experimental session, not a coding one. The discipline IS the deliverable. A suite
+run carelessly produces numbers that look identical to a suite run properly and are worthless.
 
-Six independent category evaluators. There is NO composite score, and no function anywhere may
-reduce categories to a single number. Add a test asserting this by module introspection, and
-include a grep in the verification step.
+Per block, in order:
 
-The rules easiest to get subtly wrong:
+1. Run the EXPERIMENT_PROTOCOL section 0 pre-experiment checklist, all nine items. Record the
+   result in docs/research/lab-log.md INCLUDING the items that passed. An experiment whose
+   checklist was not run is not a CHAINBREAK experiment.
+2. Apply infrastructure with enable_negative_controls = true.
+3. Run all five families at the required trial counts: n>=5 for timing families (revocation,
+   stale authority), n>=3 for set-valued families (scope attenuation, delegation drift, silent
+   narrowing).
+4. Run ALL SIX negative controls in the SAME block, on the SAME infrastructure, with the SAME
+   adapter version. A control run later against different infrastructure proves less.
+5. Record every excluded trial with its reason and its run ID. Silent exclusion is the classic
+   way to manufacture a clean result, and it is the one thing that would make this suite
+   indefensible.
+6. Destroy, then `chainbreak infra verify-clean`.
 
-- A category not exercised by the scenario is NOT_MEASURED, never CONSISTENT. Rendered output
-  must contain the literal sentence "NOT_MEASURED is not a pass." The most common way a
-  benchmark misleads is by letting absence of measurement read as absence of problems.
-- coverage < 0.7 forces PARTIAL regardless of what the measured cells showed, and the report
-  leads with coverage rather than the result.
-- Confidence aggregates with min, never a mean. Averaging would let a pile of easy measurements
-  launder one shaky one. Test with five HIGH and one LOW; the result must be LOW.
-- Revocation Responsiveness is DIVERGENT only when an ASSERTIVE scenario expectation was
-  exceeded. There is no built-in propagation threshold, because CHAINBREAK does not know what a
-  correct propagation time is and asserting one would be an unjustified normative claim.
-- STALE_AUTHORITY_LIVE_CREDENTIAL yields CONSISTENT plus a mandatory note that it is documented
-  behaviour. Only EXPIRED_CREDENTIAL_HONORED is DIVERGENT.
-- Cross-run aggregation refuses differing compiled_hash, adapter_version or catalog_version.
-  No mean without dispersion; no dispersion below n=5 — report the count instead.
+Distribute the timing trials across AT LEAST THREE separate hours, recording block_id (control
+C-7). IAM propagation may plausibly vary with provider-side load, and back-to-back trials
+cannot detect that. This is why the milestone takes a day rather than an hour — do not
+compress it.
 
-No CLI flag may raise confidence or coverage. --allow-unsealed and --allow-heterogeneous exist
-and only lower it. Assert this by introspecting the command surface.
+Two results you should expect and must not misreport:
 
-Preserve every invariant in handoff Part 2. Run the verification commands, paste real output,
-update PROJECT_STATUS.md. Stop only when every acceptance criterion passes.
-```
+- revocation/trust-policy-null-condition should show NO transition. That is control C-5, the
+  instrument check. If it shows a fast transition, the apparatus is wrong and the entire block
+  is discarded, not published.
+- Most families will likely show exactly the documented behaviour: session policies do not
+  grant, attenuation is exact, no drift. That is a GOOD outcome and a publishable one. It
+  means the instrument works, which is the precondition for believing the revocation and
+  stale-authority intervals — the numbers nobody has published.
 
----
+If any block produces a DETECTOR_FAILURE, that block is unvalidated. Do not publish any result
+from it. This is not a guideline.
 
-## S8 — M16 reporting and visualisation
+Write docs/research/results-v0.1.md from actual measurements only. Every timing result carries
+n, an interval (never a scalar), the mechanism, and the region. Every claim is scoped to "this
+account, this region, this time". Apply the EXPERIMENT_PROTOCOL section 7 language rules — the
+lint from M16 will catch violations, but write it correctly the first time.
 
-The last fully-unblocked milestone. After this, M17 needs the AWS account.
+If a result suggests a genuine provider defect rather than one of the documented behaviours in
+AWS_PROVIDER_SPEC section 10: STOP. Reproduce it. Re-run the negative controls. Rule out the
+known measurement hazards. Then follow coordinated disclosure per SECURITY.md before publishing
+anything. Do not open a public issue and do not write it up.
 
-```
-Implement milestone M16 for CHAINBREAK — reporting and visualisation.
-
-Inspect the repository. Read docs/CLAUDE_CODE_HANDOFF.md,
-docs/implementation/milestones/M16-reporting.md, EXPERIMENT_PROTOCOL.md section 7 (the language
-rules), SCORING_MODEL.md section 4, and THREAT_MODEL.md T-10. Run the suite and confirm M15 is
-green.
-
-Implement reporting/: terminal.py, markdown.py, html.py, figures.py, language.py, templates/.
-
-Two requirements do most of the work:
-
-1. reporting/language.py implements the EXPERIMENT_PROTOCOL section 7 rules as a checkable lint
-   over both templates and generated text. Required: n, interval, mechanism and region on every
-   timing result; coverage and confidence on every category. Forbidden: "vulnerable", "broken",
-   "insecure", "exploit", "proves", a timing value without an interval, a percentage without its
-   denominator. Demonstrate the lint works by planting a violating sentence in a template and
-   showing the test fail, then removing it.
-
-2. Jinja2 autoescape on, with NO |safe anywhere — asserted by a test that greps the template
-   directory. A third-party evidence bundle is a plausible XSS vector into a generated HTML
-   report. Test with a bundle whose security_interpretation contains a script tag.
-
-Every finding renders observation, expected_state, observed_state and security_interpretation
-under separate headings, in that order. Never merge them into prose — the separation is what
-keeps the project from overclaiming, and a report that blends them undoes ADR-006 at the last
-step.
-
-A provider: fake run must be stamped as non-measurement output in the header AND in every figure
-caption, enforced in the rendering layer rather than left to operator discipline. A fake-provider
-report must never be mistakable for a measurement.
-
-Every report carries a limitations section naming: single account, single region, simple
-policies, deterministic worker, small n.
-
-All figures are generated from evidence. Never hand-written numbers.
-
-Commit a sample HTML report from a fake run under examples/, with its header stating it is
-fake-provider output.
-
-Preserve every invariant in handoff Part 2. Run the verification commands, paste real output,
-update PROJECT_STATUS.md. Stop only when every acceptance criterion passes.
+Update PROJECT_STATUS.md moving experiments from "unmeasured" to "measured" WITH RUN IDS, and
+listing what remains unmeasured. Paste real run IDs and real output. Never claim an experiment
+ran unless it ran.
 ```
 
 ---
 
-## What is NOT in this file, and why
+## P5 — M19 release (offline, needs your publication decision)
 
-**M17** (full AWS experiment suite) needs the account, real spend, and at least three separate
-hours of wall-clock time for block randomisation. It cannot be prompted ahead of time because
-its output depends on what actually happens.
+```
+Execute milestone M19 for CHAINBREAK — the v0.1.0 release.
 
-**M18** (reproducibility) formally depends on M17, since `chainbreak compare` needs real runs to
-compare. Parts of it — `evidence/archive.py`, `evidence/migrate.py`, the Dockerfile, the hashed
-lockfile — could be built earlier against fake-provider bundles. If S1–S8 finish before the AWS
-work does, that is the sensible next thing to pull forward.
+Read docs/implementation/milestones/M19-portfolio-release.md, docs/PORTFOLIO_STORY.md and
+PROJECT_STATUS.md. Confirm M17 produced real results and M18 is complete. Run the full suite.
 
-**M19** (release) requires M17's results and your publication decision.
+1. Full consistency review across: scenario schema, domain models, authorization graph,
+   provider abstraction, capability model, AWS adapter, Terraform contracts, testing strategy,
+   evidence schema, findings, scoring, reporting, README. Resolve every contradiction and
+   record each resolution in docs/DECISIONS.md. Do not paper over one — where two documents
+   disagree, one of them is wrong and it matters which.
 
-**M8 and M9 completion** is a separate track that starts the moment
-`scripts/bootstrap_aws_config.py` produces a working config.
+2. Then the part requiring the most discipline: audit every document for claims about results.
+   Update docs/PORTFOLIO_STORY.md and README.md to describe ONLY what M17 actually measured,
+   each with its run ID. Anything designed and implemented but unmeasured is described exactly
+   that way, explicitly.
+
+   The strongest temptation in this project arrives here — describing the architecture as if it
+   were results. The architecture is real and defensible; the measurements are whatever M17
+   produced. State both accurately. A reviewer who knows AWS can check an overclaim in thirty
+   seconds, and failing that check costs more than the claim was worth.
+
+   Fill in the PORTFOLIO_STORY M19 update checklist, including the honest surprises — and note
+   that "the documented behaviour held, measured as follows" is a legitimate and useful result,
+   not a disappointing one.
+
+3. Verify no sensitive value exists in the repository OR ITS GIT HISTORY: account IDs (in
+   particular REDACTED_ACCOUNT_ID), ARNs, key-shaped strings, hostnames, session names. A working-tree
+   scan is not sufficient — scan the history.
+
+4. Execute every command that appears in the README and confirm it works as documented.
+
+5. Write CHANGELOG.md. Publish a scrubbed sample report under examples/. Confirm the README
+   status block matches PROJECT_STATUS.md exactly.
+
+6. Tag v0.1.0.
+
+Paste real output for every verification command. Update PROJECT_STATUS.md to the released
+state, including an explicit list of what remains unmeasured.
+```
 
 ---
 
 ## Session discipline
 
-- One prompt per session. Merging two produces a session that runs out of context mid-milestone
-  and leaves the repository in a half-implemented state that is worse than not starting.
+Unchanged, and it has held up so far:
+
+- One prompt per session.
 - If Claude Code reports "acceptance criteria met" without pasted command output, ask for the
   output before believing it.
-- If it proposes changing an invariant from handoff Part 2, stop and read the ADR it would
-  supersede before agreeing.
-- If it weakens or deletes an existing test to make something pass, reject the change. That is
-  the single modification that makes the whole apparatus untrustworthy, and it is the one thing
-  a green suite cannot warn you about.
+- If it proposes changing an invariant from handoff Part 2, read the ADR it would supersede
+  before agreeing.
+- If it weakens or deletes an existing test to make something pass, reject the change. A green
+  suite cannot warn you about that one.

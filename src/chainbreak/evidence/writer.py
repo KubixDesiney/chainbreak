@@ -10,7 +10,9 @@ before a byte of it reaches disk (S1); this is the *only* module in
 
 from __future__ import annotations
 
+import io
 import json
+import tarfile
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -47,6 +49,32 @@ def write_text_artifact(path: Path, text: str) -> None:
     bytes to be platform-independent, not just the values they encode.
     """
     path.write_text(text, encoding="utf-8", newline="")
+
+
+def write_bytes_artifact(path: Path, data: bytes) -> None:
+    """Binary counterpart to :func:`write_text_artifact`, for the non-JSON
+    artifacts ``evidence/archive.py`` copies verbatim (the capability catalog
+    YAML, JSON Schema files) -- same choke point, same S1 lint rule."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
+def create_tar_archive(archive_path: Path, members: Mapping[str, Path | bytes]) -> None:
+    """Write a gzip tarball. Each member is either a ``Path`` to copy from
+    disk (already-scrubbed staging output, an already-committed schema file)
+    or literal ``bytes`` (a generated document such as ``REPRODUCE.md``) --
+    the caller decides *what* goes in; this function only ever writes.
+    ``evidence/archive.py`` is the only caller (S1's choke point, same rule
+    as every other write in this package)."""
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive_path, "w:gz") as tar:
+        for arcname, source in members.items():
+            if isinstance(source, Path):
+                tar.add(source, arcname=arcname)
+            else:
+                info = tarfile.TarInfo(name=arcname)
+                info.size = len(source)
+                tar.addfile(info, io.BytesIO(source))
 
 
 class BundleWriter:

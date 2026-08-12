@@ -31,10 +31,13 @@ what scenarios assume.
 
 ## Requirements
 
-1. Every statement is scoped to a namespaced ARN. `objectstore.write` additionally carries a
-   condition on `s3:prefix` restricted to `cb-{ns}/scratch/*`; `keyvalue.write` carries
-   `dynamodb:LeadingKeys` restricted to `cb-scratch#*`. Two independent controls, because
-   prefix confinement is what keeps write probes from touching markers.
+1. Every statement is scoped to a namespaced ARN. `objectstore.write`'s only confinement is
+   that ARN (`.../scratch/*`) -- do **not** add an `s3:prefix` condition to it: that key is
+   populated only on `s3:ListBucket`, never on `PutObject`/`GetObject`, so the condition does
+   not narrow anything, it makes the statement fail to match at all (confirmed against a real
+   account: every `objectstore.write` probe came back an implicit deny). `keyvalue.write`
+   carries `dynamodb:LeadingKeys` restricted to `cb-scratch#*` as a genuine second, independent
+   control, since that key **is** populated on `PutItem`/`GetItem`.
 2. `identity.delegate` is expressed as `sts:AssumeRole` on the *specific* next-hop role ARN,
    never a wildcard over `role/cb-{ns}-*`.
 3. Negative-control policies exist only under `enable_negative_controls` and each carries a

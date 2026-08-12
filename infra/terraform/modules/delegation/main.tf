@@ -37,11 +37,24 @@ locals {
   }
 
   # One statement per non-delegate capability, common to every agent role.
-  # objectstore.write and keyvalue.write each carry a second, independent
-  # confinement control beyond the resource-ARN scoping already in
-  # resource_arn_by_key (AWS_PROVIDER_SPEC section 5: "two independent
-  # controls, because prefix confinement is what prevents cross-run
-  # contamination").
+  # keyvalue.write carries a second, independent confinement control beyond
+  # the resource-ARN scoping already in resource_arn_by_key.
+  #
+  # objectstore.write does NOT get an analogous second control: an earlier
+  # revision attached a `Condition` on `s3:prefix`, matching what
+  # AWS_PROVIDER_SPEC section 5 asked for at the time -- but `s3:prefix` is
+  # populated only on `s3:ListBucket` requests; `s3:PutObject`/`s3:GetObject`
+  # never put it in the request context. A `Condition` whose key is absent
+  # from the request evaluates to false, so the *entire statement* failed to
+  # match on every real PutObject call, not just the condition -- confirmed
+  # empirically against a real account (M8/M9 real-account verification,
+  # PROJECT_STATUS.md): every agent's objectstore.write probe came back
+  # DENIED_IMPLICIT ("no identity-based policy allows the s3:PutObject
+  # action") despite the ceiling policy visibly granting it. The resource
+  # ARN (`.../scratch/*`, already fully object-key-scoped) is the only
+  # confinement control an S3 object-level action can carry; there is no S3
+  # equivalent of DynamoDB's LeadingKeys for a per-object grant, since the
+  # object key IS the resource, not a value inside a shared-resource request.
   ceiling_statements = [
     for id, spec in local.non_delegate_capabilities : merge(
       {
@@ -50,17 +63,6 @@ locals {
         Action   = spec.actions
         Resource = local.resource_arn_by_key[spec.resource_key]
       },
-      id == "objectstore.write" ? {
-        # s3:prefix is only meaningful on ListBucket-style calls; on
-        # PutObject/GetObject it is inert (AWS never evaluates it) rather
-        # than incorrect. Included anyway because AWS_PROVIDER_SPEC section
-        # 5 asks for it explicitly as the second of "two independent
-        # controls" -- the resource-ARN wildcard above is the control that
-        # actually does the confining for this action.
-        Condition = {
-          StringLike = { "s3:prefix" = ["${var.namespace}/scratch/*"] }
-        }
-      } : {},
       id == "keyvalue.write" ? {
         Condition = {
           "ForAllValues:StringLike" = { "dynamodb:LeadingKeys" = ["cb-scratch#*"] }

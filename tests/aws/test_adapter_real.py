@@ -24,7 +24,9 @@ worked around silently.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -40,6 +42,40 @@ pytestmark = pytest.mark.aws
 
 _OUTPUTS_ENV_VAR = "CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS"
 _WRONG_ACCOUNT_ENV_VAR = "CHAINBREAK_AWS_TEST_WRONG_ACCOUNT_ID"
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_agent_inline_policies():
+    """Real inline-policy mutations this file applies (``ATTACH_INLINE_DENY``/
+    ``REPLACE_INLINE_POLICY``, via ``apply_policy_mutation``) are permanent IAM
+    state, not fake-adapter in-memory state that resets between tests -- a
+    residue from one test silently contaminates a later, unrelated one.
+    Confirmed empirically: a leftover ``cb-deny`` on agent-a (from
+    ``test_mutation_returns_a_confirmed_receipt``, which never reverted its
+    own mutation) made ``test_every_capability_classifies_allow_and_deny_correctly``
+    see a spurious ``DENIED_EXPLICIT`` on ``objectstore.read`` in an
+    otherwise-unrelated run. Every test in this module builds its own adapter
+    fresh (``make_adapter``/``_require_real_account``), so unconditionally
+    clearing both mutation policy names off every agent role after each test
+    is correct regardless of which test just ran, rather than threading
+    per-test cleanup through each mutation call site.
+    """
+    yield
+    outputs_path = os.environ.get(_OUTPUTS_ENV_VAR)
+    if not outputs_path:
+        return
+    import boto3
+    from botocore.exceptions import ClientError
+
+    from chainbreak.providers.aws.mutation import DENY_POLICY_NAME, GRANT_POLICY_NAME
+
+    outputs = load_terraform_outputs(Path(outputs_path))
+    iam = boto3.Session(region_name=outputs.region).client("iam")
+    for letter in "abcdef":
+        role_name = f"{outputs.namespace}-agent-{letter}"
+        for policy_name in (DENY_POLICY_NAME, GRANT_POLICY_NAME):
+            with contextlib.suppress(ClientError):
+                iam.delete_role_policy(RoleName=role_name, PolicyName=policy_name)
 
 
 def _require_real_account() -> tuple[AwsProviderAdapter, str]:
@@ -104,13 +140,19 @@ class TestAwsProviderContract(ProviderContractSuite):
         for capability in adapter.catalog.capabilities:
             if capability.is_control:
                 continue
-            result = adapter.probe(
-                ProbeRequest(
-                    identity_ref=delegation.identity_ref,
-                    capability_id=capability.id,
-                    binding=adapter.resolve_capability(capability.id),
-                    namespace=adapter.namespace,
-                )
+            # Tolerant of lingering propagation from a PRIOR test's mutation
+            # cleanup (the autouse ``_cleanup_agent_inline_policies`` fixture
+            # deletes the inline deny but does not itself poll for the
+            # deletion's authorization-decision effect -- the same
+            # eventually-consistent IAM behavior this module documents
+            # elsewhere, just running in the delete direction).
+            result = _probe_until(
+                adapter,
+                delegation.identity_ref,
+                capability_id=capability.id,
+                binding=adapter.resolve_capability(capability.id),
+                namespace=adapter.namespace,
+                predicate=lambda oc: oc is OutcomeClass.ALLOWED,
             )
             assert result.outcome.outcome_class is OutcomeClass.ALLOWED, capability.id
 
@@ -129,13 +171,16 @@ class TestAwsProviderContract(ProviderContractSuite):
         for capability in adapter.catalog.capabilities:
             if capability.is_control:
                 continue
-            result = adapter.probe(
-                ProbeRequest(
-                    identity_ref=denied_identity,
-                    capability_id=capability.id,
-                    binding=adapter.resolve_capability(capability.id),
-                    namespace=adapter.namespace,
-                )
+            # See ``_probe_until``'s own docstring: a confirmed deny mutation
+            # does not guarantee the authorization-decision data plane has
+            # picked it up yet.
+            result = _probe_until(
+                adapter,
+                denied_identity,
+                capability_id=capability.id,
+                binding=adapter.resolve_capability(capability.id),
+                namespace=adapter.namespace,
+                predicate=lambda oc: oc.is_denial,
             )
             assert result.outcome.outcome_class.is_denial, capability.id
 
@@ -152,11 +197,110 @@ class TestAwsProviderContract(ProviderContractSuite):
         )
         assert result.outcome.outcome_class is OutcomeClass.ALLOWED
 
+    def test_snapshot_returns_stable_fingerprints(self):  # type: ignore[override]
+        """Overridden for the same reason as the two tests above: the shared
+        suite snapshots ``principal``, but ``snapshot_policy_state`` always
+        reads through the **bootstrap** session (``adapter.py``), and
+        bootstrap's own Terraform-provisioned identity policy grants IAM
+        actions only on agent-* roles, never on principal or itself (SI-12,
+        defense in depth -- confirmed empirically: a real ``ListRolePolicies``
+        against principal is refused). The property under test -- two
+        snapshots of the same unchanged policy state hash identically -- is
+        identity-independent; substituting a real, bootstrap-readable target
+        (agent-a) exercises the same claim without asking bootstrap to do
+        something its own provisioned policy forbids by design."""
+        adapter = self.make_adapter()
+        identity = adapter.register_identity("agent-a", allow=AuthoritySet.of("objectstore.read"))
+        first = adapter.snapshot_policy_state(identity)
+        second = adapter.snapshot_policy_state(identity)
+        assert first.policies[0].document_sha256 == second.policies[0].document_sha256
+
 
 # ---------------------------------------------------------------------------
 # IAM-semantics tests the shared contract suite does not cover
 # (AWS_PROVIDER_SPEC's own "Tests" section for M8)
 # ---------------------------------------------------------------------------
+
+
+_AGENT_CHAIN = ("agent-a", "agent-b", "agent-c", "agent-d", "agent-e", "agent-f")
+
+
+def _delegate_through_chain(
+    adapter,
+    principal_ref,
+    *,
+    target_identity_id,
+    mechanism,
+    intended_capabilities,
+    requested_duration_s=900,
+):
+    """Walk principal -> agent-a -> ... -> ``target_identity_id`` one hop at
+    a time. Each agent role's trust policy names only its chain predecessor
+    plus bootstrap (``identities/main.tf``), so a single ``delegate()`` call
+    straight from ``principal`` onto agent-b..agent-f is refused by AWS
+    itself -- confirmed empirically against the real account. Every
+    intermediate hop uses a broad ``DIRECT_ROLE_ASSUMPTION`` (no session
+    policy applied -- see ``session.py``'s ``_SCOPED_MECHANISMS`` -- so it
+    never narrows what the final hop can exercise); only the last hop uses
+    the caller's requested mechanism and capabilities.
+    """
+    hops = _AGENT_CHAIN[: _AGENT_CHAIN.index(target_identity_id) + 1]
+    current = principal_ref
+    result = None
+    for index, hop in enumerate(hops):
+        is_last = index == len(hops) - 1
+        result = adapter.delegate(
+            DelegationRequest(
+                source_identity=current,
+                target_identity_id=hop,
+                mechanism=mechanism if is_last else DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+                requested_duration_s=requested_duration_s,
+                intended_capabilities=(
+                    intended_capabilities if is_last else AuthoritySet.of("identity.delegate")
+                ),
+            )
+        )
+        current = result.identity_ref
+    return result
+
+
+def _probe_until(
+    adapter, identity_ref, *, capability_id, binding, namespace, predicate, timeout_s=90.0
+):
+    """``apply_policy_mutation``'s own confirmation (``_poll_until`` in
+    ``mutation.py``) polls ``GetRolePolicy`` until the stored document
+    matches -- that proves IAM's control plane has the new document, not
+    that the (separate, documented) authorization-decision data plane has
+    picked it up yet. Confirmed empirically against the real account, with
+    real variance: a deny mutation against an already-active session was
+    observed to take effect anywhere from ~20s to over 120s across repeated
+    trials against this same account/region for functionally identical
+    mutations (see PROJECT_STATUS.md's M8/M9 real-account entry). This is
+    exactly the phenomenon M12 (revocation propagation, gated behind M17)
+    exists to measure properly with n>=5 trials polled to a STABLE
+    denial -- a single ad-hoc assertion, even a polled one, cannot
+    guarantee catching it inside any fixed bound. Poll the probe itself
+    (same idea as the production path, ``execution/polling.py``) rather than
+    asserting on a single sample, but note this test can still legitimately
+    fail on a slow-propagation trial; that is the real, measured behavior,
+    not a defect in this helper. Still fails hard -- returns whatever the
+    last probe was -- if ``predicate`` is never satisfied inside
+    ``timeout_s``.
+    """
+    deadline = time.monotonic() + timeout_s
+    result = None
+    while True:
+        result = adapter.probe(
+            ProbeRequest(
+                identity_ref=identity_ref,
+                capability_id=capability_id,
+                binding=binding,
+                namespace=namespace,
+            )
+        )
+        if predicate(result.outcome.outcome_class) or time.monotonic() >= deadline:
+            return result
+        time.sleep(1.0)
 
 
 class TestRealIamSemantics:
@@ -191,30 +335,55 @@ class TestRealIamSemantics:
     def test_session_policy_cannot_grant_beyond_the_role_identity_policy(self):
         """A session policy naming a capability the role's own identity
         policy does not grant must still deny it (AWS_PROVIDER_SPEC section
-        4: "Session policies intersect, never grant")."""
+        4: "Session policies intersect, never grant").
+
+        Every agent's ceiling grants the identical non-delegate capability
+        set (``delegation/main.tf``'s ``ceiling_statements`` applies to every
+        role via the same ``for_each``) -- confirmed empirically -- so no
+        ordinary capability like ``queue.send`` is ever genuinely absent
+        from an agent's own identity policy; scoping a session policy to one
+        cannot demonstrate this property against the real six-role
+        deployment. ``identity.delegate`` is the one real exception:
+        ``agent-f`` is the chain's last link and is provisioned with NO
+        ``sts:AssumeRole`` statement at all (the per-hop grant is omitted
+        for the final agent). A session policy scoped to ``identity.delegate``
+        nominally covers any ``{namespace}-agent-*`` ARN (the binding's own
+        resource template, ``bindings.py``), including agent-a's -- but
+        agent-f's identity policy grants no ``sts:AssumeRole`` whatsoever,
+        so the intersection is empty regardless of what the session policy
+        claims. Uses a raw ``AssumeRole`` call (not the ``identity.delegate``
+        probe wrapper, which short-circuits to ``ERROR_INFRASTRUCTURE``
+        before any AWS call once it sees agent-f has no next hop -- correct
+        probe behavior, but it means the probe path itself cannot exercise
+        this specific IAM semantics question).
+        """
+        from botocore.exceptions import ClientError
+
+        from chainbreak.providers.aws.mutation import role_arn_for_identity
+        from chainbreak.providers.aws.session import (
+            boto3_session_from_credential,
+            build_session_name,
+        )
+
         adapter, _ = _require_real_account()
         principal = adapter.register_identity("principal")
-        delegation = adapter.delegate(
-            DelegationRequest(
-                source_identity=principal,
-                target_identity_id="agent-c",
-                mechanism=DelegationMechanism.SESSION_POLICY_SCOPED,
-                requested_duration_s=900,
-                # agent-c's own baseline Terraform policy is assumed not to
-                # grant queue.send; the session policy naming it anyway must
-                # not manufacture authority the identity policy lacks.
-                intended_capabilities=AuthoritySet.of("queue.send"),
-            )
+        delegation = _delegate_through_chain(
+            adapter,
+            principal,
+            target_identity_id="agent-f",
+            mechanism=DelegationMechanism.SESSION_POLICY_SCOPED,
+            intended_capabilities=AuthoritySet.of("identity.delegate"),
         )
-        result = adapter.probe(
-            ProbeRequest(
-                identity_ref=delegation.identity_ref,
-                capability_id="queue.send",
-                binding=adapter.resolve_capability("queue.send"),
-                namespace=adapter.namespace,
+        boto_session = boto3_session_from_credential(delegation.credential, region=adapter.region)
+        sts = boto_session.client("sts", region_name=adapter.region)
+        with pytest.raises(ClientError) as exc_info:
+            sts.assume_role(
+                RoleArn=role_arn_for_identity("agent-a", adapter.outputs),
+                RoleSessionName=build_session_name(adapter.namespace, "session-policy-canary"),
+                DurationSeconds=900,
+                ExternalId=adapter.outputs.external_id,
             )
-        )
-        assert result.outcome.outcome_class.is_denial
+        assert exc_info.value.response["Error"]["Code"] == "AccessDenied"
 
     def test_explicit_deny_wins_over_an_otherwise_granted_capability(self):
         adapter, _ = _require_real_account()
@@ -236,13 +405,13 @@ class TestRealIamSemantics:
                 denies_capabilities=AuthoritySet.of("objectstore.read"),
             )
         )
-        result = adapter.probe(
-            ProbeRequest(
-                identity_ref=delegation.identity_ref,
-                capability_id="objectstore.read",
-                binding=adapter.resolve_capability("objectstore.read"),
-                namespace=adapter.namespace,
-            )
+        result = _probe_until(
+            adapter,
+            delegation.identity_ref,
+            capability_id="objectstore.read",
+            binding=adapter.resolve_capability("objectstore.read"),
+            namespace=adapter.namespace,
+            predicate=lambda oc: oc is OutcomeClass.DENIED_EXPLICIT,
         )
         assert result.outcome.outcome_class is OutcomeClass.DENIED_EXPLICIT
 
@@ -253,14 +422,12 @@ class TestRealIamSemantics:
         never silently degrade to DENIED_UNATTRIBUTED in production."""
         adapter, _ = _require_real_account()
         principal = adapter.register_identity("principal")
-        delegation = adapter.delegate(
-            DelegationRequest(
-                source_identity=principal,
-                target_identity_id="agent-b",
-                mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
-                requested_duration_s=900,
-                intended_capabilities=AuthoritySet.of("objectstore.read"),
-            )
+        delegation = _delegate_through_chain(
+            adapter,
+            principal,
+            target_identity_id="agent-b",
+            mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+            intended_capabilities=AuthoritySet.of("objectstore.read"),
         )
         adapter.apply_policy_mutation(
             PolicyMutation(
@@ -270,13 +437,13 @@ class TestRealIamSemantics:
                 denies_capabilities=AuthoritySet.of("objectstore.read"),
             )
         )
-        result = adapter.probe(
-            ProbeRequest(
-                identity_ref=delegation.identity_ref,
-                capability_id="objectstore.read",
-                binding=adapter.resolve_capability("objectstore.read"),
-                namespace=adapter.namespace,
-            )
+        result = _probe_until(
+            adapter,
+            delegation.identity_ref,
+            capability_id="objectstore.read",
+            binding=adapter.resolve_capability("objectstore.read"),
+            namespace=adapter.namespace,
+            predicate=lambda oc: oc is OutcomeClass.DENIED_EXPLICIT,
         )
         assert result.outcome.outcome_class is OutcomeClass.DENIED_EXPLICIT
         assert result.outcome.denial_attribution is not None
@@ -289,14 +456,12 @@ class TestRealIamSemantics:
         just moto's approximation."""
         adapter, _ = _require_real_account()
         principal = adapter.register_identity("principal")
-        delegation = adapter.delegate(
-            DelegationRequest(
-                source_identity=principal,
-                target_identity_id="agent-c",
-                mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
-                requested_duration_s=900,
-                intended_capabilities=AuthoritySet.of("objectstore.read"),
-            )
+        delegation = _delegate_through_chain(
+            adapter,
+            principal,
+            target_identity_id="agent-c",
+            mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+            intended_capabilities=AuthoritySet.of("objectstore.read"),
         )
         adapter.apply_policy_mutation(
             PolicyMutation(
@@ -306,13 +471,13 @@ class TestRealIamSemantics:
                 denies_capabilities=AuthoritySet.of("objectstore.read"),
             )
         )
-        result = adapter.probe(
-            ProbeRequest(
-                identity_ref=delegation.identity_ref,
-                capability_id="objectstore.read",
-                binding=adapter.resolve_capability("objectstore.read"),
-                namespace=adapter.namespace,
-            )
+        result = _probe_until(
+            adapter,
+            delegation.identity_ref,
+            capability_id="objectstore.read",
+            binding=adapter.resolve_capability("objectstore.read"),
+            namespace=adapter.namespace,
+            predicate=lambda oc: oc.is_denial,
         )
         assert result.outcome.outcome_class.is_denial
         assert (
@@ -339,14 +504,12 @@ class TestRealIamSemantics:
     def test_whoami_never_denied_even_with_every_other_capability_removed(self):
         adapter, _ = _require_real_account()
         principal = adapter.register_identity("principal")
-        delegation = adapter.delegate(
-            DelegationRequest(
-                source_identity=principal,
-                target_identity_id="agent-d",
-                mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
-                requested_duration_s=900,
-                intended_capabilities=AuthoritySet.of("identity.whoami"),
-            )
+        delegation = _delegate_through_chain(
+            adapter,
+            principal,
+            target_identity_id="agent-d",
+            mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+            intended_capabilities=AuthoritySet.of("identity.whoami"),
         )
         result = adapter.probe(
             ProbeRequest(

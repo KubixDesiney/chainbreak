@@ -35,12 +35,12 @@ locals {
   # sha256 over the sorted output map -- jsonencode() sorts object keys
   # alphabetically, which is what "sorted" means here without a second,
   # separate sort step.
-  infrastructure_fingerprint = sha256(jsonencode({
+  infrastructure_fingerprint = "sha256:${sha256(jsonencode({
     account_id  = data.aws_caller_identity.current.account_id
     external_id = local.external_id
     namespace   = local.namespace
     region      = data.aws_region.current.name
-  }))
+  }))}"
 }
 
 resource "aws_budgets_budget" "guardrail" {

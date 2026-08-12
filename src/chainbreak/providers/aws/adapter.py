@@ -37,7 +37,7 @@ from botocore.exceptions import ClientError
 from chainbreak.capabilities.guard import OperationAllowlist
 from chainbreak.capabilities.loader import load_catalog
 from chainbreak.core.enums import Provider
-from chainbreak.core.errors import CapabilityResolutionError, DelegationError
+from chainbreak.core.errors import CapabilityResolutionError, ChainbreakError, DelegationError
 from chainbreak.core.ids import (
     CapabilityId,
     IdentityId,
@@ -71,6 +71,7 @@ from chainbreak.providers.base.types import (
     DelegationRequest,
     DelegationResult,
     EnvironmentDescriptor,
+    PreflightCheck,
     PreflightReport,
     ProbeRequest,
     ProbeResult,
@@ -81,6 +82,27 @@ ADAPTER_VERSION = "0.1.0"
 _RECOGNIZED_IDENTITIES = frozenset(
     {"bootstrap", "principal", "agent-a", "agent-b", "agent-c", "agent-d", "agent-e", "agent-f"}
 )
+
+#: The real chain topology ``delegation/main.tf`` provisions ``sts:AssumeRole``
+#: for: operator -> principal -> agent-a -> agent-b -> ... -> agent-f. Neither
+#: the operator nor bootstrap has a granted ``sts:AssumeRole`` path onto any
+#: agent role beyond what this chain expresses (bootstrap is *trusted* by every
+#: agent role but was never granted the action itself -- see
+#: ``register_identity``'s docstring).
+_AGENT_CHAIN = ("principal", "agent-a", "agent-b", "agent-c", "agent-d", "agent-e", "agent-f")
+
+
+def _identity_chain(identity_id: str) -> tuple[str, ...]:
+    """Ordered hops from the operator session to ``identity_id``, inclusive.
+
+    ``bootstrap`` and ``principal`` are one hop (operator trusts both
+    directly); each agent is reached by walking ``_AGENT_CHAIN`` up to and
+    including it.
+    """
+    if identity_id in ("bootstrap", "principal"):
+        return (identity_id,)
+    return _AGENT_CHAIN[: _AGENT_CHAIN.index(identity_id) + 1]
+
 
 #: Operation-name -> IAM-action-name overrides for the (small, well-known)
 #: set of AWS APIs where the boto3 operation name and the IAM action name
@@ -234,7 +256,22 @@ class AwsProviderAdapter:
         AWS_PROVIDER_SPEC identity names -- ``allow`` is accepted for
         surface compatibility with the fake adapter's convenience method but
         is otherwise ignored: AWS's identity policies come from Terraform
-        provisioning (M9), not from a runtime call."""
+        provisioning (M9), not from a runtime call.
+
+        Only ``bootstrap`` and ``principal`` are directly assumable from the
+        operator session (``identities/main.tf``'s ``trust_policy_operator``).
+        Every agent role's trust policy names only its chain predecessor plus
+        ``bootstrap`` (``identities/main.tf``'s per-agent ``Principal`` block),
+        and -- confirmed empirically against the real account -- bootstrap's
+        own identity policy grants IAM mutation actions on the agent roles but
+        never ``sts:AssumeRole``, so being *trusted* by every agent role does
+        not make bootstrap able to *assume* any of them. The only granted
+        ``sts:AssumeRole`` path onto an agent role is the chain itself
+        (``delegation/main.tf``'s per-hop ``CbAllowIdentityDelegate`` statement,
+        agent-N -> agent-N+1). Reaching ``agent-c`` for direct test setup
+        therefore means walking operator -> principal -> agent-a -> agent-b ->
+        agent-c for real, one hop at a time, exactly as a scenario's own
+        delegation chain would."""
         if identity_id not in _RECOGNIZED_IDENTITIES:
             raise DelegationError(
                 f"{identity_id!r} is not a Terraform-provisioned AWS identity; "
@@ -242,19 +279,25 @@ class AwsProviderAdapter:
                 "and agent-a..agent-f",
                 identity_id=identity_id,
             )
-        role_arn = mutation_mod.role_arn_for_identity(identity_id, self.outputs)
-        session_name = session_mod.build_session_name(self.namespace, identity_id)
-        sts = self._sts_client(self.operator_session)
-        response = sts.assume_role(
-            RoleArn=role_arn,
-            RoleSessionName=session_name,
-            DurationSeconds=3600,
-            ExternalId=self.outputs.external_id,
-        )
-        credential = _credential_from_sts_response(response, credential_id=new_credential_id())
-        boto_session = session_mod.boto3_session_from_credential(credential, region=self.region)
+
+        chain = _identity_chain(identity_id)
+        session = self.operator_session
+        role_arn = ""
+        for hop_id in chain:
+            role_arn = mutation_mod.role_arn_for_identity(hop_id, self.outputs)
+            session_name = session_mod.build_session_name(self.namespace, hop_id)
+            sts = self._sts_client(session)
+            response = sts.assume_role(
+                RoleArn=role_arn,
+                RoleSessionName=session_name,
+                DurationSeconds=3600,
+                ExternalId=self.outputs.external_id,
+            )
+            credential = _credential_from_sts_response(response, credential_id=new_credential_id())
+            session = session_mod.boto3_session_from_credential(credential, region=self.region)
+
         ref = self._make_ref(role_arn)
-        self._identity_sessions[ref.value] = boto_session
+        self._identity_sessions[ref.value] = session
         self._ref_to_identity_id[ref.value] = identity_id
         return ref
 
@@ -284,15 +327,32 @@ class AwsProviderAdapter:
                 "sqs": 200,
             }
         )
-        return preflight_mod.run_preflight(
-            sts_client=sts,
-            resourcegroupstaggingapi_client=tagging,
-            envelope=envelope,
-            terraform_outputs=self.outputs,
-            precondition_results=precondition_results,
-            cost_estimate=cost_estimate,
-            clock_offset_ms=0.0,
-        )
+        # ``run_preflight`` raises per-check (pinned by test_adapter_moto.py,
+        # which calls it directly and asserts on the specific exception type
+        # for P2/P3/P4/P6/P7/P9/P10) -- but the ``ProviderAdapter`` Protocol
+        # this method implements returns a ``PreflightReport`` and never
+        # raises (``providers/fake/adapter.py::preflight`` never does, and
+        # the shared M5 contract suite's ``test_preflight_rejects_wrong_account``
+        # asserts ``report.passed is False`` with no ``pytest.raises`` around
+        # it). Converting here, rather than changing ``run_preflight`` itself,
+        # keeps both the low-level abort-fast semantics AWS_PROVIDER_SPEC
+        # section 2 describes (P1/P2 make no AWS call beyond
+        # GetCallerIdentity -- SI-6) and the Protocol's own contract intact.
+        try:
+            return preflight_mod.run_preflight(
+                sts_client=sts,
+                resourcegroupstaggingapi_client=tagging,
+                envelope=envelope,
+                terraform_outputs=self.outputs,
+                precondition_results=precondition_results,
+                cost_estimate=cost_estimate,
+                clock_offset_ms=0.0,
+            )
+        except ChainbreakError as exc:
+            return PreflightReport(
+                passed=False,
+                checks=(PreflightCheck(name=exc.machine_reason, passed=False, detail=exc.message),),
+            )
 
     def resolve_capability(self, cap_id: CapabilityId) -> ProviderCapabilityBinding:
         try:
@@ -424,7 +484,10 @@ class AwsProviderAdapter:
                     identity_id, account_id=outputs.account_id, namespace=self.namespace
                 )
                 return lambda: probes_mod.probe_identity_delegate(
-                    clients.sts, next_hop_role_arn=next_hop, external_id=outputs.external_id
+                    clients.sts,
+                    next_hop_role_arn=next_hop,
+                    external_id=outputs.external_id,
+                    session_name=session_mod.build_session_name(self.namespace, "probe-delegate"),
                 )
             case _:
                 raise CapabilityResolutionError(

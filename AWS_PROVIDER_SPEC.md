@@ -190,10 +190,16 @@ cb-{ns}/scratch/{run_id}/{probe_id}   # written by BENIGN_WRITE probes, lifecycl
 DynamoDB item layout: `pk = "cb-marker"` for the read marker;
 `pk = "cb-scratch#{run_id}#{probe_id}"` with a `ttl` attribute for writes.
 
-Every write probe is confined to the run-scoped prefix by the binding's resource template,
-and the identity policies additionally constrain writes with a `Condition` on
-`s3:prefix` / `dynamodb:LeadingKeys`. Two independent controls, because prefix confinement
-is what prevents cross-run contamination.
+Every write probe is confined to the run-scoped prefix by the binding's resource template.
+`objectstore.write`'s confinement is the resource ARN alone (`.../scratch/*`) -- an S3
+object-level action has no second, independent condition to add: `s3:prefix` is populated
+only on `s3:ListBucket` requests, never on `PutObject`/`GetObject`, so a `Condition` naming it
+on those actions does not narrow the grant, it makes the whole statement fail to match
+(a condition key absent from the request evaluates to false) -- confirmed empirically against
+a real account, where it silently turned every `objectstore.write` probe into an implicit
+deny. `keyvalue.write` genuinely does get a second, independent control, because
+`dynamodb:LeadingKeys` **is** populated on `PutItem`/`GetItem` against a shared table
+resource: `Condition` on `dynamodb:LeadingKeys` in addition to the table-wide resource ARN.
 
 ---
 

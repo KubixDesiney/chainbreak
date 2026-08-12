@@ -4,9 +4,12 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Last updated:** 2026-08-10 · **Version:** 0.1.0a0 · **Phase:** M16 complete (fake provider only);
-M8 and M9 both partially complete (offline/local portions done; real-account verification
-blocked)
+**Verification refresh:** 2026-08-12. M18's offline portion is complete; M8/M9 real-account
+criteria, M17, and M18's real-AWS comparison remain blocked on the dedicated AWS account.
+
+**Last updated:** 2026-08-11 · **Version:** 0.1.0a0 · **Phase:** M16 complete (fake provider only);
+M8 and M9 real-account criteria, M17, and M18's real-AWS comparison remain blocked on the
+dedicated AWS account; M18's offline portion is complete
 
 ---
 
@@ -154,6 +157,13 @@ rendered page. M0 through M9 are domain/capability/scenario/CLI/provider-laborat
 analysis/AWS-adapter-offline/Terraform-local work; M10 through M14 are the milestones that
 actually execute something end to end — against the fake provider only; M15 and M16 are both
 downstream of that evidence rather than producing more of it. No AWS experiment has run.
+M18's offline portion — `chainbreak compare`'s three-level classification, `--archive`, the
+migration framework, a verified-deterministic Docker image, and a hash-locked
+`requirements.lock` enforced with `--require-hashes` in CI — is also complete, ahead of
+M18-reproducibility-hardening.md's own listed dependency on M17: `docs/implementation/
+NEXT_PROMPTS.md`'s P2 prompt scopes this deliberately, since Level 2/3 comparison logic "can be
+exercised against two fake-provider runs with different seeds," which needs no AWS account to
+validate; only the real-AWS half of that comparison remains blocked on M17.
 
 ---
 
@@ -181,6 +191,7 @@ downstream of that evidence rather than producing more of it. No AWS experiment 
 | Silent-narrowing execution and analysis (Family E) | Complete **and verified in code, run end to end** — `execution/workers/base.py` (`TaskWorker` Protocol, defined purely over a capability-invoker and a `TaskOutcome`, ADR-007), `execution/workers/deterministic.py` (four workers: `sequential`, `always-complete`, `substituting`, `redelegating`), `execution/task_runner.py` (the capability-invoker every worker is confined to — S1 — and the objective invocation log that overrides `redelegation_attempts`/`substituted_capabilities` rather than trusting either worker self-report), `execution/side_effects.py` (independent bootstrap-attributed marker verification, F4), `analysis/task_contract.py` (up to three distinct findings per task — `SILENT_NARROWING`, `CAPABILITY_SUBSTITUTED`, `REDELEGATION_ATTEMPTED`, two new `FindingType` members added this milestone — never collapsed into one) | AUTHORIZATION_MODEL §6, [M14-silent-narrowing.md](docs/implementation/milestones/M14-silent-narrowing.md), `execution/workers/`, `execution/task_runner.py`, `execution/side_effects.py`, `analysis/task_contract.py` |
 | Scoring | Complete **and verified in code, run end to end** — six independent `CategoryResult` evaluators (F1), NOT_MEASURED/PARTIAL/DIVERGENT/DETECTOR_FAILED status rules (F2/F3/S2), min-aggregated confidence (F4), cross-run aggregation refusing heterogeneous compiled_hash/adapter_version/catalog_version (F7/F8), `chainbreak analyze` writes `scores.json` and `--aggregate-scores`; no composite score anywhere (ADR-010) | [SCORING_MODEL.md](SCORING_MODEL.md), [M15-scoring.md](docs/implementation/milestones/M15-scoring.md), `scoring/` |
 | Reporting | Complete **and verified in code, run end to end** — terminal (`rich`), Markdown and self-contained HTML (Jinja2, autoescape on, no `|safe`) all render from a real fake-provider bundle; `reporting/language.py`'s EXPERIMENT_PROTOCOL §7 lint enforced at render time (`enforce_report`), not left to operator discipline; seven evidence-derived figures as inline SVG; every finding renders observation/expected_state/observed_state/security_interpretation under separate headings (ADR-006); `provider: fake` stamped in the header and every figure caption | ARCHITECTURE §3.16, [M16-reporting.md](docs/implementation/milestones/M16-reporting.md), `reporting/` |
+| Reproducibility tooling | Offline portion complete **and verified in code** — three-level `chainbreak compare` (`analysis/compare.py`), self-contained `--archive` (`evidence/archive.py`), the bundle-migration framework (`evidence/migrate.py`), a 68 MB Docker image verified to run genuinely determinism-preserving fake-provider scenarios, a 90-package hash-locked `requirements.lock` verified with `pip install --require-hashes` in a clean Linux container — **real-AWS Level 2/3 comparison and real-AWS archive/migrate exercise not yet done, blocked on M17** | [REPRODUCIBILITY.md](REPRODUCIBILITY.md), [M18-reproducibility-hardening.md](docs/implementation/milestones/M18-reproducibility-hardening.md), `analysis/compare.py`, `evidence/archive.py`, `evidence/migrate.py` |
 | Research methodology | Complete | [RESEARCH_METHODOLOGY.md](RESEARCH_METHODOLOGY.md) |
 | Threat model | Complete | [THREAT_MODEL.md](THREAT_MODEL.md) |
 
@@ -1054,14 +1065,17 @@ Two real defects found and fixed during implementation, not design choices:
    `virtual_ms_to_datetime(adapter.clock.now_ms)` for a fake-provider run, never
    `datetime.now(UTC)`.
 
-One documentation tension recorded rather than resolved unilaterally: ARCHITECTURE.md section 3.7
-describes `delegation/` as its own top-level package; M10's own milestone file
+**Resolved** (P1 documentation pass): ARCHITECTURE.md section 3.7 originally described
+`delegation/` as its own top-level package; M10's own milestone file
 (`docs/implementation/milestones/M10-scope-attenuation.md`) and `docs/implementation/
-NEXT_PROMPTS.md`'s S2 prompt both name it `execution/delegation.py` instead, and — being the more
-specific, more recently written source for this exact milestone — were followed here. The
-top-level `chainbreak.delegation`/`chainbreak.observation` placeholder packages ARCHITECTURE.md
-describes are left untouched, not silently repurposed; reconciling the two documents is a
-documentation decision for later, not one this milestone made on its own authority.
+NEXT_PROMPTS.md`'s S2 prompt both named it `execution/delegation.py` instead, and — being the
+more specific, more recently written source for this exact milestone — were followed here. The
+tension was recorded above rather than resolved unilaterally at the time. It has since been
+closed: the empty `src/chainbreak/delegation/` and `src/chainbreak/observation/` placeholder
+packages were deleted, ARCHITECTURE.md §3.7/§3.12 were rewritten to describe where delegation
+planning and outcome classification actually live (`execution/delegation.py`;
+provider-side classification plus `execution/_records.py`), and the decision is recorded in
+`docs/DECISIONS.md`.
 
 Test files: `tests/integration/test_scope_attenuation.py` (7 — the full basic scenario end to end
 via the real orchestrator, both scope-attenuation negative controls in both directions [defect
@@ -1824,7 +1838,7 @@ $ pytest -m unit tests/unit/test_report_language.py -q
 32 passed in 0.09s
 ```
 
-Full suite: 1693 passed, 9 skipped, 23 deselected (was 1607 before M16 — +87 new tests across
+Full suite: 1744 passed, 9 skipped, 23 deselected (was 1607 before M16 — +88 new tests across
 `test_report_language.py` (32), `test_no_unsafe_template_filters.py` (5),
 `test_cli_report_command.py` (9), `test_report_figures.py` (18), `test_report_terminal.py` (11)
 and `test_report_generation.py` (12), minus one `test_cli_commands.py` case moved out of the
@@ -1836,7 +1850,155 @@ defensive guard against an edge referencing an identity outside `graph.nodes` th
 `AuthorizationGraph`'s own validator already makes unreachable, marked `pragma: no cover` with
 that reasoning inline rather than left unexplained).
 
+**M18 — Reproducibility and hardening.** Offline portion complete (F1-F6, S1-S3); the milestone's
+own file lists M17 as a dependency, and this pass deliberately did not attempt anything requiring
+a real AWS account, per its own scoping note — see "Blocked" below for what that leaves open.
+Delivered:
+
+`analysis/compare.py` (F1-F3): `compare_bundles(RunSnapshot, RunSnapshot, ...)` classifies every
+comparable measurement between two runs into REPRODUCIBILITY.md section 1's three levels.
+Set-valued findings (everything except `REVOCATION_DELAY`/`NO_TRANSITION_OBSERVED`) are compared
+by exact-multiset content fingerprint, excluding `finding_id` and `evidence.*_refs` — both are
+salted per run (ADR-013) and therefore provably unique across any two independently-produced
+runs even when the measured behavior is identical, so including them would report every finding
+DIVERGENT on every cross-run comparison. Timing (`RevocationMeasurement`, read directly rather
+than through `findings.json` — most transition windows never produce a `REVOCATION_DELAY`
+finding at all, since that rule only fires past an *assertive* expectation) is compared by
+interval overlap, never bit-exact equality, per REPRODUCIBILITY.md's own "anyone claiming exact
+timing reproducibility... is mistaken." Refuses (`HeterogeneousComparisonError`, reusing the
+exact error class and message shape `scoring/aggregate.py::aggregate_runs` already established
+for the identical F7 refusal) across differing `compiled_hash`/`adapter_version`/`catalog_version`
+without `--allow-heterogeneous`, and across differing `infrastructure_fingerprint` without
+`--cross-operator`, both prominently noted rather than silently downgrading a verdict.
+
+One deliberate wording deviation from M18's own shorthand, recorded here because it is a genuine
+interpretation call, not an oversight: the milestone's negative-controls bullet paraphrases
+"same scenario, same seed, twice" as "must report identical." REPRODUCIBILITY.md section 1's own,
+more careful text reserves "identical" (Level 1) for *the same evidence bundle re-analyzed*; two
+independently-produced runs — even with the same seed — are Level 2 at best, since their
+`finding_id`/`observation_refs` differ by construction (ADR-013 again). `compare_bundles`
+therefore reports `STRUCTURALLY_IDENTICAL` for two different runs whose content matches exactly,
+reserving `IDENTICAL` for literal self-comparison (`run_a.run_id == run_b.run_id`), and never
+reports a cross-run timing match as `IDENTICAL` even on a bit-exact coincidence. Verified for
+real: `scenarios/scope-attenuation/basic.yaml --seed 42` run twice → 3/3 comparisons
+`STRUCTURALLY_IDENTICAL`, 0 divergent; `scenarios/revocation/inline-deny.yaml` run at
+`--fake-profile eventual --seed 1` and `--seed 2` → the two structural (non-timing) findings both
+`STRUCTURALLY_IDENTICAL`, the revocation timing comparison `DISTRIBUTIONALLY_CONSISTENT` with real
+overlapping-but-different windows (`[1.500, 2.000]s` vs `[2.000, 2.500]s`), never `IDENTICAL` —
+exactly M18's own negative-controls intent, in the vocabulary REPRODUCIBILITY.md section 1
+actually defines.
+
+`evidence/archive.py` (F4, S1): `create_archive` builds on `evidence/export.py::export_public`
+directly — scrubbing into a temporary staging directory (not `export_public`'s own permanent
+`<run_id>-public` sibling; `--archive` promises exactly one artifact, the tarball) — so there is
+no code path that produces an unscrubbed archive; S1 is structural, not a flag check. Refuses
+(rather than silently mislabeling) if the `catalog.yaml` on disk does not match the run's own
+recorded `capability_catalog_version`, or if no `schemas/` directory is found. That second refusal
+is a real, documented limitation: `schemas/` is not shipped as installed package data (verified by
+inspecting a built wheel — it is entirely absent), so `--archive` only works from a repository
+checkout today, not a wheel install; noted in both the module docstring and REPRODUCIBILITY.md
+section 8. New writer primitives `write_bytes_artifact`/`create_tar_archive` in
+`evidence/writer.py` keep S1's "only writer.py opens a file for writing inside evidence/" lint
+rule literally true rather than adding archive.py to its exemption list. Self-containment verified
+by extracting a real archive with `tarfile` into an isolated directory and confirming every
+artifact `ARTIFACT_NAMES` names, `catalog.yaml`, every `schemas/*.schema.json`, and `REPRODUCE.md`
+are all present with no reference back to the source repository.
+
+`evidence/migrate.py` (F5): a migration registry (`register_migration`/`migrate_bundle`) rather
+than a concrete transformation — `BUNDLE_FORMAT_VERSION` has been 1 since M6 and has never
+changed, so there is genuinely nothing to migrate from yet. Tests register a synthetic v1→v99
+migration through the module's own public API to prove the mechanism (registry, dispatch, and
+F5's "preserving the original" guarantee, checked by hashing the source tree before and after and
+asserting byte-for-byte equality) rather than inventing a fictitious real transformation.
+
+`Provenance.seed` (`core/models.py`) and `cli/run.py`'s provenance dict both gained a `seed`
+field — REPRODUCIBILITY.md section 2 already documented "every seed used" as something every run
+records, but the top-level `--seed` was not actually threaded into `manifest.json` anywhere before
+this (only a sha256-derived *per-matrix* shuffle seed was, in `PROBE_ORDER_SHUFFLED` events, which
+cannot be inverted back to the original `--seed`). `schemas/experiment-run.v1.schema.json`
+regenerated and diffed clean (`python -m chainbreak.scenarios.export_schema`).
+
+`Dockerfile`/`.dockerignore` (F6, S2): multi-stage build (wheel build stage, then a slim runtime
+stage installing only the base package plus the `report` extra — no `aws`/`dev`/`analysis`, so
+boto3 never enters the image and there is no code path inside it that could reach AWS even by
+accident), non-root user, 68 MB (budget 500 MB). Byte-identical determinism verified the way
+ADR-013 actually permits: `graph.json`, `scenario.json`, `policy_states.jsonl` and
+`credentials.jsonl` sha256-matched exactly between a container run and a host run of the same
+scenario+seed; `observations.jsonl`/`events.jsonl` did **not** match byte-for-byte, because both
+embed `identity_ref_hash` and similar identifiers salted per `run_id` (ADR-013) — a property of
+any two independently-invoked runs, container or not, never something the container introduced.
+`chainbreak compare` between the two bundles reported 3/3 `STRUCTURALLY_IDENTICAL`, 0 divergent,
+which is the correct, ADR-013-respecting statement of "the container's fake provider behaves
+identically to the host's" — a literal byte-diff of the salted streams would have been a
+misleading test, not a stronger one.
+
+`requirements.lock` + `scripts/lock_from_report.py` (S3, T-14): 90 third-party packages pinned
+with sha256 hashes, covering `.[dev,aws,report,analysis]`'s full resolved closure (chainbreak
+itself excluded — installed separately, `--no-deps`, since it is the local package under test,
+not a pinned download). Generated inside a Linux `python:3.12-slim` container (matching CI's
+`ubuntu-latest`/cp312 target), not on the resolving Windows host, and not with pip-tools: pip-tools
+7.6.0 raises `ImportError` on `pip._internal.utils.compat.stdlib_pkgs` against the pip version in
+this environment (a pip-internal API pip-tools depends on that has since moved), so
+`lock_from_report.py` instead reshapes `pip install --report`'s own JSON output — pip's stable,
+already-hash-bearing resolution record — into the `--require-hashes` format. `ci.yml`'s `security`
+job gained a step that installs `requirements.lock` with `--require-hashes` into a fresh, isolated
+venv (a job's already-populated venv would prove nothing, since `--require-hashes` only demands
+hashes for what it is *about to install*, not what is already present), then `pip install --no-deps
+.` on top and an import smoke test — verified passing in a from-scratch Linux container before
+being committed to CI.
+
+Two genuine, pre-existing bugs found and fixed while doing this work, neither hypothetical:
+
+1. **`pyproject.toml`'s `moto[...]` dev extra named a nonexistent extra, `lambda`.** Silently
+   tolerated by every `pip install` so far (pip warns "does not provide the extra" and proceeds
+   anyway when it can otherwise resolve from a warm cache), but it turned an ordinary
+   dependency resolution into `pip`'s `resolution-too-deep` failure the moment a fresh,
+   cross-platform, no-cache resolution actually needed to backtrack across moto versions
+   looking for one that satisfied it. moto's real extra is `awslambda`
+   (`importlib.metadata.distribution("moto").metadata.get_all("Provides-Extra")` confirmed it
+   directly). Fixed; `requirements.lock`'s own successful generation is the regression test.
+2. **`tests/unit/test_import_boundaries.py`'s `_AWS_SERVICE_STRING_RE` had no word boundary**,
+   so it matched "sts:" inside any ordinary English word ending "...sts:" — exists:, consists:,
+   lists:, tests:, costs:, resists:, persists:, and more — not just genuine AWS action strings.
+   Found because `evidence/migrate.py`'s own error message ("migration target already exists:")
+   tripped it for real the first time this check ran against that file. Fixed with a
+   `(?<![A-Za-z])` lookbehind; added `test_regex_does_not_false_positive_on_ordinary_english_words`
+   and `test_regex_still_detects_real_aws_service_strings` (parametrized, both directions) so a
+   future edit to this regex cannot silently reintroduce either failure mode.
+
+Coverage: `analysis/compare.py` 97% (two uncovered branches: `_finding_label`'s `edge_id` arm,
+untested because no test fixture constructs an edge-kind `Finding`; and the defensive
+`AnalysisError` raised when `transition_observed=True` but `transition_window` is `None`, which
+`RevocationMeasurement`'s own validator already makes unreachable); `evidence/archive.py` 94%
+(the "no schemas/ directory" and "schemas/ directory present but empty" refusal branches,
+untested because this development environment's `schemas/` always exists and is non-empty);
+`evidence/migrate.py` and the extended `evidence/writer.py` both 100%.
+
+```
+$ pytest -m "unit or integration" -q
+1744 passed, 9 skipped, 23 deselected
+$ ruff check . && mypy
+All checks passed! / Success: no issues found in 120 source files
+$ lint-imports
+Contracts: 6 kept, 0 broken.
+```
+
+Full suite was 1693 before this milestone; +51 net (test_compare.py 24, test_archive.py 7,
+test_migrate.py 10, test_compare_negative_controls.py 2, test_cli_runs_command.py's two new
+`--archive` cases, test_import_boundaries.py's two new regex-regression cases, minus one
+`test_cli_commands.py` case retired now that `compare`'s own real behavior has a dedicated test
+class — the same "generic stub sweep loses a case, a real test file gains one" pattern M6/M7/M9/
+M10/M16 each went through).
+
 ### Blocked
+
+M18's `--cross-operator`/`--allow-heterogeneous` refusal paths are unit-tested directly (hand-built
+`RunSnapshot`s with differing versions) rather than exercised via two real, differently-versioned
+runs, since this repository only ever ships one catalog/adapter version at a time — nothing to
+block on here, just noted for completeness. What genuinely remains for M18 is real-AWS Level 2/3
+comparison (two real AWS runs of the same scenario, `compare`d against each other) and real-AWS
+archive/migrate exercise, both blocked on M17 the same way M8/M9's remaining criteria are blocked
+on an account existing.
 
 M8's remaining acceptance criteria (2, 3, 4) and M9's remaining acceptance criteria (2 in part,
 3, 4, 5) are both blocked on the same dedicated AWS benchmark account and IAM identity listed
@@ -1848,24 +2010,24 @@ account (`checkov`, the other half, is resolved — see the M9 entry above).
 
 ### Not started
 
-M17 through M19 (M8's offline portion and M9's local portion are both done; their real-account
-criteria are blocked, not not-started — see above; M10 through M16 are done, see their entries
-above). See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M17 and M19 (M8's offline portion, M9's local portion, and M18's offline portion are all done;
+their real-account criteria are blocked, not not-started — see above; M10 through M16 are done,
+see their entries above). See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-1693 passed, 9 skipped, 23 deselected in ~85s   (Python 3.12.7, pytest -m "unit or integration")
-23 skipped, 1557 deselected                     (Python 3.12.7, pytest -m "aws or e2e" -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
+1744 passed, 9 skipped, 23 deselected in ~90s   (Python 3.12.7, pytest -m "unit or integration")
+23 skipped, 1752 deselected                     (Python 3.12.7, pytest -m "aws or e2e" -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
 | Suite | Tests | Covers |
 |---|---|---|
 | `tests/unit/test_domain_contract.py` | 41 | Set algebra, secret non-serializability, safety envelope rejection, graph invariants G-1/G-2, divergence at node level, outcome classification, interval ordering, min-confidence, lifetime capping, catalog integrity, binding validation, SI-11 literal-infrastructure rejection, ULID monotonicity |
 | `tests/scenarios/test_scenario_corpus.py` | 52 | Every scenario validates; capability closure (G-4); negative controls are correctly located and marked; all six defect kinds covered; all five families present (parametrized per scenario, so this grows with the corpus — 24 scenarios as of M14) |
-| `tests/unit/test_import_boundaries.py` | 7 | ARCH-1: core imports nothing internal, graph imports only core, boto3 confined to `providers/aws/`, AWS service strings confined to `providers/` and `AWS_PROVIDER_SPEC.md`, plus two planted-violation negative controls and a third proving a denied teardown unlink warns rather than fails the test and is caught as leftover debris (S1) |
+| `tests/unit/test_import_boundaries.py` | 14 | ARCH-1: core imports nothing internal, graph imports only core, boto3 confined to `providers/aws/`, AWS service strings confined to `providers/` and `AWS_PROVIDER_SPEC.md`, plus two planted-violation negative controls and a third proving a denied teardown unlink warns rather than fails the test and is caught as leftover debris (S1); M18 added two parametrized regression tests (both directions) for `_AWS_SERVICE_STRING_RE`'s word-boundary fix, after the unfixed regex false-triggered on `evidence/migrate.py`'s own "already exists:" |
 | `tests/aws/test_placeholder.py` | 1 (skipped by default) | F5: proves the `aws`/`e2e` marker gate in `tests/conftest.py` actually skips, and actually un-gates under `CHAINBREAK_ALLOW_AWS_TESTS=1` |
 | `tests/aws/test_disambiguation.py` | 24 | Explicit-vs-implicit denial message classification against literal AWS strings across all five documented policy-kind nouns; Lambda `FunctionError` vs not; S3 403/404 shape; recognized/unrecognized access-denied codes |
 | `tests/aws/test_retry.py` | 28 | Transient-code classification including the never-retry-wins-over-503 ordering; full-jitter bounds with a seeded RNG; `call_with_retry`'s success, non-transient-immediate, transient-then-succeeds and exhaustion paths, each reporting the correct attempt/retry count |
@@ -1960,6 +2122,10 @@ above). See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.m
 | `tests/unit/test_report_figures.py` | 18 | Each of the seven figure builders' not-applicable and applicable branches driven against hand-built evidence objects (the worked-example graph's own injected divergence appears as an "excess" bar; a non-monotonic revocation transition is labeled; a populated vs. unpopulated stale window; unanimous vs. disagreeing trial repeatability; a cross-run comparison mapping) |
 | `tests/unit/test_report_terminal.py` | 13 | `reporting/terminal.py` against hand-built `ReportData`: the fake-provider banner present/absent by provider, `git_dirty`/`bundle_root_verified` warnings rendering prominently and staying silent when clean, an empty findings list rendering "none", a finding's caveats line, a NOT_MEASURED category's dashes, the MEASUREMENTS section's n/interval/mechanism text present only when revocation or stale measurements exist |
 | `tests/integration/test_report_generation.py` | 12 | M16 acceptance criteria, through a real orchestrated `delegation-drift/four-hop.yaml` bundle: all three formats render (criterion 1); the fake-provider stamp in the header and in every one of `1 + len(figures)` occurrences in the HTML output (criterion 4); all five limitations terms present in every format (criterion 5); the NOT_MEASURED sentence; a hand-built `ReportData` with a `<script>` in `security_interpretation` escaped in HTML, not present unescaped (criterion 3); the HTML report under 2 MB and under 3 s to generate |
+| `tests/unit/test_compare.py` | 24 | M18 F1-F3: set-valued content matching across different run-specific ids (`STRUCTURALLY_IDENTICAL`) vs. self-comparison (`IDENTICAL`); content differences and missing-on-one-side findings reported `DIVERGENT` rather than raised; revocation window overlap/non-overlap/no-transition-on-both-sides/transition-observed-mismatch/polled-on-one-side-only; a cross-run timing match never reporting `IDENTICAL`; `HeterogeneousComparisonError` for differing compiled_hash/adapter_version/catalog_version and for differing `infrastructure_fingerprint`, `--allow-heterogeneous`/`--cross-operator` letting each through with a note and never upgrading a `DIVERGENT` verdict; `snapshot_from_bundle`'s missing-findings.json error; the `chainbreak compare` CLI's missing-args and unknown-run paths |
+| `tests/integration/test_compare_negative_controls.py` | 2 | M18's own negative controls, through the real `execution/orchestrator.py`: the same fake scenario run twice with the same seed compares with zero divergence, every comparison `STRUCTURALLY_IDENTICAL`; the same revocation scenario run at two different seeds under `--fake-profile eventual` reports its timing comparison `DISTRIBUTIONALLY_CONSISTENT` (never `IDENTICAL`) while its structural (non-timing) findings still match exactly |
+| `tests/unit/test_archive.py` | 7 | M18 F4/S1: a real tarball produced with the expected suffix, catalog version and schema count; an explicit `--output` path respected; no permanent scrubbed staging directory left behind; catalog version and same-version catalog-content mismatches refused; extraction into an isolated directory with every `ARTIFACT_NAMES` file, `catalog.yaml`, every schema, and a `REPRODUCE.md` naming the run id and the exact commands all present; an ARN seeded into the bundle absent from the archived copy even without an explicit `--public` flag |
+| `tests/unit/test_migrate.py` | 10 | M18 F5, against a synthetic v1→v99 migration registered through the module's own public API (no real migration exists yet -- `BUNDLE_FORMAT_VERSION` has never changed): registration/double-registration-refused/registry listing; already-at-target-version and no-registered-path both refused; a migrated bundle lands in a new directory; the original bundle is byte-for-byte unchanged after migration (hashed before and after); the migrated bundle's content matches the original's; an explicit target directory respected; `copy_bundle_verbatim` refuses an existing target |
 
 **Not yet written:** `tests/aws/test_adapter_real.py`'s and `tests/aws/test_cleanup_contract.py`'s
 tests exist but have never executed (no AWS account), `tests/fixtures/provider_responses/` (M8
@@ -2175,15 +2341,16 @@ at M17.
    on the root `Typer()` app trades the visual polish for a stable 340–390ms. `validate`'s own
    `rich.table.Table` output is unaffected — that is the command's own rendering, not Typer's
    `--help` machinery, and still renders in color.
-10. **`chainbreak run` still exits 2 (M4's stub); `execution/orchestrator.py` does not exist.**
-    M5's own verification command (`chainbreak run scenarios/scope-attenuation/basic.yaml
-    --provider fake --seed 1729`) names a command that is not implementable until M10, per
-    `docs/implementation/MILESTONES.md`'s dependency graph and M10's own file list
-    (`execution/orchestrator.py`, `execution/matrix.py`, `execution/delegation.py`). See the
-    M5 entry under "Completed" for how acceptance criteria 3 and 4 were verified instead, at
-    the provider layer that exists today. M6's `BundleWriter` exists now and is exercised
-    directly by tests and by the fixture generator, so the write path itself is proven; only
-    the orchestration loop that would call it during a real run is still missing.
+10. ~~`chainbreak run` still exits 2 (M4's stub); `execution/orchestrator.py` does not
+    exist.~~ **Resolved by M10.** M5's own verification command (`chainbreak run
+    scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729`) named a command that
+    was not implementable until M10, per `docs/implementation/MILESTONES.md`'s dependency
+    graph and M10's own file list (`execution/orchestrator.py`, `execution/matrix.py`,
+    `execution/delegation.py`) — see the M5 entry under "Completed" for how acceptance
+    criteria 3 and 4 were verified instead, at the provider layer that existed at the time.
+    `execution/orchestrator.py` now exists and `chainbreak run` drives the full phase loop
+    against the fake provider for all five benchmark families (M10–M14); `--provider aws`
+    remains a documented stub until M17.
 11. **`Manifest.block_id` is always `None` today.** Added at M6 for schema symmetry with
     `ExperimentRun` and because `schemas/run-index.sql`'s `runs.block_id` column already exists,
     but nothing populates it until the orchestrator (M10+) and control C-7's block randomization
@@ -2393,7 +2560,7 @@ ruff check . && ruff format --check .              # clean
 mypy                                                # clean, 119 source files
 lint-imports                                        # 6 contracts kept
 bandit -r src/ -q                                   # clean
-pytest -m "unit or integration" -q                  # 1693 passed, 9 skipped, 23 deselected
+pytest -m "unit or integration" -q                  # 1744 passed, 9 skipped, 23 deselected
 pytest -m unit tests/unit/test_redaction.py \
   --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # 100%
 pytest --cov=chainbreak.reporting --cov-report=term-missing -q \

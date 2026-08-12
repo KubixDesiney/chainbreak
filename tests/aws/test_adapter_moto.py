@@ -752,13 +752,19 @@ class TestProbes:
         sts = boto3.client("sts", region_name=_REGION)
         next_hop = next_hop_role_arn("agent-a", account_id=_ACCOUNT, namespace=_NAMESPACE)
         outcome = probes_mod.probe_identity_delegate(
-            sts, next_hop_role_arn=next_hop, external_id=_EXTERNAL_ID
+            sts,
+            next_hop_role_arn=next_hop,
+            external_id=_EXTERNAL_ID,
+            session_name=f"{_NAMESPACE}-probe-delegate",
         )
         assert outcome.outcome_class is OutcomeClass.ALLOWED
 
     def test_identity_delegate_no_next_hop_for_the_last_chain_link(self):
         outcome = probes_mod.probe_identity_delegate(
-            None, next_hop_role_arn=None, external_id=_EXTERNAL_ID
+            None,
+            next_hop_role_arn=None,
+            external_id=_EXTERNAL_ID,
+            session_name=f"{_NAMESPACE}-probe-delegate",
         )
         assert outcome.outcome_class is OutcomeClass.ERROR_INFRASTRUCTURE
         assert outcome.disambiguation_path == "identity.delegate:no_next_hop"

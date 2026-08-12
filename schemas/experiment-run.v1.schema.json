@@ -14,6 +14,20 @@
     "Provenance": {
       "additionalProperties": false,
       "properties": {
+        "capability_catalog_fingerprint": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SHA-256 of the catalog bytes loaded for this run, so an archive can prove it contains the catalog as it was at run time.",
+          "title": "Capability Catalog Fingerprint"
+        },
         "capability_catalog_version": {
           "title": "Capability Catalog Version",
           "type": "string"
@@ -67,6 +81,19 @@
         "python_version": {
           "title": "Python Version",
           "type": "string"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The run's top-level --seed. Every other seed used during the run (probe-order shuffle per matrix, fake-provider jitter/RNG) derives deterministically from this one (REPRODUCIBILITY.md section 2), so recording it alone is sufficient to reproduce the shuffle and fault-injection schedule exactly.",
+          "title": "Seed"
         }
       },
       "required": [

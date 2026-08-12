@@ -161,30 +161,15 @@ class TestValidateCommandEndToEnd:
         assert "no accounts configured" in result.output
 
 
-class TestUnimplementedCommandsExitTwoNotAStackTrace:
-    @pytest.mark.parametrize(
-        "args",
-        [
-            # `runs list|show|reindex` and `evidence export --public` were
-            # resolved by M6; see test_cli_runs_command.py for their real
-            # behavior. `evidence export` without --public remains a stub.
-            # `analyze` was resolved by M7; see test_cli_analyze_command.py.
-            # `infra plan|apply|destroy|status|verify-clean` were resolved
-            # by M9; see test_cli_infra_command.py. `run` (with
-            # `--provider fake`) was resolved by M10; see
-            # test_cli_run_command.py for its real behavior --
-            # `--provider aws` remains a documented stub until M17.
-            # `report` was resolved by M16; see test_cli_report_command.py
-            # for its real behavior (its own missing-run_id path exits 2
-            # with "run_id is required", not this generic sweep's message).
-            ["compare"],
-        ],
-    )
-    def test_exits_two_with_a_clear_message(self, args: list[str]):
-        from chainbreak.cli.main import app
-
-        runner = CliRunner()
-        result = runner.invoke(app, args)
-        assert result.exit_code == 2
-        assert "not implemented until M" in result.output
-        assert result.exception is None or isinstance(result.exception, SystemExit)
+# F4's generic "exits 2, not a stack trace" sweep over not-yet-implemented
+# commands no longer has a case to prove: `runs list|show|reindex` and
+# `evidence export --public` were resolved by M6 (test_cli_runs_command.py);
+# `analyze` by M7 (test_cli_analyze_command.py); `infra
+# plan|apply|destroy|status|verify-clean` by M9 (test_cli_infra_command.py);
+# `run --provider fake` by M10 (test_cli_run_command.py; `--provider aws`
+# remains a documented stub until M17); `report` by M16
+# (test_cli_report_command.py); and `compare` -- the last one -- by M18
+# (test_compare.py's TestCompareCli). Each resolved command's own real
+# behavior is tested in its own file linked above; there is deliberately no
+# empty parametrized class left standing in for a sweep with zero remaining
+# cases.

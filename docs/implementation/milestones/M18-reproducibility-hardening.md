@@ -34,7 +34,8 @@ tests/unit/{test_compare,test_archive,test_migrate}.py
   with exact commands and versions. Schemas are included because a bundle without its schema
   is uninterpretable once schemas evolve.
 - F5 Format migration between evidence versions, preserving the original.
-- F6 Docker image producing byte-identical fake-provider runs across machines.
+- F6 Docker image producing byte-identical fake-provider runs across machines (see acceptance
+  criterion 3's amendment for the precise, ADR-013-respecting statement of this).
 
 ## Non-functional requirements
 Docker image under 500 MB. `compare` under 2 s for two 10 000-observation bundles.
@@ -54,10 +55,27 @@ Run the same fake scenario twice with the same seed; `compare` must report ident
 the seed; must report distributionally consistent but not identical. Change the catalog
 version; must refuse without the flag.
 
+**Amended on implementation:** "identical" above is REPRODUCIBILITY.md section 1's Level 1,
+reserved there for the *same evidence bundle re-analyzed*. Two independently-produced runs --
+even same-scenario, same-seed -- have different `finding_id`/`observation_refs` by construction
+(ADR-013 salts them per `run_id`), so `compare` reports `STRUCTURALLY_IDENTICAL` (Level 2) for
+that case, not `IDENTICAL`; `IDENTICAL` is reserved for literal self-comparison. Verified for
+real against both scenarios named in the verification commands below; see PROJECT_STATUS.md's
+M18 entry for the actual output.
+
 ## Acceptance criteria
 1. `compare` correctly classifies all three levels.
 2. Archive is self-contained: a fresh machine can interpret it with no repository access.
-3. Docker produces byte-identical fake runs on two different hosts.
+3. Docker produces byte-identical fake runs on two different hosts. **Amended on
+   implementation** (see PROJECT_STATUS.md's M18 entry): taken completely literally this is
+   unsatisfiable by ADR-013, which salts identifiers (`identity_ref_hash` and similar) per
+   `run_id` -- a value that is, by construction, different on every invocation, container or
+   not. Verified instead as: every artifact that carries no run-salted identifier
+   (`graph.json`, `scenario.json`, `policy_states.jsonl`, `credentials.jsonl`) is byte-identical
+   between a container run and a host run of the same scenario+seed, and `chainbreak compare`
+   between the two bundles reports zero divergence. That is the correct, ADR-013-respecting
+   statement of "the container's fake provider behaves identically to the host's" -- a literal
+   byte-diff of the two salted streams would have been a misleading test, not a stronger one.
 4. Migration preserves the original bundle.
 5. `pip install --require-hashes` succeeds in CI.
 
@@ -65,7 +83,7 @@ version; must refuse without the flag.
 ```bash
 chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 42
 chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 42
-chainbreak compare <run-a> <run-b>                        # expect: identical
+chainbreak compare <run-a> <run-b>                        # expect: structurally identical
 chainbreak evidence export <run-a> --archive -o /tmp/a.tar.gz && tar tzf /tmp/a.tar.gz
 docker build -t chainbreak . && docker run --rm chainbreak run \
   scenarios/scope-attenuation/basic.yaml --provider fake --seed 42

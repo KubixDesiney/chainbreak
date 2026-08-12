@@ -50,7 +50,6 @@ flowchart TB
     subgraph L3["Model"]
         CORE["core/ — domain models (Pydantic)"]
         GRAPH["graph/ — AuthorizationGraph, algorithms"]
-        DELEG["delegation/ — delegation planning"]
     end
     subgraph L4["Provider"]
         BASE["providers/base/ — Protocol + contract tests"]
@@ -58,8 +57,7 @@ flowchart TB
         FAKE["providers/fake/ — deterministic laboratory"]
     end
     subgraph L5["Run"]
-        EXEC["execution/ — run orchestrator, probe matrix, task workers"]
-        OBS["observation/ — outcome classification, clocks"]
+        EXEC["execution/ — orchestrator, delegation planning, probe matrix, task workers"]
     end
     subgraph L6["Result"]
         EVID["evidence/ — bundle writer, redaction, manifest, index"]
@@ -71,12 +69,17 @@ flowchart TB
     CLI --> SAFE --> SCEN --> GRAPH
     CFG --> SAFE
     CAP --> SCEN
-    CORE -.types.-> GRAPH & DELEG & EXEC & OBS & EVID & ANAL
-    GRAPH --> DELEG --> EXEC
+    CORE -.types.-> GRAPH & EXEC & EVID & ANAL
+    GRAPH --> EXEC
     BASE --> AWS & FAKE
     EXEC --> BASE
-    EXEC --> OBS --> EVID --> ANAL --> SCORE --> REPT
+    EXEC --> EVID --> ANAL --> SCORE --> REPT
 ```
+
+`delegation/` and `observation/` do not appear above: both were reserved as top-level
+packages at design time but never populated (see [§3.7](#37-delegation-planning) and
+[§3.12](#312-outcome-classification) for where that responsibility actually landed instead,
+and `docs/DECISIONS.md` for why).
 
 ### Dependency rule (**INVARIANT ARCH-1**)
 
@@ -84,8 +87,7 @@ Imports may only point *downward* in this list. A violation is a build failure, 
 an import-linter check in CI (M0).
 
 ```
-reporting  →  scoring  →  analysis  →  evidence  →  observation  →  execution
-           →  delegation  →  graph  →  core
+reporting  →  scoring  →  analysis  →  evidence  →  execution  →  graph  →  core
 providers/aws, providers/fake  →  providers/base  →  core, capabilities
 scenarios  →  capabilities, core
 cli  →  everything
@@ -100,8 +102,9 @@ reference an AWS action string, ARN, or service name.
 ## 3. Component contracts
 
 ### 3.1 `cli/`
-Typer application. Commands: `validate`, `scenario validate|list`, `infra plan|apply|destroy|status`,
-`run`, `analyze`, `report`, `runs list|show`. The CLI is a thin adapter: it parses arguments,
+Typer application. Commands: `validate`, `scenario validate|list`,
+`infra plan|apply|destroy|status|verify-clean`, `run`, `analyze`, `report`, `compare`,
+`evidence export`, `runs list|show|reindex`. The CLI is a thin adapter: it parses arguments,
 loads config, calls the SafetyGate, and delegates. No business logic lives here.
 
 ### 3.2 `config/`
@@ -138,10 +141,17 @@ same document + same catalog version ⇒ byte-identical compiled artifact hash.
 `observed_authority` (from evidence). Algorithms in this package are pure set/graph
 operations over capability sets — see [AUTHORIZATION_MODEL.md §4](AUTHORIZATION_MODEL.md#4-divergence-algorithms).
 
-### 3.7 `delegation/`
-Turns graph edges into concrete delegation requests. Knows about *mechanisms*
+### 3.7 Delegation planning
+Turning graph edges into concrete delegation requests — knowing about *mechanisms*
 (`role_chain`, `session_policy`, `role_chain_with_session_policy`, `direct_role_assumption`)
-abstractly; the provider adapter knows how to execute them.
+abstractly, while the provider adapter knows how to execute them — is not a separate
+top-level package. It lives in `execution/delegation.py` (`materialize_graph`,
+`ensure_fresh_credential`, see [§3.11](#311-execution)), which walks a compiled graph's
+edges in hop order and re-delegates a credential whose remaining lifetime has run down
+before the matrix that is about to use it (F6). A top-level `delegation/` package was
+reserved for this at design time; M10's own milestone file named `execution/delegation.py`
+instead, as the more specific and more recently written source for that milestone, and the
+reservation was retired rather than left as dead scaffolding (see `docs/DECISIONS.md`).
 
 ### 3.8 `providers/base/`
 The adapter Protocol. Every provider must implement:
@@ -185,7 +195,10 @@ The run orchestrator. Responsibilities, in order:
 preflight → materialize identities → walk delegation edges → run probe matrix →
 execute scenario steps (mutations, waits, deferred tasks) → run post-mutation probe
 matrices → teardown ephemeral state. It owns the run clock and enforces
-`max_run_duration_seconds` with a hard abort.
+`max_run_duration_seconds` with a hard abort. It also owns delegation planning
+(`delegation.py`, [§3.7](#37-delegation-planning)) and normalized-observation construction
+(`_records.py`, `matrix.py`, `control.py`, [§3.12](#312-outcome-classification)) — both
+were reserved as separate top-level packages at design time and folded in here instead.
 
 Concurrency: probes within one `ProbeMatrix` for one identity may run concurrently
 (`asyncio` + bounded semaphore, default 4) **only** when the scenario declares
@@ -193,12 +206,21 @@ Concurrency: probes within one `ProbeMatrix` for one identity may run concurrent
 probes strictly serially with recorded inter-probe intervals, because concurrency destroys
 the timing measurement. (See [ADR-011](docs/adr/ADR-011-serial-execution-for-timing-scenarios.md).)
 
-### 3.12 `observation/`
-Converts raw provider responses into a normalized `Observation` with an `OutcomeClass`
-(see [§5](#5-outcome-classification)), timing triple (monotonic start, monotonic end,
-wall-clock start), and a redacted response summary. Also owns clock handling: all interval
-math uses `time.monotonic_ns()`; wall-clock is recorded separately for correlation with
-provider-side events and carries a measured offset estimate.
+### 3.12 Outcome classification
+Converting a raw provider response into an `OutcomeClass` (see
+[§5](#5-outcome-classification)) is not a separate top-level package either.
+Classification is provider-side — each adapter classifies its own responses, because the
+disambiguation rules are provider-specific: `providers/aws/disambiguation.py` for AWS's
+403/404 ambiguity and denial-attribution parsing, `providers/fake/probes.py` for the fake.
+Building the normalized `Observation` record (timing triple, credential, redacted response
+summary) from a classified probe result plus its run context is shared code in
+`execution/_records.py` (`build_observation`, see [§3.11](#311-execution)), used
+identically by `execution/matrix.py`'s regular probe cells and `execution/control.py`'s
+calibration probe so the two can never silently drift apart on a field. Clock handling
+lives alongside it: all interval math uses `time.monotonic_ns()`; wall-clock is recorded
+separately for correlation with provider-side events and carries a measured offset
+estimate. A top-level `observation/` package was reserved for this at design time and
+retired for the same reason as `delegation/` above.
 
 ### 3.13 `evidence/`
 Writes the evidence bundle: `manifest.json`, `observations.jsonl`, `graph.json`,

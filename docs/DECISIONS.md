@@ -82,6 +82,17 @@ research variable up to 6; provisioning all of them means changing depth does no
 Not a reluctant floor — the enum serialization behavior in particular removes a whole class
 of custom-encoder bugs in the evidence layer.
 
+**`delegation/` and `observation/` folded into `execution/`, not kept as separate top-level
+packages.** ARCHITECTURE.md reserved both at design time (§3.7, §3.12 as originally
+written). M10's own milestone file named `execution/delegation.py` instead of a top-level
+`delegation/` package — more specific and more recently written for that exact milestone —
+and it was followed; the same reasoning applied to outcome classification, which ended up
+provider-side (`providers/aws/disambiguation.py`, `providers/fake/probes.py`) plus shared
+`Observation`-building in `execution/_records.py`, `matrix.py` and `control.py`. The two
+empty package directories were deleted and ARCHITECTURE.md §3.7/§3.12 rewritten to describe
+where the responsibility actually lives, closing the tension PROJECT_STATUS.md had recorded
+since M10 rather than leaving it open indefinitely.
+
 ---
 
 ## Deferred decisions

@@ -89,7 +89,12 @@ _AWS_STRING_ALLOWED_PATHS: tuple[str, ...] = (
     "AWS_PROVIDER_SPEC.md",
 )
 
-_AWS_SERVICE_STRING_RE = re.compile(r"(s3:|arn:aws|dynamodb:|sts:)")
+# (?<![A-Za-z]) -- a word-boundary guard, not decoration: without it this
+# matches "sts:" inside ordinary English words ending "...sts:" (exists:,
+# consists:, lists:, tests:, costs:, resists:, ...), which is common enough
+# in error-message prose that M18's evidence/migrate.py tripped it on
+# "already exists:" the first time this check ran against it for real.
+_AWS_SERVICE_STRING_RE = re.compile(r"(?<![A-Za-z])(s3:|arn:aws|dynamodb:|sts:)")
 
 
 def _module_name(path: Path) -> str:
@@ -216,6 +221,35 @@ class TestNoLiteralAwsServiceStringsOutsideProviders:
         assert not offenders, (
             f"AWS service strings must live only in providers/ or AWS_PROVIDER_SPEC.md: {offenders}"
         )
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "raise EvidenceError('migration target already exists: ' + str(path))",
+            'f"the registry consists: {n} entries"',
+            "options = ('lists:', 'tests:', 'casts:', 'costs:', 'resists:', 'persists:')",
+        ],
+    )
+    def test_regex_does_not_false_positive_on_ordinary_english_words(self, text: str) -> None:
+        """The regression this class exists to prevent: words ending
+        '...sts:' (exists, consists, lists, tests, costs, resists, ...) are
+        common in error-message prose and must not read as an AWS action
+        string just because they happen to contain "sts:" as a substring."""
+        assert _AWS_SERVICE_STRING_RE.findall(text) == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "session = boto3.client('sts')  # policy_document = 'sts:AssumeRole'",
+            'arn = "arn:aws:iam::123456789012:role/agent-a"',
+            "action = 's3:GetObject'",
+            "table = 'dynamodb:PutItem'",
+        ],
+    )
+    def test_regex_still_detects_real_aws_service_strings(self, text: str) -> None:
+        """The other half of the same guarantee: the word-boundary fix above
+        must not have also blinded the detector to genuine violations."""
+        assert _AWS_SERVICE_STRING_RE.findall(text) != []
 
 
 class TestPlantedViolationsAreDetected:
