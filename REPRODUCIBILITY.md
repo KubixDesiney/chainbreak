@@ -38,7 +38,7 @@ Automatically, in `manifest.json` and `environment.json`:
 | Category | Fields |
 |---|---|
 | Code | `chainbreak_version`, `git_commit`, `git_dirty` |
-| Definitions | `scenario.id`, `scenario.version`, `api_version`, `compiled_hash`, `capability_catalog_version` |
+| Definitions | `scenario.id`, `scenario.version`, `api_version`, `compiled_hash`, `capability_catalog_version`, `capability_catalog_fingerprint` |
 | Provider | `provider`, `provider_adapter_version`, STS endpoint, partition, `region_hash`, `account_id_hash` |
 | Infrastructure | `infrastructure_fingerprint` (hash of Terraform outputs), Terraform version, module versions |
 | Configuration | `config_fingerprint` (hash of the resolved config with secrets excluded), full resolved config with values redacted |
@@ -154,10 +154,18 @@ the operator.
 ## 8. Archival
 
 A bundle intended for long-term reference should be exported with
-`chainbreak evidence export <run> --public --archive`, which produces a tarball containing
-the bundle, the resolved scenario, the capability catalog as it was at run time, the JSON
-Schemas, and a `REPRODUCE.md` generated with the exact commands and versions. Schemas are
-included because a bundle without its schema is uninterpretable once the schema evolves.
+`chainbreak evidence export <run> --archive`, which produces a self-contained `.tar.gz`
+containing the scrubbed bundle, the resolved (compiled) scenario, the capability catalog as
+it was at run time, the JSON Schemas, and a `REPRODUCE.md` generated with the exact commands
+and versions. Schemas are included because a bundle without its schema is uninterpretable
+once the schema evolves. `--archive` implies `--public` scrubbing unconditionally
+(`evidence/archive.py`) -- there is no flag combination that produces an unscrubbed archive.
+
+`--archive` refuses to run rather than silently mislabeling the environment if the
+`catalog.yaml` on disk does not match the run's recorded
+`capability_catalog_version` or `capability_catalog_fingerprint`, and refuses if no
+`schemas/` directory is present (archiving currently requires a repository checkout --
+CHAINBREAK does not yet ship `schemas/` as installed package data).
 
 Bundles are gitignored by default. Publishing one is a deliberate, reviewed action.
 

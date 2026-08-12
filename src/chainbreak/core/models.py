@@ -1110,11 +1110,23 @@ class Provenance(DomainModel):
     git_commit: str | None = None
     git_dirty: bool = False
     capability_catalog_version: str
+    capability_catalog_fingerprint: Sha256Digest | None = Field(
+        default=None,
+        description="SHA-256 of the catalog bytes loaded for this run, so an archive can "
+        "prove it contains the catalog as it was at run time.",
+    )
     provider: Provider
     provider_adapter_version: str
     python_version: str
     config_fingerprint: Sha256Digest
     infrastructure_fingerprint: Sha256Digest | None = None
+    seed: int | None = Field(
+        default=None,
+        description="The run's top-level --seed. Every other seed used during the run "
+        "(probe-order shuffle per matrix, fake-provider jitter/RNG) derives deterministically "
+        "from this one (REPRODUCIBILITY.md section 2), so recording it alone is sufficient to "
+        "reproduce the shuffle and fault-injection schedule exactly.",
+    )
 
 
 class ScenarioRef(DomainModel):

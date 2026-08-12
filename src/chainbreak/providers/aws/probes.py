@@ -244,7 +244,7 @@ def probe_identity_whoami(sts_client: Any) -> ProbeOutcome:
 
 
 def probe_identity_delegate(
-    sts_client: Any, *, next_hop_role_arn: str | None, external_id: str
+    sts_client: Any, *, next_hop_role_arn: str | None, external_id: str, session_name: str
 ) -> ProbeOutcome:
     if next_hop_role_arn is None:
         return ProbeOutcome(
@@ -252,9 +252,16 @@ def probe_identity_delegate(
             message_redacted="no further hop in the fixed six-role agent chain to probe against",
             disambiguation_path="identity.delegate:no_next_hop",
         )
+    # ``session_name`` must satisfy the next hop's trust-policy
+    # ``StringLike: sts:RoleSessionName = "${namespace}-*"`` condition
+    # (identities/main.tf) -- a literal, non-namespaced name is refused at
+    # the trust-policy layer before the identity policy is even consulted,
+    # confirmed empirically against a real account: caller
+    # (``adapter.py``) must build this with ``session.build_session_name``,
+    # the same helper every other AssumeRole call site already uses.
     sts_client.assume_role(
         RoleArn=next_hop_role_arn,
-        RoleSessionName="cb-probe-identity-delegate",
+        RoleSessionName=session_name,
         DurationSeconds=900,
         ExternalId=external_id,
     )

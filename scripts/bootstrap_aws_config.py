@@ -98,12 +98,10 @@ allow_dangerous_capabilities = false
 allow_concurrent_runs = false
 require_confirmation_for_apply = true
 
+# Only [safety] and [provider].default are read by config/settings.py. Any
+# other section is silently ignored, so do not add one expecting it to work.
 [provider]
-name = "aws"
-region = "{region}"
-
-[aws]
-profile = "chainbreak"
+default = "aws"
 """
 
 

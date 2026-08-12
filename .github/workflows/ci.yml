@@ -68,6 +68,18 @@ jobs:
       # --skip-editable: the repo's own package is always editable-installed here,
       # and that is not a supply-chain risk worth failing the build over.
       - run: pip-audit --skip-editable
+      - name: Dependency lockfile hashes must install cleanly (T-14, M18 S3)
+        # An isolated venv, not this job's already-populated one: --require-hashes
+        # demands every requirement present in the target environment carry a hash,
+        # so verifying it against a venv that already has unhashed packages installed
+        # would prove nothing. requirements.lock covers third-party dependencies only
+        # (see scripts/lock_from_report.py's docstring for why chainbreak itself is
+        # excluded and installed separately, --no-deps).
+        run: |
+          python -m venv /tmp/lockcheck-venv
+          /tmp/lockcheck-venv/bin/pip install --require-hashes -r requirements.lock
+          /tmp/lockcheck-venv/bin/pip install --no-deps .
+          /tmp/lockcheck-venv/bin/python -c "import chainbreak; print('lockfile install OK')"
       - name: No Terraform state or tfvars in the repository (T-04)
         run: |
           if git ls-files | grep -E '\.tfstate|\.tfvars$' | grep -v '\.example$'; then

@@ -97,10 +97,22 @@ def export_evidence(
     public: bool = typer.Option(
         False, "--public", help="Scrub identifiers before writing the copy (F6)."
     ),
+    archive: bool = typer.Option(
+        False,
+        "--archive",
+        help="Produce a self-contained tarball (bundle, resolved scenario, capability "
+        "catalog as it was at run time, JSON Schemas, REPRODUCE.md) (M18 F4). Always "
+        "implies --public scrubbing (S1); there is no unscrubbed archive path.",
+    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Report what would be stripped without writing files."
     ),
-    output_dir: Path | None = typer.Option(None, "--output-dir", help="Destination directory."),
+    output_dir: Path | None = typer.Option(
+        None, "--output-dir", help="Destination directory for --public (ignored by --archive)."
+    ),
+    output: Path | None = typer.Option(
+        None, "-o", "--output", help="Destination file for --archive (ignored by --public)."
+    ),
     include_policy_documents: bool = typer.Option(
         False, "--include-policy-documents", help="Do not strip policy document bodies."
     ),
@@ -108,15 +120,43 @@ def export_evidence(
         _DEFAULT_RUNS_ROOT, "--runs-root", help="Directory containing run bundles."
     ),
 ) -> None:
-    """Export a bundle. ``--public`` produces the scrubbed, shareable copy (F6)."""
-    if not public:
+    """Export a bundle. ``--public`` produces the scrubbed, shareable copy (F6);
+    ``--archive`` additionally packages it into a self-contained tarball (M18 F4)."""
+    if not public and not archive:
         typer.echo("chainbreak evidence export: only --public export is implemented (M6)", err=True)
         raise typer.Exit(code=2)
 
     from chainbreak.core.errors import EvidenceError
-    from chainbreak.evidence.export import export_public
 
     run_dir = runs_root / run_id
+
+    if archive:
+        if dry_run:
+            typer.echo("chainbreak evidence export --archive: --dry-run is not supported", err=True)
+            raise typer.Exit(code=2)
+
+        from chainbreak.evidence.archive import create_archive
+
+        try:
+            archive_report = create_archive(
+                run_dir,
+                output_path=output,
+                include_policy_documents=include_policy_documents,
+            )
+        except EvidenceError as exc:
+            typer.echo(f"chainbreak evidence export --archive: {exc.message}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        typer.echo(archive_report.export_report.render_diff())
+        typer.echo(
+            f"wrote self-contained archive to {archive_report.archive_path} "
+            f"(catalog {archive_report.catalog_version}, "
+            f"{len(archive_report.schema_files)} schema file(s))"
+        )
+        return
+
+    from chainbreak.evidence.export import export_public
+
     try:
         report = export_public(
             run_dir,

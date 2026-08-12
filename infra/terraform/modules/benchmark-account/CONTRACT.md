@@ -27,7 +27,7 @@ probing is safe.
 | `account_id` | From `aws_caller_identity` |
 | `region` | From `aws_region` |
 | `external_id` | `"cb-" + namespace`; used in every trust-policy condition |
-| `infrastructure_fingerprint` | `sha256` over the sorted output map, recorded in every evidence bundle |
+| `infrastructure_fingerprint` | `"sha256:" + sha256` over the sorted output map, recorded in every evidence bundle — same `sha256:<64 hex chars>` shape as the two marker digests, since `providers/aws/preflight.py::_validate_output_shapes` (P5/P6) checks all three against the same regex |
 
 ## Required resources
 

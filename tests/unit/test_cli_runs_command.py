@@ -102,3 +102,48 @@ def test_evidence_export_without_public_is_still_a_stub(runs_root: Path) -> None
     )
     assert result.exit_code == 2
     assert "only --public export is implemented" in result.output
+
+
+def test_evidence_export_archive_writes_a_self_contained_tarball(
+    runs_root: Path, tmp_path: Path
+) -> None:
+    from chainbreak.cli.main import app
+
+    output = tmp_path / "out.tar.gz"
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "evidence",
+            "export",
+            "01J8XKQ4V7ZP3N2M9YB6TCGOLD",
+            "--archive",
+            "--output",
+            str(output),
+            "--runs-root",
+            str(runs_root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert output.is_file()
+    assert "wrote self-contained archive" in result.output
+
+
+def test_evidence_export_archive_and_dry_run_together_exits_two(runs_root: Path) -> None:
+    from chainbreak.cli.main import app
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "evidence",
+            "export",
+            "01J8XKQ4V7ZP3N2M9YB6TCGOLD",
+            "--archive",
+            "--dry-run",
+            "--runs-root",
+            str(runs_root),
+        ],
+    )
+    assert result.exit_code == 2
+    assert "--dry-run is not supported" in result.output

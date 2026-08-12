@@ -102,6 +102,7 @@ def run(
     from chainbreak.config.settings import resolve_safety_envelope, resolve_settings
     from chainbreak.core.errors import ChainbreakError
     from chainbreak.core.ids import new_run_id
+    from chainbreak.evidence.manifest import hash_file
     from chainbreak.evidence.writer import BundleWriter
     from chainbreak.execution.orchestrator import orchestrate
     from chainbreak.providers.fake.probes import build_fake_preconditions
@@ -171,10 +172,14 @@ def run(
         provenance={
             "chainbreak_version": _chainbreak_version(),
             "capability_catalog_version": compiled.catalog_version,
+            "capability_catalog_fingerprint": hash_file(
+                Path(__file__).resolve().parents[1] / "capabilities" / "catalog.yaml"
+            ),
             "provider": adapter.name,
             "provider_adapter_version": compiled.adapter_version,
             "python_version": _python_version(),
             "config_fingerprint": fingerprint_settings(settings),
+            "seed": seed,
         },
     )
 

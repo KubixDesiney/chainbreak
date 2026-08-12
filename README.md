@@ -22,6 +22,10 @@ and the authority a delegated workload *actually* holds when it executes.
 > (reporting and visualisation) renders it into terminal, Markdown and self-contained HTML
 > reports, with the reporting-language rules enforced by lint at render time rather than left to
 > operator discipline — see `examples/reports/` for a sample.**
+> M18's offline reproducibility tooling is also complete: three-level `chainbreak compare`,
+> scrubbed self-contained archives, evidence migration support, and hash-locked dependencies.
+> M17 and the real-account portions of M8/M9 remain blocked on the dedicated AWS account; M19
+> has not started.
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -63,7 +67,7 @@ and the authority a delegated workload *actually* holds when it executes.
 > anywhere) and the terminal/Markdown/HTML reporting layer (`reporting/`: hand-built
 > evidence-derived SVG figures, Jinja2 with autoescape on and no `|safe` anywhere, a `provider:
 > fake` run stamped in the header and every figure caption)
-> (1693 passing tests;
+> (1744 passing tests;
 > `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
 > `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
 > `providers/fake/` ~99.7%, `analysis/` 98%, `execution/` ~99% (every M13/M14-proper module at
