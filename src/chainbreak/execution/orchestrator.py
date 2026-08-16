@@ -113,6 +113,7 @@ PHASE_NAME_TO_PLAN_PHASE: dict[str, PlanPhase] = {
     "baseline": PlanPhase.BASELINE,
     "confirm-present": PlanPhase.BASELINE,
     "after-delegation": PlanPhase.POST_DELEGATION,
+    "paired-fresh-credential": PlanPhase.PAIRED_FRESH_CREDENTIAL,
     "final": PlanPhase.FINAL,
 }
 
