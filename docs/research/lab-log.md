@@ -38,6 +38,19 @@ notes: execution begins after this checklist is committed; any DETECTOR_FAILURE 
 block outcome: invalid before scenario completion; no result published.
 exclusions: run `01M04VMT6DFQ98E8NCABXEFVK9` excluded, reason `SecretLeakError` at `$.outcome.message_redacted` (`base64_blob`) caused by raw AWS ARN text reaching the evidence gate before provider-side identifier redaction. This was an apparatus evidence-boundary defect; no provider measurement was inferred. Sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
 
+## 2026-08-16 block-01R — checklist recorded before retry
+
+checklist: 0.1 pass (clean commit `cc656e8`); 0.2 pass (offline gate previously `1767 passed, 9 skipped, 28 deselected`, redaction regression `25 passed`); 0.3 pass (live P1–P11); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate; CLI did not emit a numeric offset); 0.7 pass (pre-apply verify-clean: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
+infrastructure: applied 09:44 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, local commit `cc656e8` (clean before execution)
+scenarios: pending execution; all five families and six negative controls required in this retry block
+runs: pending
+negative controls: pending
+exclusions: prior invalid run `01M04VMT6DFQ98E8NCABXEFVK9` excluded above; no exclusions in this retry yet
+observation: pending
+anomalies: provider-identifier redaction fix under test
+notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this retry block.
+
 ## No experiments have been run
 
 As of the current commit, CHAINBREAK's architecture and specifications are complete and the
