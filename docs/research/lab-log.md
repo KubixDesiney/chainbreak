@@ -81,6 +81,15 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+block outcome: invalid/incomplete; no result published. The operator interruption stopped the
+matrix during delegation-drift and the approved block-01 window elapsed before resumption.
+runs: completed `01M04Y0PHQBPW0XTS6GFEWBMV8` (scope attenuation), `01M04Y3ZWQ5HQRHPGHGBZNMSB0` (delegation-drift five-hop), `01M04Y6H295K1E0S2CB6M1X29P` (delegation-drift four-hop), and resumed `01M059VX8KCJ79SW24QHSZEZ5G` (delegation-drift role-chain-five-hop)
+exclusions: partial run `01M04Y9JKZ8DFSN0GJS21TNY5J` excluded, reason `operator_interruption` before evidence or mutation; all completed block-01R3 runs excluded from publication because the five-family/six-control matrix was incomplete and the window boundary was crossed
+negative controls: not run
+observation: none publishable; no timing estimate or family result is inferred from this incomplete block
+anomalies: none observed; sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
+notes: next attempt must use the separately scheduled block-02 window.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
