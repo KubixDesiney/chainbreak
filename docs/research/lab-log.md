@@ -57,23 +57,23 @@ exclusions: run `01M04WD549F85R9CAH00BRGA72` excluded, reason `AccessDenied` dur
 ## 2026-08-16 block-01R2 — checklist recorded before clean restart
 
 checklist: 0.1 pass (clean commit `2fe0755`); 0.2 pass (`1767 passed, 9 skipped, 28 deselected`, plus scenario/compiler validation `60 passed`); 0.3 pass (live P1–P11); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate; CLI did not emit a numeric offset); 0.7 pass (pre-apply verify-clean: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 09:57 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+infrastructure: applied 09:57 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`; destroyed after invalidation, exact verify-clean passed twice
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, local commit `2fe0755` (clean before execution)
-scenarios: pending execution; all five families and six negative controls required in this clean restart
-runs: pending
-negative controls: pending
-exclusions: prior invalid runs `01M04VMT6DFQ98E8NCABXEFVK9`, `01M04WD549F85R9CAH00BRGA72` excluded above; no exclusions in this restart yet
-observation: pending
-anomalies: none at checklist time
-notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this restart block.
+scenarios: positive set-valued runs began, but the matrix stopped during revocation before all five families and six negative controls were executed
+runs: completed before invalidation — `01M04WRQYD99W3WSJSKM151D3A`, `01M04WSQ9Q89MJQ8CY2NKCJFSN`, `01M04WV9YWF657F34N0MBEA3M4`, `01M04WWSGFE4KGHX4FPX3F3VHV`, `01M04WYC8Y4Q37RHKKPGG26NGB`, `01M04X065H1XRT7QQFHYYJA4M5`, `01M04X1D7P2V0RY83T0ZXENJ7P`, `01M04X2DVYECV8KA3TCN7723H4`, `01M04X2Z138XTKMM404GT12QHG`, `01M04X3Z265K5X4STT809NC2E9`; partial runs `01M04X5S8346NGHFDXBPYQKGJR`, `01M04XDE1D9CA00AHPQ56QV2KZ`
+negative controls: not run; block invalidated before controls
+exclusions: prior invalid runs `01M04VMT6DFQ98E8NCABXEFVK9`, `01M04WD549F85R9CAH00BRGA72` excluded above; all block-01R2 runs excluded from publication because the block matrix was incomplete; partial runs `01M04X5S8346NGHFDXBPYQKGJR` and `01M04XDE1D9CA00AHPQ56QV2KZ` excluded for automatic-revert `MalformedPolicyDocumentException` (duplicate statement IDs)
+observation: none publishable; no timing estimate or family result is inferred from this invalid block
+anomalies: explained adapter defect found in AWS inline-policy reversion — multi-capability grant synthesis emitted duplicate `CbGrant` SIDs; fixed in the follow-up commit and covered by a regression test; this was not an unexplained provider defect
+notes: block invalidated and sandbox destroyed; the next execution requires a new nine-item checklist on the fixed clean commit.
 
-## No experiments have been run
+## No valid M17 block has been published
 
-As of the current commit, CHAINBREAK's architecture and specifications are complete and the
-domain model, capability catalog and scenario corpus are implemented and verified. **No
-scenario has been executed against AWS, and no measurement exists.**
+Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
+**No valid M17 block has produced a publishable measurement.**
 
-The first entry in this file will be written during milestone M17.
+The next valid block must satisfy the complete family/control matrix and the timing/sample
+requirements before any result is published.
 
 ---
 
