@@ -193,6 +193,7 @@ def run_deferred_execution_phase(
     materialized.credentials[identity_id] = fresh_result.record
     fresh_result.credential.scrub()  # M11 S2 -- see delegation.py's identical comment
     fresh_credential = fresh_result.record
+    fresh_time = now()
 
     events.append(
         {
@@ -235,7 +236,7 @@ def run_deferred_execution_phase(
                 namespace=namespace,
                 result=result,
                 credential=fresh_credential,
-                now=current_time,
+                now=fresh_time,
                 preconditions_verified=True,
                 salt=salt,
             )

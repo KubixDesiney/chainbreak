@@ -126,3 +126,10 @@ class TestNoAuthorityCachingHook:
             sequence_start=0,
         )
         assert len(run.observations) == 2  # pinned + paired fresh
+        fresh = next(
+            observation
+            for observation in run.observations
+            if observation.phase.value == "PAIRED_FRESH_CREDENTIAL"
+        )
+        assert fresh.credential_age_ms is not None
+        assert fresh.credential_age_ms >= 0
