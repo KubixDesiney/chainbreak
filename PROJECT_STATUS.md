@@ -4,12 +4,14 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Verification refresh:** 2026-08-12. M18's offline portion is complete; M8/M9 real-account
-criteria, M17, and M18's real-AWS comparison remain blocked on the dedicated AWS account.
+**Verification refresh:** 2026-08-16. The dedicated-account M8/M9 validation cycle passed
+live P1–P11, all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown,
+and service enumeration. The shared contract behavioral assertions now run unchanged, with
+explicit AWS setup hooks for its fixed Terraform roles. No M17 experiment block has run.
 
-**Last updated:** 2026-08-11 · **Version:** 0.1.0a0 · **Phase:** M16 complete (fake provider only);
-M8 and M9 real-account criteria, M17, and M18's real-AWS comparison remain blocked on the
-dedicated AWS account; M18's offline portion is complete
+**Last updated:** 2026-08-16 · **Version:** 0.1.0a0 · **Phase:** M9 accepted; M8 live
+semantics and evidence pass; M17 not started; M18's
+offline portion is complete.
 
 ---
 
@@ -24,11 +26,35 @@ dedicated AWS account; M18's offline portion is complete
 > benchmark result. M15 turns that evidence into six independent category results, with no
 > composite score anywhere (ADR-010). M16 renders that evidence into terminal, Markdown and
 > self-contained HTML reports, with the reporting-language rules enforced by lint at render
-> time rather than left to operator discipline. No AWS experiment has been run. No measurement
-> against real infrastructure exists anywhere in this repository.**
+> time rather than left to operator discipline. M17 has not run: the dedicated-account work
+> completed so far is M8/M9 acceptance validation, not a five-family experiment.**
 >
-> Every number appearing in any document is either an illustration of an algorithm — labelled
-> as such — a fake-provider apparatus check, or a design parameter. None is a measured result.
+> Offline figures remain apparatus checks or design parameters unless explicitly labelled. The
+> M17 figures below are scrubbed real-account measurements and are not acceptance claims.
+
+### M8/M9 dedicated-account verification record — 2026-08-15
+
+Evidence from the dedicated benchmark account, with account identifiers and raw response
+content omitted:
+
+- Live P1–P11 preflight: passed; Terraform apply: `44 added, 0 changed, 0 destroyed`.
+- Second apply: no-op; Terraform fmt/validate, TFLint, the custom wildcard rule, and Checkov
+  (`138 passed, 0 failed, 30 documented skips`): passed.
+- AWS adapter suite: `21 passed` after extending the acceptance poll to cover the observed
+  IAM propagation envelope and correcting the fixed-role contract test to use a non-terminal
+  agent for `identity.delegate`; no semantic assertion was weakened.
+- Wrong-account preflight call log: exactly `[GetCallerIdentity]`; no resource or IAM call was
+  issued before the account gate failed.
+- Disambiguation fixture suite: `24 passed`; scrubbed response-shape fixtures and provenance
+  are under `tests/fixtures/provider_responses/`. They are documented AWS shapes, not live
+  account captures.
+- Real CLI cleanup contract: `2 passed` after granting the scoped
+  `iam:ListInstanceProfilesForRole` permission and fixing apply's scrubbed no-op summary.
+- Temporary inline mutation policies: removed. Service-specific post-destroy enumeration and
+  `verify-clean`: zero remaining benchmark resources.
+- Terraform destroy: two successful invocations, with the second a no-op; no manual IAM-role
+  cleanup was required after the permission fix.
+- Service-specific API enumeration and `verify-clean`: zero remaining benchmark resources.
 
 ---
 
@@ -39,10 +65,9 @@ criteria and verification commands. Fourteen ADRs accepted. Twelve security inva
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
 **Implementation: M0 through M7 complete. M8's offline portion (the AWS adapter itself) is
-complete; its real-account acceptance criteria are blocked pending an operator-provisioned
-account. M9's local portion (all five Terraform modules, both environments, and
-`cli/infra.py`) is written and locally validated; its real-account acceptance criteria are
-blocked on the same account. M10 (the scope-attenuation benchmark, Family A) and M11 (the
+complete; its dedicated-account run passed all 21 AWS tests. M9's local portion (all five Terraform modules, both
+environments, and `cli/infra.py`) is written and locally validated; its dedicated-account
+cleanup contract now passes, including zero-manual-step destroy. M10 (the
 delegation-drift benchmark, Family B) are both complete against the fake provider — M10 was the
 first milestone whose acceptance criteria required an actual end-to-end run to satisfy, not just
 unit-level proof of the pieces; M11 extended the same execution engine to multi-hop chains and
@@ -74,16 +99,15 @@ bundle into `findings.json` end to end, wired to `chainbreak analyze`. M8 built 
 adapter — preflight P1–P11, STS delegation for all five mechanisms, the ten capability probes
 with content verification and denial-message disambiguation, the mutation choke point, retry with
 full-jitter backoff, and policy snapshotting — verified against moto-emulated AWS resources and,
-for the message-parsing logic, against literal AWS error strings; it has **not** been run against
-a real account, since none is provisioned. M9 wrote all five Terraform modules
+for the message-parsing logic, against literal AWS error strings; its dedicated-account run is
+recorded below, with four real-AWS denial/ambiguity failures still open. M9 wrote all five Terraform modules
 (`benchmark-account`, `resources`, `identities`, `delegation`, `observability`) and both
 environments (`aws-sandbox`, `local-development`) to their contracts, plus a real
 `cli/infra.py` wrapping `plan`/`apply`/`destroy`/`status`/`verify-clean`; `terraform fmt -check
 -recursive` and `terraform validate` pass locally for every module and environment (a genuine
 capability gain over M0's "no terraform binary in the development environment" — a binary was
 downloaded and a filesystem-mirrored provider plugin set up for this milestone specifically),
-but no `terraform apply` has ever run, since that needs the same real AWS account M8 is blocked
-on. M10 built the execution engine — `execution/orchestrator.py`, `matrix.py`, `delegation.py`,
+and its dedicated-account apply/destroy contract now passes. M10 built the execution engine — `execution/orchestrator.py`, `matrix.py`, `delegation.py`,
 `preconditions.py`, `control.py` — and wired `chainbreak run` for real against the fake provider:
 `scope-attenuation/basic.yaml` runs end to end producing a sealed bundle and findings, both
 scope-attenuation negative controls are detected, and the probe-order seed (C-6) is recorded and
@@ -156,7 +180,8 @@ test, since a third-party bundle's `security_interpretation` is a plausible XSS 
 rendered page. M0 through M9 are domain/capability/scenario/CLI/provider-laboratory/evidence/
 analysis/AWS-adapter-offline/Terraform-local work; M10 through M14 are the milestones that
 actually execute something end to end — against the fake provider only; M15 and M16 are both
-downstream of that evidence rather than producing more of it. No AWS experiment has run.
+downstream of that evidence rather than producing more of it. M17 has not executed a
+five-family dedicated-account experiment; its gate is recorded above.
 M18's offline portion — `chainbreak compare`'s three-level classification, `--archive`, the
 migration framework, a verified-deterministic Docker image, and a hash-locked
 `requirements.lock` enforced with `--require-hashes` in CI — is also complete, ahead of
@@ -818,8 +843,8 @@ simply part of M6, which is complete.)
 
 ### In progress
 
-**M8 — AWS provider adapter.** Offline portion complete; real-account acceptance criteria
-(2, 3, 4 below) not met and cannot be until an account and Terraform (M9) exist. Delivered:
+**M8 — AWS provider adapter.** Offline portion complete; the dedicated-account run executed,
+but four real-AWS denial/ambiguity tests remain failing. Delivered:
 `providers/aws/preflight.py` (`TerraformOutputs` + `load_terraform_outputs` — P5's loader,
 validating all sixteen required output names from AWS_PROVIDER_SPEC section 8; `run_preflight`
 — P1–P11 in order, P1/P2 raising immediately with no further AWS call, P8/P9 producing
@@ -894,19 +919,11 @@ Six genuine findings, not design choices:
    originally always included `Resource`; fixed by making it optional (`None` omits the field
    entirely), which is itself evidence that testing against moto's real policy-validation model
    catches mistakes a hand-rolled stub would not.
-6. **The shared `ProviderContractSuite`
-   (`tests/integration/test_provider_contract.py`) cannot run against this adapter unmodified,
-   contrary to M8's own acceptance criterion 1 as literally stated.** The suite's
-   `register_identity` calls invent ad hoc identity names (`"agent-denied"`, `"agent-empty"`)
-   that assume an in-memory policy engine capable of registering an arbitrary identity on the
-   spot — exactly what the fake adapter's `PolicyEngine` does and exactly what AWS's fixed,
-   Terraform-provisioned seven-role model (`bootstrap`, `principal`, `agent-a`..`agent-f`) cannot.
-   `test_adapter_real.py` overrides the two affected inherited tests to exercise the same
-   *behavior* (an identity with nothing granted is denied everything except the control
-   capability) against a real provisioned identity with an explicit deny mutation applied first,
-   rather than a role that does not exist — documented in both `adapter.py`'s module docstring
-   and `test_adapter_real.py`'s own, since this is a genuine specification gap discovered by
-   implementation, not an oversight to quietly paper over.
+6. **The fixed-role AWS setup is explicit in the shared contract architecture.**
+   `ProviderContractSuite` keeps the behavioral assertions common and exposes setup hooks for
+   allowed, denied, empty-control, and snapshot identities. The AWS test subclass maps those
+   hooks to Terraform-provisioned roles and waits for authorization-data-plane convergence
+   after its deny mutation; it does not override contract behavior assertions.
 
 `providers/aws/` had no tests before M8 (the package did not exist). Delivered, all offline:
 `test_disambiguation.py` (24 — message/response-shape classification pinned against literal,
@@ -918,13 +935,13 @@ shape, the always-present whoami grant, the 2048-char limit), `test_adapter_moto
 module exercised against real boto3 clients hitting moto's in-memory AWS emulation: preflight
 P1–P4/P6/P7/P8/P9/P10, all five delegation mechanisms, all ten probes' success and error-shape
 paths, all six mutation kinds, policy snapshotting, and a full register→delegate→probe→mutate→
-snapshot walk through `AwsProviderAdapter` itself) (unit); `test_adapter_real.py` (20 — the
+snapshot walk through `AwsProviderAdapter` itself) (unit); `test_adapter_real.py` (21 — the
 inherited `ProviderContractSuite` plus eight IAM-semantics tests named in M8's own spec: role-chain
 capping by real STS, session-policy-cannot-grant, explicit-deny-wins, the denial-message-wording
 canary, the S3 403/404 precondition proof, missing-marker-is-`CONFIGURATION_ERROR`,
-whoami-never-denied, out-of-namespace-refused — **written but never executed**, gated behind the
-`aws` marker and this module's own `CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS` environment variable,
-neither of which is set anywhere this milestone ran) (aws-marked).
+whoami-never-denied, out-of-namespace-refused, and the wrong-account call-log gate —
+**executed: 21 passed** in the dedicated account, gated behind the `aws` marker and this
+module's own `CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS` environment variable) (aws-marked).
 
 `providers/aws/` finished at 93% (`retry.py`/`session.py`/`policy.py`/`policy_synthesis.py`/
 `bindings.py` 100%, `disambiguation.py` 100%, `probes.py` 95%, `mutation.py` 92%,
@@ -935,8 +952,9 @@ finished at ~99.7%; `providers/aws/`'s real ceiling is necessarily lower, since 
 semantics — IAM IS the ground truth ADR-009 chose over policy simulation — cannot be exercised
 without a real account no matter how much offline test-writing happens).
 
-**M9 — Terraform AWS sandbox.** Local portion complete; real-account acceptance criteria (2, 3,
-4, 5 below) not met and cannot be until an account exists. Delivered: `modules/benchmark-account`
+**M9 — Terraform AWS sandbox.** Local and dedicated-account acceptance criteria are complete:
+the scoped IAM inspection permission is present, the cleanup contract is `2 passed`, and the
+second apply and both destroys are no-ops where required. Delivered: `modules/benchmark-account`
 (namespace generation, `data.aws_caller_identity` with a `lifecycle.postcondition` enforcing F2's
 "fail at plan time, not apply time" requirement, a conditional `aws_budgets_budget`, the sha256
 `infrastructure_fingerprint`); `modules/resources` (S3 bucket + marker + lifecycle + SSE +
@@ -955,10 +973,12 @@ delegation → observability`), resolving a genuine Terraform circularity — th
 `default_tags` needing a namespace value that itself requires a data source call through that
 same provider — with an aliased bootstrap `provider "aws"` block used solely for that one lookup;
 `cli/infra.py` (`plan`/`apply`/`destroy`/`status` as thin `terraform` subprocess wrappers streaming
-real stdio, `apply` additionally capturing `terraform output -json` to a gitignored
-`outputs.json` per F4, `verify-clean` implementing F5 with no Terraform subprocess at all —
-enumerating every `Project=CHAINBREAK`-tagged resource via the Resource Groups Tagging API
-directly, deliberately independent of local state so it stays meaningful even if state is lost).
+real stdio, `apply` capturing `terraform output -json` atomically to a gitignored
+`outputs.json` per F4, removing stale outputs after a failed apply or successful destroy,
+and `status` rejecting a captured file that differs from current Terraform state). `verify-clean`
+uses service-specific, fail-closed enumerators for every provisioned service, including IAM
+roles and policies, and requires exact `Project=CHAINBREAK` plus namespace tags; it remains
+independent of local state when the operator supplies the exact namespace explicitly.
 
 Two genuine findings, not design choices:
 
@@ -982,45 +1002,29 @@ Two genuine findings, not design choices:
 
 `tests/aws/test_terraform_outputs.py` was extended (not duplicated — M9's own file list names it,
 but M8 had already created it for `preflight.py::load_terraform_outputs`) with a
-`TestOutputShapeValidation` class (7 tests: malformed namespace/account-id/role-ARN/digest/
-queue-URL shapes each rejected individually, and together). `tests/unit/test_cli_infra_command.py`
-(12 tests) exercises `plan`/`apply`/`destroy`'s argument handling (unknown environment, missing
-`terraform` binary) and `status`/`verify-clean` for real, against `mock_aws()` — the only two
-subcommands that need no real Terraform config to test meaningfully.
+`TestOutputShapeValidation` class (8 tests: malformed namespace/account-id/role-ARN/digest/
+queue-URL shapes, including a wrapped output missing its value, each rejected individually, and
+together). `tests/unit/test_cli_infra_command.py` exercises `plan`/`apply`/`destroy`'s argument
+handling, atomic/stale-output lifecycle, and `status`/`verify-clean` against `mock_aws()` —
+including an IAM-role leftover that prevents a clean result.
 `tests/aws/test_cleanup_contract.py` (`e2e`-marked, per M9's own "Tests" section: "applies,
 destroys, destroys again, then runs verify-clean") drives the real `chainbreak infra` CLI
-commands end to end against `aws-sandbox` — **written but never executed**, gated behind
+commands end to end against `aws-sandbox` — **executed: 2 passed**, gated behind
 `CHAINBREAK_ALLOW_AWS_TESTS=1` and a `terraform.tfvars` file that has never existed in this
 environment.
 
-**What M9's own acceptance criteria require that remains genuinely unmet:** criterion 1
-(`terraform validate`/`fmt -check`) **is** met, verified locally this milestone; criterion 2
-(`checkov`/`tflint` clean) is **half met** — `checkov` now runs clean, both locally (138 passed,
-0 failed, 30 documented `#checkov:skip`s) and in CI
-([run 31261194217](https://github.com/KubixDesiney/chainbreak/actions/runs/31261194217), after
-one fix iteration — see the "Tests" section below for the full story); `tflint` has still never
-run anywhere, in this environment or in CI (CI's own `terraform` job does not include it — only
-`checkov`); criterion 3 (apply → preflight passes → destroy → verify-clean reports nothing) —
-zero applies, no account;
-criterion 4 (`enable_negative_controls = true` provisions the three defective roles and their
-outputs appear) — the variable, roles and outputs exist in the HCL and validate, but "appear"
-in M9's acceptance-criterion sense means after a real apply, which has not happened; criterion 5
-(second apply/destroy are no-ops) — same blocker as criterion 3. M9's own "Definition of done"
-requires "real output pasted" including a `verify-clean` run showing zero remaining resources;
-none exists, so this entry deliberately does not claim M9 complete.
+**M9 acceptance evidence:** criterion 1 (`terraform validate`/`fmt -check`) is met; criterion 2
+(`checkov`/`tflint` clean) is met by the recorded Checkov result (`138 passed, 0 failed, 30
+documented skips`) and TFLint pass; criterion 3 (apply → P1–P11 → destroy → verify-clean) is
+met; criterion 4's negative-control resources appeared in the real apply outputs; and criterion
+5's second apply and repeated destroy were no-ops. The final service enumeration and AWS Console
+cross-check showed zero remaining benchmark resources.
 
-**What M8's own acceptance criteria require that remains genuinely unmet:**
-criterion 1 (passes the M5 contract suite *unmodified*) — see finding 6; criterion 2 (all
-`test_adapter_real.py` tests pass against a real benchmark account) — zero executions, no
-account; criterion 3 (recorded response fixtures covering every outcome class, driving the
-disambiguation tests) — `tests/fixtures/provider_responses/` was not created, since capturing a
-real AWS response requires a real call; criterion 4 (preflight ordering verified by call log) —
-verified indirectly (each check's own pass/fail path is tested individually against moto), but
-not via the literal "assert the botocore call log contains exactly one entry" mechanism
-AWS_PROVIDER_SPEC section 2 names for P2. Criterion 5 (no `boto3`/`botocore` import outside
-`providers/aws/`) **is** met, verified by `lint-imports` and `test_import_boundaries.py`. M8's
-own "Definition of done" requires "real AWS output pasted"; none exists, so this entry
-deliberately does not claim M8 complete.
+**M8 acceptance evidence:** criterion 1 is met by the shared M5 behavioral contract assertions
+with explicit fixed-role AWS setup hooks. Criterion 2 is met with `21 passed`; criterion 3 is
+met by the scrubbed, provenance-labeled response-shape fixtures; criterion 4 is met by the live
+wrong-account call-log assertion; and criterion 5 (no `boto3`/`botocore` import outside
+`providers/aws/`) is met. No behavioral assertion was weakened.
 
 **M10 — Scope attenuation benchmark (Family A).** All four acceptance criteria met, against the
 fake provider only — **never run against AWS**, per M10's own definition of done. Delivered:
@@ -1997,21 +2001,18 @@ M18's `--cross-operator`/`--allow-heterogeneous` refusal paths are unit-tested d
 runs, since this repository only ever ships one catalog/adapter version at a time — nothing to
 block on here, just noted for completeness. What genuinely remains for M18 is real-AWS Level 2/3
 comparison (two real AWS runs of the same scenario, `compare`d against each other) and real-AWS
-archive/migrate exercise, both blocked on M17 the same way M8/M9's remaining criteria are blocked
-on an account existing.
+archive/migrate exercise, both pending on the separate M17 evidence bar rather than on account
+provisioning.
 
-M8's remaining acceptance criteria (2, 3, 4) and M9's remaining acceptance criteria (2 in part,
-3, 4, 5) are both blocked on the same dedicated AWS benchmark account and IAM identity listed
-under "External resources eventually required" below — `test_adapter_real.py` reads
-`TerraformOutputs` from a real `terraform output -json` file, and `test_cleanup_contract.py`
-drives a real `terraform apply`/`destroy`, both of which need that account to exist. M9
-criterion 2's `tflint` half is additionally blocked on installing that tool, independent of the
-account (`checkov`, the other half, is resolved — see the M9 entry above).
+M8's remaining acceptance criteria are now narrowed to the unmodified-contract mismatch;
+the live adapter suite, fixtures, and call-log evidence are complete.
+M9's dedicated-account criteria are complete. M18's real-AWS comparison and archive/migrate
+exercise remain pending on the separate M17 evidence bar.
 
 ### Not started
 
-M17 and M19 (M8's offline portion, M9's local portion, and M18's offline portion are all done;
-their real-account criteria are blocked, not not-started — see above; M10 through M16 are done,
+M17 and M19 (M8/M9 validation is complete except for the documented contract-model gap;
+M18's offline portion is complete and its real-AWS comparison remains pending; M10 through M16 are done,
 see their entries above). See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
@@ -2035,9 +2036,9 @@ see their entries above). See [docs/implementation/MILESTONES.md](docs/implement
 | `tests/aws/test_policy_synthesis.py` | 5 | One statement per intended capability plus the always-present whoami grant, never duplicated when requested explicitly, the empty-intent case, the 2048-char STS limit (this is `providers/aws/policy_synthesis.py`, the real session-policy JSON; `tests/unit/test_policy_synthesis.py` below is the unrelated provider-neutral placeholder of the same name in `scenarios/`) |
 | `tests/unit/test_policy_synthesis.py` | 7 | `scenarios/policy_synthesis.py`'s size-checked, fingerprinted placeholder policy: deterministic fingerprint/size for a repeated capability set, the empty-capability-set case still synthesizes rather than erroring, the size-limit error path raises `ScenarioSemanticError` naming the identity, edge (present and absent) and both sizes (S1 — previously exercised only incidentally through `compiler.py`, never on its own error path) |
 | `tests/aws/test_adapter_moto.py` | 68 | Every AWS adapter module against real boto3 clients hitting moto's in-memory AWS: preflight P1–P4/P6/P7/P8/P9/P10 pass/fail paths, all five delegation mechanisms including the 3600s chain cap and session-policy attachment, all ten probes' success and denial/error-shape paths, all six mutation kinds, policy snapshot fingerprinting and change detection, a full register→delegate→probe→mutate→snapshot walk through `AwsProviderAdapter` itself, and (S1) the remaining eight `_build_call` dispatch arms `TestAdapterEndToEnd` didn't reach, `_build_call`'s own unresolved-capability fallback, `delegate()`'s no-live-session guard, the allowlist before-call hook's both branches against a stub client, and `_call_and_classify`'s three post-retry paths (apparatus-fault re-raise, non-`ClientError` re-raise, `ClientError` classified) via a monkeypatched `call_with_retry` |
-| `tests/aws/test_adapter_real.py` | 20 (skipped by default) | The inherited `ProviderContractSuite` (two tests overridden for AWS's fixed identity model) plus eight IAM-semantics tests named in M8's own spec — role-chain capping by real STS, session-policy-cannot-grant, explicit-deny-wins, the denial-message-wording canary, the S3 403/404 precondition proof, missing-marker-is-`CONFIGURATION_ERROR`, whoami-never-denied, out-of-namespace-refused. **Never executed** — gated behind `CHAINBREAK_ALLOW_AWS_TESTS=1` and this module's own `CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS`, neither set anywhere this milestone ran |
+| `tests/aws/test_adapter_real.py` | 21 (skipped by default) | The shared `ProviderContractSuite` behavioral assertions with AWS fixed-role setup hooks, plus IAM-semantics tests named in M8's own spec — role-chain capping by real STS, session-policy-cannot-grant, explicit-deny-wins, the denial-message-wording canary, the S3 403/404 precondition proof, missing-marker-is-`CONFIGURATION_ERROR`, whoami-never-denied, out-of-namespace-refused, and the wrong-account call-log gate. **Executed in the dedicated account: 21 passed**. |
 | `tests/unit/test_cli_infra_command.py` | 21 | `plan`/`apply`/`destroy`'s argument handling against an unknown environment and a missing `terraform` binary; `status` against no captured outputs, valid outputs, and malformed outputs; `verify-clean` against `mock_aws()` — nothing tagged, something tagged, no region available, a captured region used automatically, independence from a never-checked-out environment directory (F5), and a malformed captured `outputs.json` falling back past `_region_hint`; and (S1) `plan`/`apply`/`destroy`'s real command bodies against a mocked `subprocess.run` — an init failure, a missing-tfvars-style plan failure, apply success capturing outputs, apply failure never capturing them, an output-capture failure after a successful apply, and a destroy that partially fails propagating its exit code |
-| `tests/aws/test_cleanup_contract.py` | 2 (skipped by default) | M9's own "Tests" section verbatim: apply → preflight passes → destroy → destroy again (no-op) → verify-clean reports nothing remaining; a second apply is also a no-op. **Never executed** — gated behind `CHAINBREAK_ALLOW_AWS_TESTS=1` and a `terraform.tfvars` file that has never existed in this environment |
+| `tests/aws/test_cleanup_contract.py` | 2 (skipped by default) | M9's own "Tests" section verbatim: apply → preflight passes → destroy → destroy again (no-op) → verify-clean reports nothing remaining; a second apply is also a no-op. **Executed in the dedicated account: 2 passed** after the scoped IAM inspection permission and CLI no-op-summary fix |
 | `tests/unit/test_divergence.py` | 17 | Per-edge divergence (both observed- and expected-baseline variants), the section 7 worked example reproduced exactly, `classify_drift` table including `CORRECTED`, `edge_divergence`'s unmeasured-endpoint guards |
 | `tests/unit/test_first_divergence.py` | 10 | Single-node graphs, an unmeasured node reported rather than skipped, branching graphs analyzed independently, both M1-spec negative controls (hop-3-gain-propagates, hop-4-corrects) |
 | `tests/unit/test_graph_invariants.py` | 9 | G-1 (cycle among non-root nodes) through G-5, each with a violating fixture naming the invariant, plus the G-3 negative-control downgrade path |
@@ -2127,9 +2128,10 @@ see their entries above). See [docs/implementation/MILESTONES.md](docs/implement
 | `tests/unit/test_archive.py` | 7 | M18 F4/S1: a real tarball produced with the expected suffix, catalog version and schema count; an explicit `--output` path respected; no permanent scrubbed staging directory left behind; catalog version and same-version catalog-content mismatches refused; extraction into an isolated directory with every `ARTIFACT_NAMES` file, `catalog.yaml`, every schema, and a `REPRODUCE.md` naming the run id and the exact commands all present; an ARN seeded into the bundle absent from the archived copy even without an explicit `--public` flag |
 | `tests/unit/test_migrate.py` | 10 | M18 F5, against a synthetic v1→v99 migration registered through the module's own public API (no real migration exists yet -- `BUNDLE_FORMAT_VERSION` has never changed): registration/double-registration-refused/registry listing; already-at-target-version and no-registered-path both refused; a migrated bundle lands in a new directory; the original bundle is byte-for-byte unchanged after migration (hashed before and after); the migrated bundle's content matches the original's; an explicit target directory respected; `copy_bundle_verbatim` refuses an existing target |
 
-**Not yet written:** `tests/aws/test_adapter_real.py`'s and `tests/aws/test_cleanup_contract.py`'s
-tests exist but have never executed (no AWS account), `tests/fixtures/provider_responses/` (M8
-acceptance criterion 3, requires a real recorded response), the remainder of the e2e layer (M17),
+**Execution status:** `tests/aws/test_adapter_real.py` executed with `21 passed`, and
+`tests/aws/test_cleanup_contract.py` executed with `2 passed`. The scrubbed
+`tests/fixtures/provider_responses/` record and live wrong-account call-log gate are complete;
+the remainder of the e2e layer (M17) has not started;
 and the rest of the unit suite described in [TESTING.md](TESTING.md) that covers modules later
 milestones will add (`scoring/`, `reporting/`). CI was green on GitHub Actions through M6 (see the
 M0 entry under "Completed" for
@@ -2388,11 +2390,10 @@ at M17.
     (`"agent-denied"`, `"agent-empty"`) no real account has a role for. `test_adapter_real.py`
     overrides the two affected tests to exercise equivalent behavior against real identities
     instead — a permanent, documented adaptation, not a temporary workaround to later remove.
-16. **`tests/fixtures/provider_responses/` (M8 acceptance criterion 3) does not exist.**
-    Recording real AWS response fixtures requires a real call; none has been made. The
-    disambiguation tests that exist (`test_disambiguation.py`) are pinned against hand-copied
-    literal strings from AWS's public documentation instead, which is the closest available
-    substitute but is not the same claim as "recorded from a real response."
+16. **`tests/fixtures/provider_responses/` contains documented response-shape fixtures, not
+    live account captures.** The fixtures are explicitly provenance-labeled and contain no
+    account identifiers, ARNs, hostnames, credentials, or request IDs; live IAM semantics are
+    validated separately by the real adapter suite.
 17. **`adapter.py::_bootstrap_session` caches its assumed bootstrap credential for the adapter's
     entire lifetime with no refresh.** A long-running real benchmark (AWS_PROVIDER_SPEC section
     9 estimates ~20 minutes wall clock for a full suite) could outlast a short-duration bootstrap
@@ -2515,7 +2516,7 @@ Recorded now so it is deliberate rather than discovered later.
 | A **dedicated** AWS account, no production workloads | M8 | Hard requirement; the allowlist admits no wildcard |
 | An IAM identity able to assume the bootstrap and principal roles | M8 | SSO or OIDC preferred; never a static key |
 | Terraform 1.7+ | M9 | A 1.9.8 binary and a mirrored AWS provider plugin exist locally in this development environment (not committed) — sufficient for `fmt`/`validate`; `apply` still needs the account row above |
-| `tflint` | M9 | Not installed anywhere (this environment or CI); the other half of M9 acceptance criterion 2 — `checkov` is now resolved, see the M9 entry above |
+| `tflint` | M9 | Dedicated-account acceptance run passed; retain the tool in the verification environment for repeatability |
 | AWS spend | M8 | Under $1 for the full suite; Budgets alarm at $5 |
 | A GitHub environment `aws-benchmark` with required reviewers | M17 | For the manually-dispatched experiment workflow |
 | At least three separate time windows | M17 | Control C-7: timing trials must be distributed across blocks |
@@ -2529,24 +2530,19 @@ again once M8/M9 are settled.
 
 ## Current next action
 
-**M8's offline portion and M9's local portion are both done (`checkov` now included — see the
-M9 entry above); M10 through M16 are all done (see their entries above). M10–M14 run every one
-of the five benchmark families end to end against the fake provider; M15 turns that evidence
-into six independent category results, with no composite score anywhere (ADR-010); M16 renders
-that evidence into terminal, Markdown and self-contained HTML reports, with the reporting-
-language rules enforced by lint at render time. Every fully-unblocked fake-provider-only
-milestone `docs/implementation/NEXT_PROMPTS.md` names (S1 through S8) is now done. Two things
-can happen next, and neither requires waiting on the other: (a) an operator provisions the
-dedicated AWS benchmark account and IAM identity, after which `tests/aws/test_adapter_real.py`
-can finally run, a real `terraform apply`/`destroy` cycle can happen, both M8 and M9 can
-actually be marked complete (`tflint` also still needs installing to close the other half of M9
-criterion 2), and M17 (the full AWS experiment suite) can start; (b) parts of M18
-(reproducibility) that do not themselves depend on a real M17 run — `evidence/archive.py`,
-`evidence/migrate.py`, the Dockerfile, a hashed lockfile — can be pulled forward and built
-against fake-provider bundles already on disk, per `NEXT_PROMPTS.md`'s own closing note.**
+**M9's dedicated-account acceptance is complete. M8's live semantics, fixture, and call-log
+evidence are complete; its literal unmodified-contract criterion remains open because of the
+fixed-role identity-model mismatch. M17 has not started. M10 through M16 are all done (see
+their entries above). M10–M14 run every one of the five
+benchmark families end to end against the fake provider; M15 turns that evidence into six
+independent category results, with no composite score anywhere (ADR-010); M16 renders that
+evidence into terminal, Markdown and self-contained HTML reports, with the reporting-language
+rules enforced at render time. The next action is to resolve the four adapter failures and
+complete the scrubbed M8/M17 evidence package; M18's independent offline work can continue in
+parallel.**
 
-M17 needs the account, real spend, and block-randomized wall-clock time; it cannot be prompted
-ahead of time, since its output depends on what actually happens. There is no more
+M17's dedicated-account experiment has not occurred; it remains gated on the M8 contract
+decision and explicit schedule approval. There is no more
 fully-unblocked, fully-specified fake-provider-only milestone left to hand to a session the way
 S1–S8 were — the next piece of work is either the AWS account becoming available, or a scoped
 decision about which M18 pieces to pull forward now.

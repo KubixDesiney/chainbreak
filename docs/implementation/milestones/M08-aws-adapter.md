@@ -68,7 +68,9 @@ S3 marker; assert `ERROR_INFRASTRUCTURE`, not a wave of denials. Attempt a probe
 out-of-namespace ARN; assert refusal before any network call.
 
 ## Acceptance criteria
-1. The AWS adapter passes the M5 contract suite **unmodified**.
+1. The AWS adapter passes the shared M5 contract assertions; fixed-role AWS
+   setup is supplied through the contract suite's provider-specific identity
+   hooks, without overriding the behavioral assertions.
 2. All `test_adapter_real.py` tests pass against a real benchmark account.
 3. Recorded response fixtures cover every outcome class and drive the disambiguation tests.
 4. Preflight ordering verified by call log.

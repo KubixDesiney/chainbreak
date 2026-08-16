@@ -89,6 +89,13 @@ class TestLoadTerraformOutputs:
         assert "namespace" in str(exc_info.value)
         assert "agent_f_role_arn" in str(exc_info.value)
 
+    def test_wrapped_output_missing_value_raises_configuration_error(self, tmp_path: Path):
+        malformed = _valid_outputs()
+        malformed["namespace"] = {"type": "string"}
+        path = _write(tmp_path, malformed)
+        with pytest.raises(ConfigurationError, match="missing its value"):
+            load_terraform_outputs(path)
+
 
 class TestOutputShapeValidation:
     """M9's own required assertion: every output not only exists (P5) but

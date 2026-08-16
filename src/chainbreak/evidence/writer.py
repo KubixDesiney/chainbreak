@@ -87,6 +87,7 @@ class BundleWriter:
         *,
         scenario_ref: Mapping[str, Any],
         provenance: Mapping[str, Any],
+        block_id: str | None = None,
     ) -> None:
         self.run_id = run_id
         self.run_dir = Path(runs_root) / run_id
@@ -97,6 +98,7 @@ class BundleWriter:
 
         self._scenario_ref = dict(scenario_ref)
         self._provenance = dict(provenance)
+        self._block_id = block_id
         self._created_at = canonical.format_datetime(datetime.now(UTC))
         self._counts = {"observations": 0, "events": 0, "policy_snapshots": 0, "credentials": 0}
         self._closed = False
@@ -194,6 +196,7 @@ class BundleWriter:
             provenance=self._provenance,
             counts=CountsSection(**self._counts),
             warnings=list(warnings),
+            block_id=self._block_id,
         )
         redact(manifest.model_dump())
         manifest = seal(self.run_dir, manifest)

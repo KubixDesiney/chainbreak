@@ -5,8 +5,9 @@ real-account acceptance criteria outstanding. 1,693 tests passing (1,454 unit, 2
 119 source files clean under `ruff` and `mypy --strict`, 6/6 import-linter contracts kept,
 21 `aws`-marked tests written and waiting.
 
-**The AWS account exists**: `REDACTED_ACCOUNT_ID`, region `eu-west-3`, namespace `cb-ec11b3c2`,
-infrastructure applied, all 12 IAM roles present, both markers verified, $5 Budgets alarm live.
+**The AWS account state is not recorded here.** The real-account acceptance work requires an
+operator-provisioned dedicated account; its identifier, region, namespace, and live resource
+state must be supplied at execution time and must not be committed to documentation.
 
 S1–S8 from the previous edition are all done. This edition covers what remains: two offline
 sessions, two AWS sessions, and the release.
@@ -139,10 +140,10 @@ Read docs/CLAUDE_CODE_HANDOFF.md, docs/implementation/milestones/M08-aws-adapter
 M09-terraform-sandbox.md, and AWS_PROVIDER_SPEC.md sections 2, 6 and 10.
 
 Environment, already verified:
-  account   REDACTED_ACCOUNT_ID   region eu-west-3   namespace cb-ec11b3c2
-  infra applied, 12 IAM roles, both markers present, $5 Budgets alarm live
-  chainbreak.toml present and resolving
-  auth is an IAM user (cb-terraform-sandbox), not SSO — note this in the run record
+  account   <operator-configured>   region <operator-configured>   namespace <captured-output>
+  infrastructure state and marker checks must be verified at execution time
+  chainbreak.toml must be present and resolving
+  use the operator's approved short-lived authentication method
 
 Sequence:
 
@@ -160,9 +161,9 @@ Sequence:
      to handle. If it does NOT reproduce, that is more interesting than if it does, and it means
      the precondition control may be guarding against something that is not happening here.
 
-3. Confirm the AWS adapter passes the M5 provider contract suite UNMODIFIED. If a contract test
-   fails against real AWS, the finding is in the adapter or the contract, never in the test's
-   strictness. Do not weaken it.
+3. Confirm the AWS adapter passes the shared M5 provider contract assertions. Fixed-role AWS
+   setup may use explicit hooks; if a contract test fails against real AWS, the finding is in
+   the adapter or setup hook, never in the behavioral assertion. Do not weaken it.
 
 4. Verify the H7 chained-role cap empirically: request 7200s on a chained hop, assert the grant
    is 3600s and LIFETIME_CAPPED is emitted.
@@ -280,8 +281,8 @@ PROJECT_STATUS.md. Confirm M17 produced real results and M18 is complete. Run th
    that "the documented behaviour held, measured as follows" is a legitimate and useful result,
    not a disappointing one.
 
-3. Verify no sensitive value exists in the repository OR ITS GIT HISTORY: account IDs (in
-   particular REDACTED_ACCOUNT_ID), ARNs, key-shaped strings, hostnames, session names. A working-tree
+3. Verify no sensitive value exists in the repository OR ITS GIT HISTORY: account IDs, ARNs,
+   key-shaped strings, hostnames, session names. A working-tree
    scan is not sufficient — scan the history.
 
 4. Execute every command that appears in the README and confirm it works as documented.

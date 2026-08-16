@@ -351,7 +351,8 @@ regex before the API call, at a single choke point in `providers/aws/mutation.py
 **INVARIANT INFRA-2:** Every benchmark resource carries tags
 `Project=CHAINBREAK`, `Environment=benchmark`, `RunID=<run-id>` (or `shared` for the
 long-lived sandbox), `Namespace=<prefix>`, `ManagedBy=terraform|chainbreak-runtime`.
-Cleanup tooling operates by tag, so an orphan is always findable.
+Cleanup tooling uses native service enumeration and exact project/namespace tags; an orphan
+is findable, and an unknown or failed enumerator is unsafe rather than treated as clean.
 
 ---
 

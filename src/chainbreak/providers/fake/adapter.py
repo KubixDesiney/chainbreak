@@ -82,6 +82,23 @@ ADAPTER_VERSION = "0.1.0"
 _DEFAULT_PROTECTED_IDENTITIES = frozenset({"bootstrap", "principal"})
 
 
+def _negative_control_grant(provider_binding: str | None) -> AuthoritySet:
+    """Resolve the three Terraform negative-control role bindings.
+
+    This is deliberately exercised by the production orchestrator through
+    the compiled scenario binding, not by a test-only ``engine.apply_allow``
+    hook.  The fake mirrors the AWS profile's extra role policies while
+    keeping ordinary fake runs unchanged.
+    """
+    if provider_binding is None:
+        return EMPTY_AUTHORITY
+    return {
+        "agent_b_expansion_role_arn": AuthoritySet.of("keyvalue.read"),
+        "agent_b_survival_role_arn": AuthoritySet.of("function.invoke"),
+        "agent_c_nonmonotone_role_arn": AuthoritySet.of("keyvalue.write"),
+    }.get(provider_binding, EMPTY_AUTHORITY)
+
+
 @dataclass
 class _PendingTransition:
     pre_allow: AuthoritySet
@@ -95,6 +112,10 @@ class FakeProviderAdapter:
     section 3.9). Construct one per run; nothing here is shared across runs."""
 
     seed: int = 0
+    # When enabled, model the optional Terraform role outputs used by the
+    # shipped negative-control scenarios.  Ordinary fake profiles remain
+    # defect-free so existing defect-injection tests retain their baseline.
+    negative_control_bindings: bool = False
     account_ref: str = "555555555555"
     region: str = "fake-region-1"
     namespace: Namespace = "cb-00000000"
@@ -221,14 +242,25 @@ class FakeProviderAdapter:
         self._authority_cached_identities.add(identity_id)
 
     def register_identity(
-        self, identity_id: IdentityId, *, allow: AuthoritySet = EMPTY_AUTHORITY
+        self,
+        identity_id: IdentityId,
+        *,
+        allow: AuthoritySet = EMPTY_AUTHORITY,
+        provider_binding: str | None = None,
     ) -> IdentityRef:
         """Registers a root/ungoverned identity directly (no delegation) --
         e.g. the scenario's ``principal``."""
-        self.engine.register_identity(identity_id, allow=allow)
+        self.engine.register_identity(
+            identity_id, allow=allow | self._negative_control_grant(provider_binding)
+        )
         ref = self._make_ref(identity_id)
         self._ref_to_identity_id[ref.value] = identity_id
         return ref
+
+    def _negative_control_grant(self, provider_binding: str | None) -> AuthoritySet:
+        if not self.negative_control_bindings:
+            return EMPTY_AUTHORITY
+        return _negative_control_grant(provider_binding)
 
     def _make_ref(self, identity_id: IdentityId) -> IdentityRef:
         return IdentityRef(
@@ -292,7 +324,9 @@ class FakeProviderAdapter:
 
         if not self.engine.is_registered(request.target_identity_id):
             self.engine.register_identity(
-                request.target_identity_id, allow=request.intended_capabilities
+                request.target_identity_id,
+                allow=request.intended_capabilities
+                | self._negative_control_grant(request.target_provider_binding),
             )
 
         result = self.sessions.issue(

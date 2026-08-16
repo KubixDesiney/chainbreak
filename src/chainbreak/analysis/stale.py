@@ -58,6 +58,14 @@ def stale_authority_measurements(
 
     credentials_by_id = {c.credential_id: c for c in credentials}
     session_scope_removed_identities = _session_scope_removed_identities(events)
+    mutation_sent_ns_by_identity: dict[IdentityId, int] = {}
+    for event in events:
+        if event.get("kind") != "POLICY_MUTATION_APPLIED":
+            continue
+        target_identity = event.get("target_identity")
+        sent_ns = event.get("timing", {}).get("monotonic_ns")
+        if isinstance(target_identity, str) and isinstance(sent_ns, int):
+            mutation_sent_ns_by_identity.setdefault(target_identity, sent_ns)
 
     measurements: list[StaleAuthorityMeasurement] = []
     for observation in deferred:
@@ -83,12 +91,21 @@ def stale_authority_measurements(
             fresh_outcome=fresh.outcome.outcome_class if fresh is not None else None,
         )
 
+        mutation_sent_ns = mutation_sent_ns_by_identity.get(observation.identity_id)
         measurements.append(
             StaleAuthorityMeasurement(
                 identity_id=observation.identity_id,
                 capability_id=observation.capability_id,
                 classification=classification,
                 deferral_seconds=deferral_seconds,
+                stale_window_seconds=(
+                    max(
+                        0.0,
+                        (observation.timing.monotonic_start_ns - mutation_sent_ns) / 1_000_000_000,
+                    )
+                    if mutation_sent_ns is not None
+                    else None
+                ),
                 credential_expired_at_execution=credential_expired_at_execution,
                 paired_fresh_credential_outcome=(
                     fresh.outcome.outcome_class if fresh is not None else None

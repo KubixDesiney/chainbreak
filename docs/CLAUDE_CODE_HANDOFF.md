@@ -430,7 +430,8 @@ Use a virtual clock for waiting so a 600-second deferral test runs instantly, wh
 measurement code still uses the monotonic clock abstraction.
 
 The most important deliverable is tests/integration/test_provider_contract.py: the shared
-behavioral suite both adapters must pass unmodified. It must never branch on adapter.name.
+behavioral suite both adapters must pass. Fixed-role providers may use explicit setup hooks,
+but the behavioral assertions must remain shared and must never branch on adapter.name.
 
 Ship three profiles: deterministic (no faults), eventual (2s propagation), hostile (faults +
 skew + oscillation).
@@ -562,7 +563,8 @@ rather than fall back to a guess.
 test_adapter_moto.py covers call shapes ONLY. Every moto test must carry a docstring stating
 that moto's policy evaluation is an approximation and is not ground truth.
 
-The AWS adapter must pass the M5 contract suite UNMODIFIED. Do not weaken a contract test.
+The AWS adapter must pass the shared M5 contract assertions. Fixed Terraform roles may be
+selected through setup hooks; do not weaken or override a contract assertion.
 
 Preserve every invariant in the handoff Part 2. Run the verification commands and paste real
 AWS output. Update PROJECT_STATUS.md recording which AWS tests actually ran, when, and in
@@ -593,7 +595,8 @@ Non-negotiable requirements:
   tflint/checkov rule that enforces this.
 - Bootstrap must not be able to mutate itself or the principal. Verify with
   iam:SimulatePrincipalPolicy in a test, not by reading the policy.
-- default_tags at the provider level, so verify-clean's tag enumeration is exhaustive.
+- default_tags at the provider level, with service-specific fail-closed enumerators (including
+  IAM roles and policies) so verify-clean cannot claim clean from a partial inventory.
 - DynamoDB PAY_PER_REQUEST. Provisioned capacity is the most likely way to accidentally spend
   money here.
 - terraform destroy must succeed with zero manual steps, and a second destroy must be a clean
@@ -902,7 +905,8 @@ Procedure per block:
 4. Run ALL SIX negative controls in the SAME block, on the same infrastructure, with the same
    adapter version. A control run later against different infrastructure proves less.
 5. Record every exclusion with its reason.
-6. Destroy, then chainbreak infra verify-clean.
+6. Capture the exact namespace before destroy; destroy, then run
+   `chainbreak infra verify-clean aws-sandbox --namespace <captured-namespace>`.
 
 Distribute timing trials across at least THREE separate hours (control C-7), recording
 block_id. IAM propagation may plausibly vary with provider-side load, and back-to-back trials

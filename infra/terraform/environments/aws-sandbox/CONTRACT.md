@@ -43,8 +43,8 @@ provider "aws" {
 }
 ```
 
-`default_tags` is how `chainbreak infra verify-clean` finds orphans, so it is not optional
-and must not be overridden per-resource.
+`default_tags` is how the service-specific, fail-closed cleanup enumerators find orphans,
+so it is not optional and must not be overridden per-resource.
 
 Pin `required_version = "~> 1.7"` and `hashicorp/aws ~> 5.0` in `versions.tf`, and commit
 `.terraform.lock.hcl` (the *lock* file is committed; `.terraform/` and state are not).
@@ -53,6 +53,6 @@ Pin `required_version = "~> 1.7"` and `hashicorp/aws ~> 5.0` in `versions.tf`, a
 
 `terraform destroy` must succeed with zero manual steps, and a second `destroy` must be a
 clean no-op. Verified by `tests/aws/test_cleanup_contract.py` in the e2e layer, followed by
-`chainbreak infra verify-clean`, which enumerates every resource still tagged
-`Project=CHAINBREAK` via the Resource Groups Tagging API. "Destroy succeeded" is verified,
-never assumed.
+`chainbreak infra verify-clean`, which fail-closed enumerates every provisioned service,
+including IAM roles and policies, using exact `Project=CHAINBREAK` and namespace tags.
+"Destroy succeeded" is verified, never assumed.

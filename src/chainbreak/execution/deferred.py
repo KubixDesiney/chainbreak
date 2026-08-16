@@ -7,10 +7,9 @@ per-``PhaseKind`` execution modules.
 virtual clock when one exists (``advance_clock``, the same fake-adapter-
 specific escape hatch ``execution/polling.py`` already uses) so a 600 s
 deferral runs instantly in CI; a real-time adapter without that hook falls
-back to actually sleeping (untested here -- M17's job, out of scope for
-this milestone per the milestone file's own "Out of scope" section). Either
-way, the credential materialized before this phase is never touched: no
-keepalive, no refresh. The waiting is the experiment.
+back to actually sleeping against the shared monotonic deadline. Either way,
+the credential materialized before this phase is never touched: no keepalive,
+no refresh. The waiting is the experiment.
 
 **DEFERRED_EXECUTION (F1/F3).** Resolves the pinned credential recorded at
 an earlier phase (``execution/credential_store.py``), probes every
@@ -37,11 +36,13 @@ probe silently observe the fresh session instead.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from chainbreak.core.clock import RunClock
 from chainbreak.core.enums import PlanPhase
 from chainbreak.core.errors import ExecutionError
 from chainbreak.core.ids import new_event_id
@@ -55,17 +56,31 @@ from chainbreak.providers.base.types import DelegationRequest, ProbeRequest
 __all__ = ["DeferredExecutionRun", "run_deferred_execution_phase", "run_wait_phase"]
 
 
-def run_wait_phase(adapter: ProviderAdapter, plan: WaitPlan, *, sequence: int) -> dict[str, Any]:
+def run_wait_phase(
+    adapter: ProviderAdapter,
+    plan: WaitPlan,
+    *,
+    sequence: int,
+    clock: RunClock | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
     """F2: advance time by ``plan.wait_seconds`` without touching any
     credential. Returns the ``WAIT_COMPLETED`` evidence event."""
     advance_clock = getattr(adapter, "advance_clock", None)
     if advance_clock is not None:
         advance_clock(plan.wait_seconds * 1000)
         mechanism = "virtual_clock"
-    else:  # pragma: no cover -- no real-time adapter exists yet (M17)
-        import time
-
-        time.sleep(plan.wait_seconds)
+    else:
+        if clock is not None:
+            clock.check()
+            if clock.remaining_seconds < plan.wait_seconds:
+                sleep(clock.remaining_seconds)
+                clock.check()
+            else:
+                sleep(plan.wait_seconds)
+                clock.check()
+        else:
+            sleep(plan.wait_seconds)
         mechanism = "real_sleep"
     return {
         "event_id": new_event_id(),

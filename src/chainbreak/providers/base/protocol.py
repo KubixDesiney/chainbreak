@@ -47,7 +47,11 @@ class ProviderAdapter(Protocol):  # pragma: no cover -- structural interface, ne
     adapter_version: str
 
     def register_identity(
-        self, identity_id: IdentityId, *, allow: AuthoritySet = EMPTY_AUTHORITY
+        self,
+        identity_id: IdentityId,
+        *,
+        allow: AuthoritySet = EMPTY_AUTHORITY,
+        provider_binding: str | None = None,
     ) -> IdentityRef:
         """Materializes a root/ungoverned identity directly, with no
         delegation (e.g. a scenario's ``principal``, or the bootstrap

@@ -338,8 +338,10 @@ distinct across workspaces so two operators in one account cannot collide.
 normally break this and are handled explicitly: the S3 bucket uses `force_destroy = true`
 (safe — it only ever holds markers and scratch), and the CloudWatch log group is managed
 explicitly so Lambda's implicit group does not orphan. A `chainbreak infra verify-clean`
-command lists every resource tagged `Project=CHAINBREAK` remaining in the account, so
-"destroy succeeded" is verified rather than assumed.
+command enumerates every provisioned service with its native list/tag APIs, including IAM
+roles and customer-managed policies, and requires exact `Project=CHAINBREAK` plus namespace
+tags. Unknown or failed enumeration is unsafe, so "destroy succeeded" is verified rather than
+assumed.
 
 ---
 

@@ -94,7 +94,8 @@ covers a name-matching but untagged resource.
 leaving an inline deny policy attached; an operator forgets.
 **Mitigation:** `force_destroy` on the bucket; explicit CloudWatch log group management;
 runtime mutations tracked and reverted in a `finally`; unreverted mutations printed with
-exact revert commands; `chainbreak infra verify-clean` enumerates by tag; S3 lifecycle and
+exact revert commands; `chainbreak infra verify-clean` enumerates every provisioned service
+by native list/tag APIs; S3 lifecycle and
 DynamoDB TTL bound storage even on orphans; Budgets alarm at $5.
 **Validation:** `test_cleanup_contract.py`; a chaos test that kills the orchestrator
 mid-phase and asserts the revert log is complete and actionable.

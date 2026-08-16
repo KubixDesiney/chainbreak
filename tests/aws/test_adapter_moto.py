@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import boto3
@@ -67,7 +68,11 @@ class MotoFixture:
 
 
 def _create_agent_role(iam: Any, name: str) -> str:
-    return iam.create_role(RoleName=name, AssumeRolePolicyDocument=_TRUST_POLICY)["Role"]["Arn"]
+    return iam.create_role(
+        RoleName=name,
+        AssumeRolePolicyDocument=_TRUST_POLICY,
+        Tags=[{"Key": "Project", "Value": "CHAINBREAK"}, {"Key": "Namespace", "Value": _NAMESPACE}],
+    )["Role"]["Arn"]
 
 
 def _provision(iam: Any, s3: Any, dynamodb: Any, lambda_client: Any, sqs: Any) -> MotoFixture:
@@ -99,6 +104,7 @@ def _provision(iam: Any, s3: Any, dynamodb: Any, lambda_client: Any, sqs: Any) -
         KeySchema=[{"AttributeName": "pk", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "pk", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
+        Tags=[{"Key": "Project", "Value": "CHAINBREAK"}, {"Key": "Namespace", "Value": _NAMESPACE}],
     )
     keyvalue_marker_pk = "cb-marker"
     keyvalue_marker_sha256 = "sha256:" + hashlib.sha256(b"keyvalue-marker").hexdigest()
@@ -114,9 +120,13 @@ def _provision(iam: Any, s3: Any, dynamodb: Any, lambda_client: Any, sqs: Any) -
         Role=bootstrap_arn,
         Handler="lambda_function.handler",
         Code={"ZipFile": b"placeholder -- the simple backend never executes this"},
+        Tags={"Project": "CHAINBREAK", "Namespace": _NAMESPACE},
     )
 
-    queue_url = sqs.create_queue(QueueName=f"{_NAMESPACE}-queue")["QueueUrl"]
+    queue_url = sqs.create_queue(
+        QueueName=f"{_NAMESPACE}-queue",
+        tags={"Project": "CHAINBREAK", "Namespace": _NAMESPACE},
+    )["QueueUrl"]
 
     outputs = TerraformOutputs(
         namespace=_NAMESPACE,
@@ -190,6 +200,7 @@ class TestPreflight:
         report = preflight_mod.run_preflight(
             sts_client=sts,
             resourcegroupstaggingapi_client=tagging,
+            iam_client=clients["iam"],
             envelope=envelope,
             terraform_outputs=fixture.outputs,
             precondition_results=preconditions,
@@ -265,9 +276,54 @@ class TestPreflight:
             preflight_mod.run_preflight(
                 sts_client=sts,
                 resourcegroupstaggingapi_client=tagging,
+                iam_client=clients["iam"],
                 envelope=envelope,
                 terraform_outputs=fixture.outputs,
                 precondition_results=preconditions,
+                cost_estimate=preflight_mod.CostEstimate(estimated_calls_by_service={}),
+                clock_offset_ms=0.0,
+            )
+
+    def test_p9_production_tag_verification_fails_closed(self, moto_fixture):
+        fixture, clients = moto_fixture
+        from botocore.exceptions import ClientError
+
+        from chainbreak.core.errors import ConfigurationError
+        from chainbreak.core.models import SafetyEnvelope
+
+        real_tagging = boto3.client("resourcegroupstaggingapi", region_name=_REGION)
+
+        class _FailingProductionVerification:
+            def get_resources(self, **kwargs: Any) -> dict[str, Any]:
+                if any(
+                    filter_item.get("Key") == "Environment"
+                    for filter_item in kwargs.get("TagFilters", [])
+                ):
+                    raise ClientError(
+                        {"Error": {"Code": "AccessDeniedException", "Message": "denied"}},
+                        "GetResources",
+                    )
+                return real_tagging.get_resources(**kwargs)
+
+        envelope = SafetyEnvelope(
+            allowed_account_ids=(_ACCOUNT,),
+            allowed_regions=(_REGION,),
+            namespace=_NAMESPACE,
+            namespace_pattern=f"^{_NAMESPACE}$",
+        )
+        with pytest.raises(ConfigurationError, match="production-tag verification"):
+            preflight_mod.run_preflight(
+                sts_client=boto3.client("sts", region_name=_REGION),
+                resourcegroupstaggingapi_client=_FailingProductionVerification(),
+                iam_client=clients["iam"],
+                envelope=envelope,
+                terraform_outputs=fixture.outputs,
+                precondition_results={
+                    "objectstore.marker_present": True,
+                    "keyvalue.marker_present": True,
+                    "function.alive": True,
+                    "queue.present": True,
+                },
                 cost_estimate=preflight_mod.CostEstimate(estimated_calls_by_service={}),
                 clock_offset_ms=0.0,
             )
@@ -437,6 +493,7 @@ class TestPreflight:
             preflight_mod.run_preflight(
                 sts_client=sts,
                 resourcegroupstaggingapi_client=tagging,
+                iam_client=clients["iam"],
                 envelope=envelope,
                 terraform_outputs=fixture.outputs,
                 precondition_results=preconditions,
@@ -1069,6 +1126,24 @@ class TestMutation:
 
 
 class TestPolicySnapshot:
+    def test_policy_fingerprint_ignores_iam_array_order(self):
+        first = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {"Effect": "Allow", "Action": ["s3:GetObject", "s3:ListBucket"]},
+                {"Effect": "Deny", "Action": "s3:DeleteObject"},
+            ],
+        }
+        second = {
+            "Statement": [
+                {"Action": "s3:DeleteObject", "Effect": "Deny"},
+                {"Action": ["s3:ListBucket", "s3:GetObject"], "Effect": "Allow"},
+            ],
+            "Version": "2012-10-17",
+        }
+
+        assert policy_mod._document_fingerprint(first) == policy_mod._document_fingerprint(second)
+
     def test_snapshot_includes_inline_and_trust_fingerprints(self, moto_fixture):
         fixture, clients = moto_fixture
         snapshot = policy_mod.snapshot_policy_state(
@@ -1401,6 +1476,104 @@ class TestAdapterProbeDispatch:
                 probe_id="p-1",
                 nonce="n" * 16,
             )
+
+    def test_wrong_account_adapter_makes_exactly_one_caller_identity_call(self, moto_fixture):
+        fixture, _clients = moto_fixture
+        from types import SimpleNamespace
+
+        from chainbreak.core.models import SafetyEnvelope
+
+        call_log: list[str] = []
+
+        class _Events:
+            def register(self, _pattern: str, _handler: Any) -> None:
+                return None
+
+        class _Client:
+            def __init__(self, service_name: str) -> None:
+                self.meta = SimpleNamespace(
+                    service_model=SimpleNamespace(service_name=service_name), events=_Events()
+                )
+
+            def get_caller_identity(self) -> dict[str, str]:
+                call_log.append("GetCallerIdentity")
+                return {"Account": _ACCOUNT, "Arn": f"arn:aws:iam::{_ACCOUNT}:role/operator"}
+
+        class _Session:
+            def client(self, service_name: str, **_kwargs: Any) -> _Client:
+                return _Client(service_name)
+
+        adapter = AwsProviderAdapter(
+            operator_session=_Session(), outputs=fixture.outputs, run_id="wrong-account-call-log"
+        )
+        envelope = SafetyEnvelope(
+            allowed_account_ids=("999999999999",),
+            allowed_regions=(_REGION,),
+            namespace=_NAMESPACE,
+            namespace_pattern=f"^{_NAMESPACE}$",
+        )
+
+        report = adapter.preflight(envelope)
+
+        assert report.passed is False
+        assert call_log == ["GetCallerIdentity"]
+
+    def test_bootstrap_refreshes_before_expiry_and_close_scrubs_state(self, moto_fixture):
+        fixture, _clients = moto_fixture
+        from types import SimpleNamespace
+
+        class _Events:
+            def register(self, _pattern: str, _handler: Any) -> None:
+                return None
+
+        class _Sts:
+            def __init__(self) -> None:
+                self.meta = SimpleNamespace(
+                    service_model=SimpleNamespace(service_name="sts"), events=_Events()
+                )
+                self.assume_count = 0
+
+            def assume_role(self, **_kwargs: Any) -> dict[str, Any]:
+                self.assume_count += 1
+                return {
+                    "Credentials": {
+                        "AccessKeyId": f"AKIA{self.assume_count:08d}",
+                        "SecretAccessKey": "secret",
+                        "SessionToken": "token",
+                        "Expiration": datetime.now(UTC) + timedelta(hours=1),
+                    }
+                }
+
+        sts = _Sts()
+
+        class _Session:
+            def client(self, service_name: str, **_kwargs: Any) -> Any:
+                if service_name == "sts":
+                    return sts
+                return SimpleNamespace(
+                    meta=SimpleNamespace(
+                        service_model=SimpleNamespace(service_name=service_name), events=_Events()
+                    )
+                )
+
+        adapter = AwsProviderAdapter(
+            operator_session=_Session(), outputs=fixture.outputs, run_id="bootstrap-refresh"
+        )
+        adapter._bootstrap_session()
+        cached_session, _expires_at, credential = adapter._bootstrap_session_cache
+        adapter._bootstrap_session_cache = (
+            cached_session,
+            datetime.now(UTC) + timedelta(seconds=1),
+            credential,
+        )
+
+        adapter._bootstrap_session()
+        assert sts.assume_count == 2
+
+        adapter.close()
+        assert adapter._bootstrap_session_cache is None
+        assert adapter._credentials == []
+        assert credential.secret_access_key.label == "scrubbed"
 
 
 class TestDelegateWithoutALiveSession:

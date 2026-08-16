@@ -82,6 +82,18 @@
           "title": "Python Version",
           "type": "string"
         },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        },
         "seed": {
           "anyOf": [
             {
@@ -94,6 +106,18 @@
           "default": null,
           "description": "The run's top-level --seed. Every other seed used during the run (probe-order shuffle per matrix, fake-provider jitter/RNG) derives deterministically from this one (REPRODUCIBILITY.md section 2), so recording it alone is sufficient to reproduce the shuffle and fault-injection schedule exactly.",
           "title": "Seed"
+        },
+        "sts_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sts Endpoint"
         }
       },
       "required": [

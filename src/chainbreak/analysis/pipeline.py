@@ -27,6 +27,7 @@ from chainbreak.analysis.rules import (
     rule_authority_expansion,
     rule_authority_narrowing,
     rule_authority_survival,
+    rule_configuration_error,
     rule_delegation_drift,
     rule_execution_error,
     rule_expected_behavior,
@@ -313,6 +314,21 @@ def analyze_bundle(run_dir: Path) -> AnalysisResult:
     findings.extend(_revocation_findings(events, observations, scenario.expectations))
     findings.extend(_stale_authority_findings(events, observations, credentials))
     findings.extend(task_contract_findings(extract_task_outcomes(events), scenario.task_plans))
+
+    # A discarded matrix is an apparatus/configuration result, not a set of
+    # denials.  Reify it during ordinary analysis so callers do not need a
+    # test-only or preflight-specific path to see CONFIGURATION_ERROR.
+    matrices_by_id = {matrix.matrix_id: matrix for matrix in scenario.probe_matrices}
+    for event in events:
+        if event.get("kind") != "MATRIX_DISCARDED":
+            continue
+        matrix = matrices_by_id.get(str(event.get("matrix_id")))
+        if matrix is None:
+            continue
+        reason = str(event.get("reason", "matrix discarded"))
+        for identity_id in matrix.identities:
+            for capability_id in matrix.capabilities:
+                findings.append(rule_configuration_error(identity_id, capability_id, reason))
 
     for credential in credentials:
         capped = rule_lifetime_capped(credential)

@@ -85,6 +85,11 @@ jobs:
           if git ls-files | grep -E '\.tfstate|\.tfvars$' | grep -v '\.example$'; then
             echo "::error::Terraform state or tfvars committed"; exit 1
           fi
+      - name: No Terraform plans or build artifacts in the repository (T-04)
+        run: |
+          if git ls-files | grep -E '(^|/)(tfplan|\.build/)' ; then
+            echo "::error::Terraform plan or build artifact committed"; exit 1
+          fi
       - name: No credential-shaped strings anywhere in the tree or history (T-01)
         run: |
           # tests/ is excluded deliberately: the redaction test corpus MUST contain
@@ -180,6 +185,8 @@ jobs:
           for d in $(find infra/terraform -name '*.tf' -printf '%h\n' | sort -u); do
             terraform -chdir="$d" init -backend=false && terraform -chdir="$d" validate
           done
+      - name: No wildcard IAM resources except GetCallerIdentity
+        run: python scripts/check_terraform_no_wildcard.py infra/terraform
       - uses: bridgecrewio/checkov-action@9b70310bcd306d11740313070b940167d6b23085 # v12.3115.0
         with: { directory: infra/terraform, quiet: true, soft_fail: false }
 

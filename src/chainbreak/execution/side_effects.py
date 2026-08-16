@@ -42,11 +42,21 @@ def verify_output_marker(
     *,
     run_id: str,
     task_id: str,
+    output_capability: str | None = None,
 ) -> bool:
     """F4: never trusts ``TaskOutcome.output_marker_written``. Returns
     ``False`` (never a guess) if the adapter has no way to check at all."""
-    del provisioning_ref  # unused by the fake's escape hatch; kept for a future real-adapter call
+    live_checker = getattr(adapter, "verify_output_marker", None)
+    if live_checker is not None:
+        return bool(
+            live_checker(
+                provisioning_ref,
+                run_id=run_id,
+                task_id=task_id,
+                output_capability=output_capability,
+            )
+        )
     checker = getattr(adapter, "scratch_marker_exists", None)
-    if checker is None:  # pragma: no cover -- no real-time adapter exists yet (M17)
+    if checker is None:
         return False
     return bool(checker(marker_id_for(run_id, task_id)))

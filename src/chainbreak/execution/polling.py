@@ -15,17 +15,18 @@ side of the mutation it fell on (:mod:`chainbreak.analysis.pipeline`'s
 
 **Clock advance.** ``advance_clock`` is a fake-adapter-specific escape hatch
 (not part of the ``ProviderAdapter`` Protocol, matching ``cli/run.py``'s own
-precedent) -- calling it only when present means this module runs unchanged
-against a future real-time adapter, which would need to *sleep* between
-polls instead (M17's job, not this one's).
+precedent). When it is absent, this module sleeps against the shared
+monotonic run deadline between real-provider polls.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
+from chainbreak.core.clock import RunClock
 from chainbreak.core.enums import OutcomeClass, PlanPhase
 from chainbreak.core.errors import ExecutionError
 from chainbreak.core.models import Observation, PollPlan
@@ -65,6 +66,8 @@ def run_poll_phase(
     salt: str,
     namespace: str,
     sequence_start: int,
+    clock: RunClock | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> PollRun:
     identity_id = plan.target_identity
     if identity_id not in materialized.refs:
@@ -87,6 +90,16 @@ def run_poll_phase(
     while True:
         if advance_clock is not None:
             advance_clock(plan.interval_ms)
+        else:
+            # Real providers need wall time for propagation to occur.  Sleep
+            # against the monotonic run deadline, never past it.
+            if clock is not None:
+                clock.check()
+                if clock.remaining_seconds < plan.interval_ms / 1000:
+                    sleep(clock.remaining_seconds)
+                    clock.check()
+            else:
+                sleep(plan.interval_ms / 1000)
         elapsed_ms += plan.interval_ms
         current_time = now()
 
@@ -99,6 +112,8 @@ def run_poll_phase(
                 trial=1,
             )
         )
+        if clock is not None:
+            clock.check()
         observations.append(
             build_observation(
                 run_id=run_id,

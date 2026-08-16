@@ -30,8 +30,9 @@ tests/aws/{test_terraform_outputs,test_cleanup_contract}.py
 - F3 Namespace generation is deterministic across applies within a workspace.
 - F4 `chainbreak infra apply` runs Terraform, captures outputs, and writes an
   `infrastructure_fingerprint` the adapter reads at preflight P5.
-- F5 `chainbreak infra verify-clean` enumerates every resource tagged `Project=CHAINBREAK`
-  via the Resource Groups Tagging API and exits non-zero if any remain.
+- F5 `chainbreak infra verify-clean` fail-closed enumerates every provisioned service,
+  including IAM roles and policies, and requires exact `Project=CHAINBREAK` plus the
+  Terraform namespace; unknown or failed enumeration is unsafe.
 - F6 `enable_negative_controls` provisions the three deliberately-defective roles.
 - F7 `terraform destroy` succeeds with zero manual steps; a second destroy is a clean no-op.
 
@@ -44,7 +45,8 @@ Apply under 3 minutes; destroy under 2. Cost per suite under $0.10.
 - S2 Bootstrap cannot mutate itself or the principal — verified with
   `iam:SimulatePrincipalPolicy` in a test.
 - S3 No provisioners, no `local-exec`, no command-executing data sources.
-- S4 `default_tags` applied at the provider so cleanup-by-tag is exhaustive.
+- S4 `default_tags` applied at the provider so native service enumerators can verify exact
+  cleanup tags, including on IAM roles and customer-managed policies.
 - S5 State gitignored; remote state, if used, encrypted with restricted access.
 
 ## Tests
@@ -72,7 +74,7 @@ terraform -chdir=infra/terraform/environments/aws-sandbox validate
 tflint --chdir infra/terraform && checkov -d infra/terraform
 chainbreak infra plan aws-sandbox && chainbreak infra apply aws-sandbox
 chainbreak validate                       # preflight P1-P11
-chainbreak infra destroy aws-sandbox && chainbreak infra verify-clean
+chainbreak infra destroy aws-sandbox && chainbreak infra verify-clean --namespace cb-<namespace>
 ```
 
 ## Definition of done

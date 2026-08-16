@@ -69,7 +69,8 @@ chainbreak run scenarios/stale-authority/deferred-execution.yaml
 chainbreak run scenarios/silent-narrowing/two-step-pipeline.yaml
 for f in scenarios/_negative-controls/*.yaml; do chainbreak run "$f"; done
 chainbreak analyze --aggregate --block "$(date +%Y%m%d-%H)"
-chainbreak infra destroy aws-sandbox && chainbreak infra verify-clean
+namespace=$(terraform -chdir=infra/terraform/environments/aws-sandbox output -raw namespace)
+chainbreak infra destroy aws-sandbox && chainbreak infra verify-clean aws-sandbox --namespace "$namespace"
 ```
 
 ## Definition of done

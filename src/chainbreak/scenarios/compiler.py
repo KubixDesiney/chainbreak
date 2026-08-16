@@ -158,6 +158,7 @@ def _build_nodes_and_edges(
 
         nodes[identity_id] = IdentityNode(
             identity_id=identity_id,
+            provider_binding=identity_spec.provider_binding.terraform_output,
             is_root=(parent_id is None),
             hop_index=hop_index,
             parent_id=parent_id,

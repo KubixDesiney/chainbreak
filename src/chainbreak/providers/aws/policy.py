@@ -30,8 +30,27 @@ from chainbreak.providers.aws.preflight import TerraformOutputs
 _snapshot_counter = 0
 
 
+def _canonical_policy_value(value: Any) -> Any:
+    """Canonicalize an IAM document without depending on AWS array order.
+
+    IAM policy arrays (including ``Statement``, ``Action``, ``Resource`` and
+    condition value arrays) are sets for authorization purposes. AWS may
+    return equivalent policy documents with those arrays in different orders,
+    so hashing the raw response can produce false snapshot changes.
+    """
+    if isinstance(value, dict):
+        return {key: _canonical_policy_value(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        normalized = [_canonical_policy_value(item) for item in value]
+        return sorted(
+            normalized, key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"))
+        )
+    return value
+
+
 def _document_fingerprint(document: dict[str, Any]) -> str:
-    canonical = json.dumps(document, sort_keys=True, separators=(",", ":"))
+    canonical_document = _canonical_policy_value(document)
+    canonical = json.dumps(canonical_document, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
 
 

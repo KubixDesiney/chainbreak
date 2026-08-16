@@ -8,6 +8,20 @@ Format per [EXPERIMENT_PROTOCOL §8](../../EXPERIMENT_PROTOCOL.md#8-lab-log).
 
 ---
 
+## Approved M17 schedule — 2026-08-16
+
+The operator approved the M17 schedule in this task. Planned windows are deliberately
+separated by clock hour so timing trials are not treated as one contiguous sample:
+
+- block-01: 2026-08-16 10:00–11:30 UTC
+- block-02: 2026-08-16 16:00–17:30 UTC
+- block-03: 2026-08-17 10:00–11:30 UTC
+
+Each block must complete the nine-item checklist, run all five families and all six negative
+controls on the same applied sandbox, log every exclusion with run ID and reason, and destroy
+and verify-clean before the next block. The schedule is not evidence of execution; only the
+entries below are.
+
 ## No experiments have been run
 
 As of the current commit, CHAINBREAK's architecture and specifications are complete and the

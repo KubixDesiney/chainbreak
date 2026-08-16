@@ -55,7 +55,8 @@ The **contract suite** is the deliverable that matters. It must cover: preflight
 wrong account; out-of-namespace target refused before the call; each capability classifies
 allow and deny correctly; delegation returns metadata with no secret; mutation returns a
 confirmed receipt; requested-vs-granted lifetime reported; snapshot returns stable
-fingerprints. Both adapters run it unmodified.
+fingerprints. Both adapters run the shared behavioral assertions; providers with fixed
+provisioned identities supply setup hooks rather than inventing identities that do not exist.
 
 ## Negative controls
 Configure the fake to grant a capability the scenario does not intend; assert the eventual
