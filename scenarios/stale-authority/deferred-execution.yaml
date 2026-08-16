@@ -47,6 +47,11 @@ spec:
       provider_binding:
         terraform_output: agent_a_role_arn
 
+    - id: agent-b
+      role: agent
+      provider_binding:
+        terraform_output: agent_b_role_arn
+
     - id: agent-c
       role: agent
       provider_binding:
@@ -67,6 +72,21 @@ spec:
 
     - id: hop-2
       from: agent-a
+      to: agent-b
+      mechanism: SESSION_POLICY_SCOPED
+      intended_capabilities:
+        - objectstore.read
+        - identity.whoami
+        - identity.delegate
+      session_policy:
+        derive_from: intended_capabilities
+      # Comfortably exceeds the deferral interval so that expiry is not a
+      # confound. The credential-expiry case is a separate scenario.
+      credential:
+        requested_lifetime_seconds: 3600
+
+    - id: hop-3
+      from: agent-b
       to: agent-c
       mechanism: SESSION_POLICY_SCOPED
       intended_capabilities:
@@ -74,8 +94,6 @@ spec:
         - identity.whoami
       session_policy:
         derive_from: intended_capabilities
-      # Comfortably exceeds the deferral interval so that expiry is not a
-      # confound. The credential-expiry case is a separate scenario.
       credential:
         requested_lifetime_seconds: 3600
 
