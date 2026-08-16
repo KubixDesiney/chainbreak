@@ -178,6 +178,16 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+block outcome: invalid/incomplete; no result published. Set-valued families completed, but the
+first stale-authority run stopped after the paired fresh probe because the orchestrator lacked
+the explicit mapping for the declared `paired-fresh-credential` phase name.
+runs: completed set-valued runs — `01M05DNMM36SHX8VCQX0C56W8N`, `01M05DQ4HG993GVY8FBG1YQSH2`, `01M05DSCNE8TWF762S66WN33GX`, `01M05DVNBY4E50YJB2FEHCYQF9`, `01M05DXZB22P80581ZAPQRCJNK`, `01M05E0SHD8QTDT89H4F30FE4J`, `01M05E4C7T7R36FKMPTCC9DKQZ`, `01M05E63BH3SZ5FR00ZSXBDBW6`, `01M05E71F0A1B97FWGXJ4KG00H`; partial stale-authority run `01M05E8P1B86ARKNRRPDE8A7FM`
+negative controls: not run; block stopped before timing completion and controls
+exclusions: partial run `01M05E8P1B86ARKNRRPDE8A7FM` excluded, reason `ExecutionError` for missing `PHASE_NAME_TO_PLAN_PHASE` mapping for `paired-fresh-credential`; all block-02R3 runs excluded because the timing/control matrix was incomplete
+observation: none publishable; no timing estimate or family result is inferred from this invalid block
+anomalies: explained harness mapping defect; fixed by adding the explicit `paired-fresh-credential` mapping and regression test; focused tests passed (`15 passed`)
+notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.

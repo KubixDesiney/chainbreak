@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from chainbreak.capabilities.registry import BindingRegistry
-from chainbreak.core.enums import PhaseKind
+from chainbreak.core.enums import PhaseKind, PlanPhase
 from chainbreak.core.errors import ExecutionError, SafetyEnvelopeError
 from chainbreak.core.models import PlanStep, SafetyEnvelope
 from chainbreak.evidence.writer import BundleWriter
@@ -62,6 +62,9 @@ def _writer(tmp_path: Path, run_id: str, compiled: object) -> BundleWriter:
 
 
 class TestResolvePlanPhase:
+    def test_paired_fresh_credential_phase_is_explicitly_mapped(self) -> None:
+        assert resolve_plan_phase("paired-fresh-credential") is PlanPhase.PAIRED_FRESH_CREDENTIAL
+
     def test_unmapped_phase_name_raises_a_named_execution_error(self) -> None:
         with pytest.raises(ExecutionError, match="no PlanPhase mapping"):
             resolve_plan_phase("a-phase-name-nobody-registered")
