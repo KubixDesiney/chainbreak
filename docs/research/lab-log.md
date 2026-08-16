@@ -129,6 +129,16 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+block outcome: invalid/incomplete; no result published. The positive families and revocation
+pass completed until stale-authority began. Because `trust-policy-null-condition` had already
+changed a role's future trust policy, the next stale-authority delegation was denied.
+runs: completed before failure — `01M05BEMNP49E2QJJG1DVJP5NV`, `01M05BG26036YGH43GCFHTZ3PR`, `01M05BJF2H6JZ8H7S30DVRM0RF`, `01M05BMEMZC51WA6WH7MZWEM42`, `01M05BPMST84KJHH94VC6B5NF8`, `01M05BS5R1D58H3Z2Q2882MGTD`, `01M05BTQ16C63DPC1XS5J1B46C`, `01M05BVZGRFASJ0KK6J2C5YGKG`, `01M05BWNNT5DWDF93T6V47MPYG`, `01M05BYCB244BN6Z288ESYNN44`, `01M05C0TV90XG6GCAJ9XT88PPN`, `01M05C2B4RA4BEPKXM1RBDBD3T`, `01M05C5XPPC4TKESANSH5GSA69`, `01M05C7GMC0V9P7PQWC6ERGND4`; partial run `01M05CA5HH4B2C7RHAWEW5WZHG`
+negative controls: not run; block stopped before controls
+exclusions: partial run `01M05CA5HH4B2C7RHAWEW5WZHG` excluded, reason `AccessDenied` during stale-authority delegation after the earlier trust-policy mutation; all block-02R runs excluded because the family/control matrix was incomplete
+observation: none publishable; no timing estimate or family result is inferred from this invalid block
+anomalies: explained cross-scenario contamination; next block orders stale-authority before the trust-policy mutation, with trust-policy and negative controls last
+notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
