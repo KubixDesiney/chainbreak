@@ -51,6 +51,9 @@ observation: pending
 anomalies: provider-identifier redaction fix under test
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this retry block.
 
+block outcome: invalidated before completing the matrix; no result published.
+exclusions: run `01M04WD549F85R9CAH00BRGA72` excluded, reason `AccessDenied` during `AssumeRole` from fixed `agent-a` directly to `agent-c`; the original stale-authority scenario omitted the required adjacent `agent-b` hop. The scenario was corrected and revalidated offline; this block is restarted so pre-fix and post-fix evidence are not mixed. Sandbox destroy completed (`44 destroyed`) and exact verify-clean passed.
+
 ## No experiments have been run
 
 As of the current commit, CHAINBREAK's architecture and specifications are complete and the
