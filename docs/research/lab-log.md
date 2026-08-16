@@ -154,6 +154,15 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+block outcome: invalid/incomplete; no result published. Set-valued families completed, but the
+first stale-authority scenario failed while constructing the paired fresh observation.
+runs: completed set-valued runs — `01M05CK88WC45578NPP7MHENJK`, `01M05CN0SV6JZ4W1QB1BKD8N0K`, `01M05CQXH391MD8PCZJ24HVG2X`, `01M05CTXMEDBCJPCYAV6XR8WBJ`, `01M05CX6XGDWY740EM026BRBN6`, `01M05D00BKCBTGBY64QFZ877F6`, `01M05D1S0XDDT8GVWTBCYW720K`, `01M05D3MEEBBMW7SQ00Y2TAACS`, `01M05D4R34DN7GB02GRY5YNRK6`; partial stale-authority run `01M05D66XCEJ7VPY9ZHAWH4WXM`
+negative controls: not run; block stopped before timing completion and controls
+exclusions: partial run `01M05D66XCEJ7VPY9ZHAWH4WXM` excluded, reason `ValidationError` because `credential_age_ms=-3862.803` for the paired fresh credential; all block-02R2 runs excluded because the timing/control matrix was incomplete
+observation: none publishable; no timing estimate or family result is inferred from this invalid block
+anomalies: explained harness timestamp defect; deferred execution reused the pre-delegation timestamp for the freshly minted credential. Fixed by timestamping the fresh leg after delegation; focused regression tests passed (`5 passed`)
+notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
