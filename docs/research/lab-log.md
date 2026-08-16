@@ -218,6 +218,17 @@ notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, se
 
 ## No valid M17 block has been published
 
+## 2026-08-16 block-02R5 pre-block guard — not started
+
+checklist: 0.1 pass (clean commit `71e4bcd`); 0.2 pass (focused regression suite `104 passed`, Ruff clean); 0.3 partial (config/account allowlist passed; live P1–P11 passed at 14:59 UTC before residual teardown, but the post-clean recheck could not load outputs because destroy removes `outputs.json`); 0.4 fail (no captured Terraform outputs/current infrastructure after verified teardown); 0.5 not evidenced after teardown; 0.6 not evidenced after teardown; 0.7 pass (exact verify-clean at 16:03 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (CLI exposes no `--check-budget` option)
+infrastructure: none applied for this attempted block; no run started
+runs: none
+negative controls: none
+exclusions: none; this was a pre-block guard failure, not an experiment block
+observation: none
+anomalies: the current teardown removes `outputs.json`, preventing a post-clean live validation/status gate before the next apply; no provider defect inferred
+notes: residual prior-sandbox resources were destroyed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed. No new block will start until the setup/checklist ordering is made protocol-compliant.
+
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
 **No valid M17 block has produced a publishable measurement.**
 
