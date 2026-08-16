@@ -7,8 +7,6 @@
 # of the code-level enforcement in providers/aws/mutation.py).
 
 locals {
-  agent_letters = ["a", "b", "c", "d", "e", "f"]
-
   # sts:GetCallerIdentity is the one action every role gets on Resource:"*"
   # -- it is never denied by IAM and names no specific resource to scope to
   # (the control capability, AWS_PROVIDER_SPEC section 6.2).

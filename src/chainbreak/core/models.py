@@ -440,6 +440,11 @@ class DelegationEdge(DomainModel):
 
 class IdentityNode(DomainModel):
     identity_id: IdentityId
+    #: The scenario's provider binding is part of the compiled graph.  The
+    #: executor must not reconstruct a physical identity from its logical id:
+    #: negative-control scenarios deliberately bind agent-b/agent-c to
+    #: separate Terraform outputs.
+    provider_binding: str | None = None
     is_root: bool = False
     hop_index: NonNegativeInt = 0
     parent_id: IdentityId | None = None
@@ -1119,6 +1124,8 @@ class Provenance(DomainModel):
     provider_adapter_version: str
     python_version: str
     config_fingerprint: Sha256Digest
+    region: str | None = None
+    sts_endpoint: str | None = None
     infrastructure_fingerprint: Sha256Digest | None = None
     seed: int | None = Field(
         default=None,

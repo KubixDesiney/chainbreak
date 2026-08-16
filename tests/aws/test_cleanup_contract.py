@@ -7,8 +7,10 @@ skipped in every default run, including CI, and only collected for real
 when the operator sets ``CHAINBREAK_ALLOW_AWS_TESTS=1`` *and* has already
 run ``cp terraform.tfvars.example terraform.tfvars`` in
 ``infra/terraform/environments/aws-sandbox`` per ``infra/terraform/README.md``'s
-own "Usage" section. **No test in this file has ever been executed** --
-this account does not exist in this environment (see PROJECT_STATUS.md).
+own "Usage" section. The dedicated-account execution result is recorded in
+``PROJECT_STATUS.md``; this contract currently exposes the benchmark user's
+missing IAM instance-profile-list permission during destroy rather than
+masking it.
 Every step below is a direct transcription of the acceptance criteria in
 M09-terraform-sandbox.md ("Apply -> all preflight checks pass -> destroy ->
 verify-clean reports nothing remaining", "Second apply is a no-op; second
@@ -33,14 +35,8 @@ _ENVIRONMENT = "aws-sandbox"
 
 
 def _require_prepared_environment() -> None:
-    """This account is never actually provisioned in this development
-    environment (Terraform itself, and a real AWS account to point it at,
-    are both prerequisites this sandbox has never had -- see
-    PROJECT_STATUS.md's M9 entry). The check below is what a real operator
-    run would need to have done first per infra/terraform/README.md's
-    "Usage" section; it is here so a stray invocation fails with a clear
-    message rather than a Terraform stack trace, not because it has ever
-    been exercised."""
+    """Require the prepared dedicated benchmark environment before exercising
+    the real CLI contract; fail closed with a clear skip when it is absent."""
     tfvars = Path(f"infra/terraform/environments/{_ENVIRONMENT}/terraform.tfvars")
     if not tfvars.is_file():
         pytest.skip(
@@ -73,6 +69,12 @@ class TestApplyDestroyDestroyVerifyClean:
         assert validate_result.exit_code == 0, validate_result.output
         assert "FAIL" not in validate_result.output
 
+        from chainbreak.providers.aws.preflight import load_terraform_outputs
+
+        namespace = load_terraform_outputs(
+            Path(f"infra/terraform/environments/{_ENVIRONMENT}/outputs.json")
+        ).namespace
+
         first_destroy = runner.invoke(app, ["infra", "destroy", _ENVIRONMENT, "--auto-approve"])
         assert first_destroy.exit_code == 0, first_destroy.output
 
@@ -87,7 +89,9 @@ class TestApplyDestroyDestroyVerifyClean:
         # design (cli/infra.py's own docstring) -- it is the actual proof
         # that destroy left nothing behind, not an assumption from
         # Terraform's own exit code.
-        verify_result = runner.invoke(app, ["infra", "verify-clean", _ENVIRONMENT])
+        verify_result = runner.invoke(
+            app, ["infra", "verify-clean", _ENVIRONMENT, "--namespace", namespace]
+        )
         assert verify_result.exit_code == 0, verify_result.output
         assert "nothing remaining" in verify_result.output
 

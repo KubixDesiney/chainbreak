@@ -32,6 +32,9 @@ variable "budget_notification_email" {
   default     = ""
 }
 
+# Contract-only compatibility input; negative-control resources are created by
+# the identities and delegation modules.
+# tflint-ignore: terraform_unused_declarations
 variable "enable_negative_controls" {
   description = "Whether the deliberately-defective negative-control roles will be provisioned elsewhere. Not used directly by this module (it creates no identities), but threaded through so every module's variable surface is consistent and the same tfvars file drives all of them."
   type        = bool

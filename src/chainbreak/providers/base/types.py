@@ -58,6 +58,7 @@ class PreflightReport(DomainModel):
     account_ref: str | None = None
     region: str | None = None
     checks: tuple[PreflightCheck, ...] = ()
+    timing_confidence: str | None = None
 
 
 class EnvironmentDescriptor(DomainModel):
@@ -69,6 +70,7 @@ class EnvironmentDescriptor(DomainModel):
     account_ref: str | None = None
     region: str | None = None
     namespace: Namespace
+    sts_endpoint: str | None = None
 
 
 class DelegationRequest(DomainModel):
@@ -84,6 +86,7 @@ class DelegationRequest(DomainModel):
 
     source_identity: IdentityRef
     target_identity_id: IdentityId
+    target_provider_binding: str | None = None
     mechanism: DelegationMechanism
     requested_duration_s: int
     intended_capabilities: AuthoritySet
@@ -111,6 +114,7 @@ class ProbeRequest(DomainModel):
     binding: ProviderCapabilityBinding
     namespace: Namespace
     trial: int = 1
+    operation_id: str | None = None
 
 
 class ProbeResult(DomainModel):

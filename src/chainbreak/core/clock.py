@@ -5,11 +5,9 @@ All interval arithmetic uses ``time.monotonic_ns()``, never wall-clock
 subtraction -- the same convention ``core/models.py``'s ``ProbeTiming``
 already follows. Wall-clock time is context only.
 
-Wiring this into an actual run orchestrator (checking the deadline at every
-phase boundary and poll iteration) is M5+'s job; execution does not exist
-yet and is explicitly out of scope for this milestone. What is in scope is
-the clock abstraction itself, injectable so it can be tested without
-sleeping.
+The production orchestrator checks this deadline at every phase boundary and
+poll iteration. Tests inject the monotonic source so deadline behavior is
+verified without sleeping.
 """
 
 from __future__ import annotations

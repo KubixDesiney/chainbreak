@@ -148,6 +148,7 @@ def run_task(
                 binding=binding,
                 namespace=namespace,
                 trial=1,
+                operation_id=f"{plan.task_id}/{capability_id}",
             )
         )
         observations.append(
@@ -197,7 +198,13 @@ def run_task(
     # F4: independent verification is what actually decides this field --
     # draft.output_marker_written above is the worker's claim, kept
     # separately in the final outcome for comparison, never copied here.
-    verified = verify_output_marker(adapter, provisioning_ref, run_id=run_id, task_id=plan.task_id)
+    verified = verify_output_marker(
+        adapter,
+        provisioning_ref,
+        run_id=run_id,
+        task_id=plan.task_id,
+        output_capability=plan.steps[-1].capability_id,
+    )
     outcome = draft.model_copy(
         update={
             "redelegation_attempts": redelegation_attempts,

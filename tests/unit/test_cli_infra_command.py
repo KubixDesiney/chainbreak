@@ -93,7 +93,9 @@ class TestStatus:
         assert result.exit_code == 1
         assert "run `chainbreak infra apply` first" in result.output
 
-    def test_valid_outputs_reports_namespace_and_account(self, tmp_path: Path, monkeypatch):
+    def test_valid_outputs_reports_namespace_without_account_identifier(
+        self, tmp_path: Path, monkeypatch
+    ):
         from chainbreak.cli.main import app
 
         env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
@@ -101,12 +103,38 @@ class TestStatus:
         wrapped = {k: {"value": v} for k, v in _VALID_OUTPUTS.items()}
         (env_dir / "outputs.json").write_text(json.dumps(wrapped), encoding="utf-8")
         monkeypatch.chdir(tmp_path)
+        _stub_terraform_present(monkeypatch)
+
+        def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(args, 0, stdout=json.dumps(wrapped), stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
 
         runner = CliRunner()
         result = runner.invoke(app, ["infra", "status"])
         assert result.exit_code == 0
         assert "namespace: cb-a1b2c3d4" in result.output
-        assert "account_id: 123456789012" in result.output
+        assert "account_id:" not in result.output
+
+    def test_stale_outputs_are_rejected(self, tmp_path: Path, monkeypatch):
+        from chainbreak.cli.main import app
+
+        env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
+        env_dir.mkdir(parents=True)
+        wrapped = {k: {"value": v} for k, v in _VALID_OUTPUTS.items()}
+        current = dict(wrapped)
+        current["namespace"] = {"value": "cb-deadbeef"}
+        (env_dir / "outputs.json").write_text(json.dumps(wrapped), encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        _stub_terraform_present(monkeypatch)
+
+        def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(args, 0, stdout=json.dumps(current), stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        result = CliRunner().invoke(app, ["infra", "status"])
+        assert result.exit_code == 1
+        assert "outputs.json is stale" in result.output
 
     def test_malformed_outputs_exits_one_with_a_clear_message(self, tmp_path: Path, monkeypatch):
         from chainbreak.cli.main import app
@@ -134,7 +162,10 @@ class TestVerifyClean:
         monkeypatch.chdir(tmp_path)  # no infra/ tree here whatsoever
         runner = CliRunner()
         with mock_aws():
-            result = runner.invoke(app, ["infra", "verify-clean", "--region", "us-east-1"])
+            result = runner.invoke(
+                app,
+                ["infra", "verify-clean", "--region", "us-east-1", "--namespace", "cb-a1b2c3d4"],
+            )
         assert result.exit_code == 0
         assert "nothing remaining" in result.output
 
@@ -144,7 +175,10 @@ class TestVerifyClean:
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         with mock_aws():
-            result = runner.invoke(app, ["infra", "verify-clean", "--region", "us-east-1"])
+            result = runner.invoke(
+                app,
+                ["infra", "verify-clean", "--region", "us-east-1", "--namespace", "cb-a1b2c3d4"],
+            )
         assert result.exit_code == 0
         assert "nothing remaining" in result.output
 
@@ -160,12 +194,60 @@ class TestVerifyClean:
             s3.create_bucket(Bucket="cb-a1b2c3d4-objectstore")
             s3.put_bucket_tagging(
                 Bucket="cb-a1b2c3d4-objectstore",
-                Tagging={"TagSet": [{"Key": "Project", "Value": "CHAINBREAK"}]},
+                Tagging={
+                    "TagSet": [
+                        {"Key": "Project", "Value": "CHAINBREAK"},
+                        {"Key": "Namespace", "Value": "cb-a1b2c3d4"},
+                    ]
+                },
             )
-            result = runner.invoke(app, ["infra", "verify-clean", "--region", "us-east-1"])
+            result = runner.invoke(
+                app,
+                ["infra", "verify-clean", "--region", "us-east-1", "--namespace", "cb-a1b2c3d4"],
+            )
         assert result.exit_code == 1
         assert "still tagged Project=CHAINBREAK" in result.output
         assert "cb-a1b2c3d4-objectstore" in result.output
+
+    def test_iam_role_leftover_prevents_clean_result(self, tmp_path: Path, monkeypatch):
+        from chainbreak.cli.main import app
+
+        monkeypatch.chdir(tmp_path)
+        runner = CliRunner()
+        with mock_aws():
+            import boto3
+
+            iam = boto3.client("iam", region_name="us-east-1")
+            iam.create_role(
+                RoleName="cb-a1b2c3d4-agent-a",
+                AssumeRolePolicyDocument=json.dumps(
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Principal": {"AWS": "*"},
+                                "Action": "sts:AssumeRole",
+                            }
+                        ],
+                    }
+                ),
+            )
+            iam.tag_role(
+                RoleName="cb-a1b2c3d4-agent-a",
+                Tags=[
+                    {"Key": "Project", "Value": "CHAINBREAK"},
+                    {"Key": "Namespace", "Value": "cb-a1b2c3d4"},
+                ],
+            )
+            result = runner.invoke(
+                app,
+                ["infra", "verify-clean", "--region", "us-east-1", "--namespace", "cb-a1b2c3d4"],
+            )
+
+        assert result.exit_code == 1
+        assert "still tagged Project=CHAINBREAK" in result.output
+        assert "cb-a1b2c3d4-agent-a" in result.output
 
     def test_no_region_available_exits_one_with_a_clear_message(self, tmp_path: Path, monkeypatch):
         import boto3
@@ -185,9 +267,9 @@ class TestVerifyClean:
         monkeypatch.setattr(boto3, "DEFAULT_SESSION", None)
         runner = CliRunner()
         with mock_aws():
-            result = runner.invoke(app, ["infra", "verify-clean"])
+            result = runner.invoke(app, ["infra", "verify-clean", "--namespace", "cb-a1b2c3d4"])
         assert result.exit_code == 1
-        assert "no region available" in result.output
+        assert "no AWS region available" in result.output
 
     def test_uses_captured_region_when_available(self, tmp_path: Path, monkeypatch):
         from chainbreak.cli.main import app
@@ -200,7 +282,7 @@ class TestVerifyClean:
 
         runner = CliRunner()
         with mock_aws():
-            result = runner.invoke(app, ["infra", "verify-clean"])
+            result = runner.invoke(app, ["infra", "verify-clean", "--namespace", "cb-a1b2c3d4"])
         assert result.exit_code == 0
 
     def test_malformed_captured_outputs_falls_back_past_the_region_hint(
@@ -219,7 +301,7 @@ class TestVerifyClean:
 
         runner = CliRunner()
         with mock_aws():
-            result = runner.invoke(app, ["infra", "verify-clean"])
+            result = runner.invoke(app, ["infra", "verify-clean", "--namespace", "cb-a1b2c3d4"])
         assert result.exit_code == 0
         assert "nothing remaining" in result.output
 
@@ -258,6 +340,28 @@ class TestPlanApplyDestroySubprocessBoundary:
         assert result.exit_code == 1
         assert [c[1] for c in calls] == ["init"]  # plan never runs after a failed init
 
+    def test_apply_init_failure_removes_stale_outputs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from chainbreak.cli.main import app
+
+        env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
+        env_dir.mkdir(parents=True)
+        (env_dir / "outputs.json").write_text("stale", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        _stub_terraform_present(monkeypatch)
+
+        def fake_run(
+            args: list[str], *, cwd: Path, check: bool = False, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(args, 1)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        result = CliRunner().invoke(app, ["infra", "apply"])
+        assert result.exit_code == 1
+        assert not (env_dir / "outputs.json").exists()
+
     def test_plan_missing_tfvars_style_failure_propagates_terraforms_exit_code(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -295,6 +399,7 @@ class TestPlanApplyDestroySubprocessBoundary:
 
         env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
         env_dir.mkdir(parents=True)
+        (env_dir / "outputs.json").write_text("stale", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         _stub_terraform_present(monkeypatch)
 
@@ -322,13 +427,14 @@ class TestPlanApplyDestroySubprocessBoundary:
 
         env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
         env_dir.mkdir(parents=True)
+        (env_dir / "outputs.json").write_text("stale", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         _stub_terraform_present(monkeypatch)
 
         calls: list[str] = []
 
         def fake_run(
-            args: list[str], *, cwd: Path, check: bool = False
+            args: list[str], *, cwd: Path, check: bool = False, **kwargs: object
         ) -> subprocess.CompletedProcess[str]:
             subcommand = args[1]
             calls.append(subcommand)
@@ -351,6 +457,7 @@ class TestPlanApplyDestroySubprocessBoundary:
 
         env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
         env_dir.mkdir(parents=True)
+        (env_dir / "outputs.json").write_text("stale", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         _stub_terraform_present(monkeypatch)
 
@@ -374,6 +481,7 @@ class TestPlanApplyDestroySubprocessBoundary:
 
         env_dir = tmp_path / "infra" / "terraform" / "environments" / "aws-sandbox"
         env_dir.mkdir(parents=True)
+        (env_dir / "outputs.json").write_text("stale", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         _stub_terraform_present(monkeypatch)
 
@@ -386,6 +494,7 @@ class TestPlanApplyDestroySubprocessBoundary:
 
         result = CliRunner().invoke(app, ["infra", "destroy", "--auto-approve"])
         assert result.exit_code == 0
+        assert not (env_dir / "outputs.json").exists()
 
     def test_destroy_that_partially_fails_propagates_the_nonzero_exit_code(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

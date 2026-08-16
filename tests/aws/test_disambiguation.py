@@ -12,6 +12,9 @@ every classifier under test is a pure function of already-fetched strings.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from chainbreak.core.enums import DenialAttribution, OutcomeClass
@@ -24,18 +27,24 @@ from chainbreak.providers.aws.disambiguation import (
 
 pytestmark = pytest.mark.unit
 
+_FIXTURES = json.loads(
+    (
+        Path(__file__).parents[1]
+        / "fixtures"
+        / "provider_responses"
+        / "aws-response-shapes.json"
+    ).read_text(encoding="utf-8")
+)["fixtures"]
+_BY_ID = {fixture["id"]: fixture for fixture in _FIXTURES}
+
 
 class TestClassifyDenialMessage:
     def test_explicit_deny_identity_based_policy(self):
-        message = (
-            "User: arn:aws:sts::123456789012:assumed-role/cb-abcd1234-agent-a/session "
-            "is not authorized to perform: s3:GetObject on resource: "
-            "arn:aws:s3:::cb-abcd1234-objectstore/cb-abcd1234/markers/marker.json "
-            "with an explicit deny in an identity-based policy"
-        )
+        message = _BY_ID["s3-explicit-deny-identity-policy"]["response"]["message"]
         outcome, attribution = classify_denial_message(message)
-        assert outcome is OutcomeClass.DENIED_EXPLICIT
-        assert attribution is DenialAttribution.EXPLICIT_DENY
+        expected = _BY_ID["s3-explicit-deny-identity-policy"]["expected"]
+        assert outcome.value == expected["outcome_class"]
+        assert attribution.value == expected["denial_attribution"]
 
     @pytest.mark.parametrize(
         "policy_kind",
@@ -56,20 +65,16 @@ class TestClassifyDenialMessage:
         assert attribution is DenialAttribution.EXPLICIT_DENY
 
     def test_implicit_denial_no_identity_based_policy_allows(self):
-        message = (
-            "User: arn:aws:sts::123456789012:assumed-role/cb-abcd1234-agent-a/session "
-            "is not authorized to perform: dynamodb:GetItem on resource: "
-            "arn:aws:dynamodb:us-east-1:123456789012:table/cb-abcd1234-keyvalue "
-            "because no identity-based policy allows the dynamodb:GetItem action"
-        )
+        message = _BY_ID["dynamodb-implicit-no-allow"]["response"]["message"]
         outcome, attribution = classify_denial_message(message)
-        assert outcome is OutcomeClass.DENIED_IMPLICIT
-        assert attribution is DenialAttribution.IMPLICIT_NO_ALLOW
+        expected = _BY_ID["dynamodb-implicit-no-allow"]["expected"]
+        assert outcome.value == expected["outcome_class"]
+        assert attribution.value == expected["denial_attribution"]
 
     def test_unrecognized_message_shape_is_unattributed_not_a_guess(self):
-        message = "Access to this resource is forbidden by bucket policy."
+        message = _BY_ID["s3-unattributed-deny"]["response"]["message"]
         outcome, attribution = classify_denial_message(message)
-        assert outcome is OutcomeClass.DENIED_UNATTRIBUTED
+        assert outcome.value == _BY_ID["s3-unattributed-deny"]["expected"]["outcome_class"]
         assert attribution is None
 
     def test_empty_message_is_unattributed(self):

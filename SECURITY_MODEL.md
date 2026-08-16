@@ -87,11 +87,12 @@ fixture in `tests/fixtures/bad_bindings.py` asserted to be rejected.
 ### SI-4 — Infrastructure has a deterministic cleanup path
 
 **Enforcement.** All infrastructure is Terraform-managed with `force_destroy` where
-required and explicit lifecycle rules. `chainbreak infra verify-clean` enumerates every
-resource tagged `Project=CHAINBREAK` via the Resource Groups Tagging API and exits non-zero
-if any remain. Runtime-created state (inline policies added by mutations) is tracked in a
-`runtime_mutations.jsonl` and reverted in a `finally` block; unreverted mutations are
-listed loudly at run end with the exact revert commands.
+required and explicit lifecycle rules. `chainbreak infra verify-clean` uses service-specific,
+fail-closed enumerators for every provisioned service, including IAM roles and policies;
+each candidate must have exact `Project=CHAINBREAK` and namespace tags, and any unknown or
+failed enumerator is unsafe. Runtime-created state (inline policies added by mutations) is
+tracked in a `runtime_mutations.jsonl` and reverted in a `finally` block; unreverted
+mutations are listed loudly at run end with the exact revert commands.
 
 **Tests.** `tests/integration/test_cleanup_contract.py` against the fake provider;
 `tests/aws/test_verify_clean.py` in the opt-in AWS layer.

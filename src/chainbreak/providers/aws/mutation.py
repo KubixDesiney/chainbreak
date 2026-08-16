@@ -43,8 +43,8 @@ from chainbreak.core.models import (
     PolicyMutation,
     ProviderCapabilityBinding,
 )
+from chainbreak.providers.aws.namespace import assert_aws_reference
 from chainbreak.providers.aws.preflight import TerraformOutputs
-from chainbreak.providers.base.namespace import assert_namespace
 
 DENY_POLICY_NAME = "cb-deny"
 GRANT_POLICY_NAME = "cb-grant"
@@ -180,7 +180,7 @@ def apply_mutation(
     sleep: Callable[[float], None] = time.sleep,
 ) -> MutationReceipt:
     role_arn = role_arn_for_identity(mutation.target_identity, outputs)
-    assert_namespace(role_arn, namespace)
+    assert_aws_reference(role_arn, account_id=outputs.account_id, namespace=namespace)
     assert_role_is_benchmark_agent(role_arn)
     role_name = role_arn.rsplit("/", 1)[-1]
 

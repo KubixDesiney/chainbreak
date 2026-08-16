@@ -53,6 +53,11 @@ resource "aws_budgets_budget" "guardrail" {
   time_unit         = "MONTHLY"
   time_period_start = "2024-01-01_00:00"
 
+  tags = {
+    Project   = "CHAINBREAK"
+    Namespace = local.namespace
+  }
+
   dynamic "notification" {
     for_each = var.budget_notification_email != "" ? [var.budget_notification_email] : []
     content {

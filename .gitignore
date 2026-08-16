@@ -26,6 +26,8 @@ htmlcov/
 *.tfstate
 *.tfstate.*
 *.tfplan
+**/tfplan
+**/.build/
 *.tfvars
 !*.tfvars.example
 # chainbreak infra apply's captured `terraform output -json` -- real

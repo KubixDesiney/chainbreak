@@ -14,16 +14,20 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from botocore.exceptions import ClientError
 
 from chainbreak.core.enums import DelegationMechanism
 from chainbreak.core.errors import AccountNotAllowedError, ConfigurationError, RegionNotAllowedError
 from chainbreak.core.models import SafetyEnvelope
+from chainbreak.providers.aws.namespace import assert_aws_reference
 from chainbreak.providers.base.types import PreflightCheck, PreflightReport
 
 #: Terraform output names required by AWS_PROVIDER_SPEC section 8. A missing
@@ -48,10 +52,12 @@ _REQUIRED_OUTPUT_NAMES: tuple[str, ...] = (
     "infrastructure_fingerprint",
 )
 
-#: P6's ARN shape: partition-agnostic-ish but namespace-anchored -- every
-#: benchmark-owned resource's ARN must contain a ``cb-{8 hex/base32 chars}``
-#: segment (AWS_PROVIDER_SPEC section 2).
-_BENCHMARK_ARN_RE = r"^arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:.*cb-[0-9a-z]{8}"
+#: P6's ARN shape.  Account and exact namespace binding are checked below;
+#: this remains a readable diagnostic for malformed Terraform output.
+_BENCHMARK_ARN_RE = re.compile(
+    r"^arn:aws:[a-z0-9-]+:[a-z0-9-]*:(?:\d{12})?:.*"
+    r"(?<![0-9a-z])cb-[0-9a-z]{8}(?![0-9a-z])"
+)
 
 #: A conservative, static per-probe-class cost estimate in USD (P10),
 #: derived from AWS_PROVIDER_SPEC section 9's per-suite cost table divided by
@@ -90,13 +96,55 @@ class TerraformOutputs:
     queue_url: str
     external_id: str
     infrastructure_fingerprint: str
+    #: Optional role outputs are present only when Terraform's negative-control
+    #: profile is enabled.  They remain output-name keyed so scenario bindings
+    #: survive compilation without teaching the core about AWS role names.
+    optional_role_arns: Mapping[str, str] = field(default_factory=dict)
 
     def all_resource_arns(self) -> tuple[str, ...]:
         return (
             self.bootstrap_role_arn,
             self.principal_role_arn,
             *self.agent_role_arns.values(),
+            f"arn:aws:s3:::{self.objectstore_bucket}",
+            f"arn:aws:dynamodb:{self.region}:{self.account_id}:table/{self.keyvalue_table}",
+            f"arn:aws:lambda:{self.region}:{self.account_id}:function:{self.function_name}",
+            self.queue_arn,
+            *self.optional_role_arns.values(),
         )
+
+    def role_arn_for_output(self, output_name: str) -> str:
+        standard = {
+            "bootstrap_role_arn": self.bootstrap_role_arn,
+            "principal_role_arn": self.principal_role_arn,
+            **{f"agent_{letter}_role_arn": arn for letter, arn in self.agent_role_arns.items()},
+        }
+        try:
+            return standard[output_name]
+        except KeyError:
+            try:
+                return self.optional_role_arns[output_name]
+            except KeyError:
+                raise ConfigurationError(
+                    f"Terraform output {output_name!r} is not a resolved benchmark role",
+                    output=output_name,
+                ) from None
+
+    @property
+    def queue_arn(self) -> str:
+        parsed = urlparse(self.queue_url)
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) != 2 or not parsed.netloc.startswith("sqs."):
+            raise ConfigurationError(
+                f"queue_url does not identify an AWS SQS queue: {self.queue_url!r}"
+            )
+        account_id, queue_name = parts
+        if account_id != self.account_id:
+            raise ConfigurationError(
+                f"queue_url account {account_id!r} does not match Terraform account "
+                f"{self.account_id!r}"
+            )
+        return f"arn:aws:sqs:{self.region}:{account_id}:{queue_name}"
 
 
 def load_terraform_outputs(path: Path) -> TerraformOutputs:
@@ -115,6 +163,15 @@ def load_terraform_outputs(path: Path) -> TerraformOutputs:
             f"could not read Terraform outputs from {path}: {exc}", path=str(path)
         ) from exc
 
+    return parse_terraform_outputs(raw, path=path)
+
+
+def parse_terraform_outputs(raw: object, *, path: Path) -> TerraformOutputs:
+    """Validate and parse an already decoded ``terraform output -json`` document.
+
+    ``infra status`` uses this for the live state response so it can compare that
+    response with the captured file without writing another local artifact.
+    """
     if not isinstance(raw, dict):
         raise ConfigurationError(
             f"Terraform outputs at {path} must be a JSON object", path=str(path)
@@ -130,7 +187,25 @@ def load_terraform_outputs(path: Path) -> TerraformOutputs:
 
     def value(name: str) -> Any:
         entry = raw[name]
-        return entry["value"] if isinstance(entry, dict) and "value" in entry else entry
+        if isinstance(entry, dict):
+            if "value" not in entry:
+                raise ConfigurationError(
+                    f"Terraform output {name!r} at {path} is missing its value",
+                    path=str(path),
+                    output=name,
+                )
+            return entry["value"]
+        return entry
+
+    optional_role_arns = {
+        name: value(name)
+        for name in (
+            "agent_b_expansion_role_arn",
+            "agent_b_survival_role_arn",
+            "agent_c_nonmonotone_role_arn",
+        )
+        if name in raw and value(name) is not None
+    }
 
     outputs = TerraformOutputs(
         namespace=value("namespace"),
@@ -149,6 +224,7 @@ def load_terraform_outputs(path: Path) -> TerraformOutputs:
         queue_url=value("queue_url"),
         external_id=value("external_id"),
         infrastructure_fingerprint=value("infrastructure_fingerprint"),
+        optional_role_arns=optional_role_arns,
     )
     _validate_output_shapes(outputs, path=path)
     return outputs
@@ -173,36 +249,66 @@ def _validate_output_shapes(outputs: TerraformOutputs, *, path: Path) -> None:
         if not condition:
             problems.append(f"{name} does not match {expected}")
 
-    check(bool(_NAMESPACE_RE.match(outputs.namespace)), "namespace", "^cb-[0-9a-f]{8}$")
-    check(bool(_ACCOUNT_ID_RE.match(outputs.account_id)), "account_id", "12 digits")
     check(
-        bool(_ROLE_ARN_RE.match(outputs.bootstrap_role_arn)),
+        isinstance(outputs.namespace, str) and bool(_NAMESPACE_RE.fullmatch(outputs.namespace)),
+        "namespace",
+        "^cb-[0-9a-f]{8}$",
+    )
+    check(
+        isinstance(outputs.account_id, str) and bool(_ACCOUNT_ID_RE.fullmatch(outputs.account_id)),
+        "account_id",
+        "12 digits",
+    )
+    check(
+        isinstance(outputs.bootstrap_role_arn, str)
+        and bool(_ROLE_ARN_RE.fullmatch(outputs.bootstrap_role_arn)),
         "bootstrap_role_arn",
         "an IAM role ARN",
     )
     check(
-        bool(_ROLE_ARN_RE.match(outputs.principal_role_arn)),
+        isinstance(outputs.principal_role_arn, str)
+        and bool(_ROLE_ARN_RE.fullmatch(outputs.principal_role_arn)),
         "principal_role_arn",
         "an IAM role ARN",
     )
     for letter, arn in outputs.agent_role_arns.items():
-        check(bool(_ROLE_ARN_RE.match(arn)), f"agent_{letter}_role_arn", "an IAM role ARN")
+        check(
+            isinstance(arn, str) and bool(_ROLE_ARN_RE.fullmatch(arn)),
+            f"agent_{letter}_role_arn",
+            "an IAM role ARN",
+        )
+    for name, arn in outputs.optional_role_arns.items():
+        check(
+            isinstance(arn, str) and bool(_ROLE_ARN_RE.fullmatch(arn)),
+            name,
+            "an IAM role ARN",
+        )
     check(
-        bool(_DIGEST_RE.match(outputs.objectstore_marker_sha256)),
+        isinstance(outputs.objectstore_marker_sha256, str)
+        and bool(_DIGEST_RE.fullmatch(outputs.objectstore_marker_sha256)),
         "objectstore_marker_sha256",
         "sha256:<64 hex chars>",
     )
     check(
-        bool(_DIGEST_RE.match(outputs.keyvalue_marker_sha256)),
+        isinstance(outputs.keyvalue_marker_sha256, str)
+        and bool(_DIGEST_RE.fullmatch(outputs.keyvalue_marker_sha256)),
         "keyvalue_marker_sha256",
         "sha256:<64 hex chars>",
     )
     check(
-        bool(_DIGEST_RE.match(outputs.infrastructure_fingerprint)),
+        isinstance(outputs.infrastructure_fingerprint, str)
+        and bool(_DIGEST_RE.fullmatch(outputs.infrastructure_fingerprint)),
         "infrastructure_fingerprint",
         "sha256:<64 hex chars>",
     )
-    check(outputs.queue_url.startswith("https://sqs."), "queue_url", "an https://sqs.* URL")
+    check(
+        isinstance(outputs.queue_url, str) and outputs.queue_url.startswith("https://sqs."),
+        "queue_url",
+        "an https://sqs.* URL",
+    )
+
+    for name in ("region", "objectstore_bucket", "keyvalue_table", "function_name", "external_id"):
+        check(isinstance(getattr(outputs, name), str), name, "a string")
 
     if problems:
         raise ConfigurationError(
@@ -236,11 +342,12 @@ def run_preflight(
     *,
     sts_client: Any,
     resourcegroupstaggingapi_client: Any,
+    iam_client: Any | None = None,
     envelope: SafetyEnvelope,
     terraform_outputs: TerraformOutputs,
-    precondition_results: Mapping[str, bool],
+    precondition_results: Mapping[str, bool] | Callable[[], Mapping[str, bool]],
     cost_estimate: CostEstimate,
-    clock_offset_ms: float,
+    clock_offset_ms: float | None = None,
     max_clock_offset_ms: float = 5000.0,
     i_know_what_i_am_doing: bool = False,
     partition: str = "aws",
@@ -276,6 +383,15 @@ def run_preflight(
             allowed=envelope.allowed_account_ids,
         )
     checks.add("account_allowlisted", True, account)
+    if account != terraform_outputs.account_id:
+        checks.add("terraform_account_matches", False, terraform_outputs.account_id)
+        raise AccountNotAllowedError(
+            f"live account {account!r} does not match Terraform output account "
+            f"{terraform_outputs.account_id!r}",
+            account=account,
+            terraform_account=terraform_outputs.account_id,
+        )
+    checks.add("terraform_account_matches", True, account)
 
     # P3: session region in the allowlist.
     region = terraform_outputs.region
@@ -300,8 +416,14 @@ def run_preflight(
 
     # P6: every resolved ARN matches the benchmark ARN shape.
     bad_arns = [
-        arn for arn in terraform_outputs.all_resource_arns() if not re.match(_BENCHMARK_ARN_RE, arn)
+        arn for arn in terraform_outputs.all_resource_arns() if not _BENCHMARK_ARN_RE.match(arn)
     ]
+    for arn in terraform_outputs.all_resource_arns():
+        try:
+            assert_aws_reference(arn, account_id=account, namespace=terraform_outputs.namespace)
+        except Exception:
+            if arn not in bad_arns:
+                bad_arns.append(arn)
     checks.add("arn_shape", not bad_arns, "; ".join(bad_arns) or "all ARNs match")
     if bad_arns:
         raise ConfigurationError(f"ARNs do not match the benchmark shape: {bad_arns}")
@@ -310,27 +432,56 @@ def run_preflight(
     # answer "does anything owned by this account carry Project=CHAINBREAK
     # and this Namespace" in one call rather than one call per resource type.
     try:
-        tagged = resourcegroupstaggingapi_client.get_resources(
-            TagFilters=[
+        tagged_resources = _get_all_tagged_resources(
+            resourcegroupstaggingapi_client,
+            [
                 {"Key": "Project", "Values": ["CHAINBREAK"]},
                 {"Key": "Namespace", "Values": [terraform_outputs.namespace]},
-            ]
+            ],
         )
-        tags_ok = len(tagged.get("ResourceTagMappingList", [])) > 0
-    except ClientError as exc:
+        expected_arns = set(terraform_outputs.all_resource_arns())
+        tagged_by_arn = {item.get("ResourceARN"): item for item in tagged_resources}
+        role_arns = {arn for arn in expected_arns if ":role/" in arn}
+        if role_arns:
+            if iam_client is None:
+                raise ConfigurationError("IAM role tag verification client was not provided")
+            for role_arn in role_arns:
+                role_name = role_arn.rsplit("/", 1)[-1]
+                role_tags = iam_client.list_role_tags(RoleName=role_name).get("Tags", [])
+                tagged_by_arn[role_arn] = {"Tags": role_tags}
+        missing_tags = sorted(expected_arns - set(tagged_by_arn))
+        malformed_tags = [
+            arn
+            for arn in expected_arns.intersection(tagged_by_arn)
+            if _tag_map(tagged_by_arn[arn]).get("Project") != "CHAINBREAK"
+            or _tag_map(tagged_by_arn[arn]).get("Namespace") != terraform_outputs.namespace
+        ]
+        tags_ok = not missing_tags and not malformed_tags
+    except Exception as exc:
         tags_ok = False
-        checks.add("resource_tags", False, str(exc))
+        missing_tags = []
+        malformed_tags = []
+        checks.add("resource_tags", False, f"unable to verify: {exc}")
     else:
-        checks.add(
-            "resource_tags", tags_ok, f"{len(tagged.get('ResourceTagMappingList', []))} tagged"
-        )
+        detail = f"{len(expected_arns)} required resources verified"
+        if missing_tags or malformed_tags:
+            detail = f"missing={missing_tags}; malformed={malformed_tags}"
+        checks.add("resource_tags", tags_ok, detail)
     if not tags_ok:
-        raise ConfigurationError("no benchmark resources carry the expected Project/Namespace tags")
+        raise ConfigurationError(
+            f"not every required benchmark resource carries the expected tags; "
+            f"missing={missing_tags}; malformed={malformed_tags}",
+            missing=missing_tags,
+            malformed=malformed_tags,
+        )
 
     # P8: marker preconditions. Failure here is CONFIGURATION_ERROR, not a
     # SecurityInvariantError abort -- a missing marker is an infrastructure
     # gap, not a security violation.
-    failed_preconditions = [name for name, ok in precondition_results.items() if not ok]
+    resolved_preconditions = (
+        precondition_results() if callable(precondition_results) else precondition_results
+    )
+    failed_preconditions = [name for name, ok in resolved_preconditions.items() if not ok]
     checks.add(
         "marker_preconditions", not failed_preconditions, "; ".join(failed_preconditions) or "ok"
     )
@@ -342,9 +493,12 @@ def run_preflight(
             TagFilters=[{"Key": "Environment", "Values": ["production"]}]
         )
         has_production = len(production.get("ResourceTagMappingList", [])) > 0
-    except ClientError as exc:
-        has_production = False
-        checks.add("no_production_resources", True, f"unable to verify: {exc}")
+    except Exception as exc:
+        checks.add("no_production_resources", False, f"unable to verify: {exc}")
+        raise ConfigurationError(
+            "production-tag verification could not complete; refusing to continue",
+            reason=str(exc),
+        ) from exc
     else:
         production_count = len(production.get("ResourceTagMappingList", []))
         checks.add(
@@ -373,15 +527,71 @@ def run_preflight(
 
     # P11: clock offset -- WARN only, downgrades timing confidence rather
     # than aborting.
-    clock_ok = abs(clock_offset_ms) <= max_clock_offset_ms
-    checks.add("clock_offset", clock_ok, f"{clock_offset_ms:.1f}ms")
+    measured_offset_ms = clock_offset_ms
+    if measured_offset_ms is None:
+        measured_offset_ms = _clock_offset_from_response(identity)
+    timing_confidence = "high"
+    if measured_offset_ms is None:
+        timing_confidence = "low"
+        checks.add("clock_offset", True, "WARN: unmeasured; timing confidence downgraded")
+    else:
+        clock_ok = abs(measured_offset_ms) <= max_clock_offset_ms
+        if not clock_ok:
+            timing_confidence = "low"
+        # P11 is a warning, not an abort.  A skewed provider clock weakens
+        # wall-clock correlation but monotonic probe intervals remain usable.
+        checks.add(
+            "clock_offset",
+            True,
+            f"{'OK' if clock_ok else 'WARN'}: measured {measured_offset_ms:.1f}ms",
+        )
 
     return PreflightReport(
         passed=preflight_passed_so_far and all(c.passed for c in checks.checks),
         account_ref=account,
         region=region,
         checks=tuple(checks.checks),
+        timing_confidence=timing_confidence,
     )
+
+
+def _tag_map(item: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        str(tag.get("Key")): str(tag.get("Value"))
+        for tag in item.get("Tags", [])
+        if isinstance(tag, Mapping) and "Key" in tag and "Value" in tag
+    }
+
+
+def _get_all_tagged_resources(
+    client: Any, tag_filters: list[dict[str, Any]]
+) -> list[Mapping[str, Any]]:
+    resources: list[Mapping[str, Any]] = []
+    token: str | None = None
+    while True:
+        kwargs: dict[str, Any] = {"TagFilters": tag_filters}
+        if token is not None:
+            kwargs["PaginationToken"] = token
+        response = client.get_resources(**kwargs)
+        resources.extend(
+            item for item in response.get("ResourceTagMappingList", []) if isinstance(item, Mapping)
+        )
+        next_token = response.get("PaginationToken")
+        token = str(next_token) if next_token else None
+        if token is None:
+            return resources
+
+
+def _clock_offset_from_response(response: Mapping[str, Any]) -> float | None:
+    headers = response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
+    date_value = headers.get("date") or headers.get("Date")
+    if not isinstance(date_value, str):
+        return None
+    try:
+        provider_time = parsedate_to_datetime(date_value).astimezone(UTC)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return (datetime.now(UTC) - provider_time).total_seconds() * 1000
 
 
 #: Delegation mechanisms the compiler (M3) may request; kept here as the

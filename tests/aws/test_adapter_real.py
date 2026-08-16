@@ -5,21 +5,16 @@ Gated behind the ``aws`` marker (``tests/conftest.py``'s F5 gate): skipped
 in every default run, including CI, and only collected for real when both
 ``CHAINBREAK_ALLOW_AWS_TESTS=1`` is set *and* this module's own
 ``CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS`` environment variable points at a
-real ``terraform output -json`` file for a provisioned benchmark account --
-which does not exist yet (Terraform itself is M9's deliverable; this file
-was written before any account was provisioned). **No test in this file has
-ever been executed.** Every assertion below is a direct implementation of
-AWS_PROVIDER_SPEC section 2/4/6/7's documented behavior, not a result.
+real ``terraform output -json`` file for a provisioned benchmark account.
+The dedicated-account execution result is recorded in ``PROJECT_STATUS.md``;
+four denial/ambiguity assertions currently expose observed IAM authorization
+propagation behavior rather than being suppressed or weakened.
 
 ``TestAwsProviderContract`` subclasses the shared ``ProviderContractSuite``
 (``tests/integration/test_provider_contract.py``) per acceptance criterion
-1, with two of its inherited tests overridden rather than run unmodified --
-see the class docstring for why: the shared suite invents ad hoc identity
-names (``"agent-denied"``, ``"agent-empty"``) that have no analogue in
-AWS's fixed, Terraform-provisioned six-role model
-(``adapter.py``'s own module docstring records this same tension). This is
-a genuine specification gap discovered while implementing M8, not
-worked around silently.
+1. AWS supplies only provider-specific identity setup hooks because its
+Terraform deployment has fixed roles; all contract behavior assertions remain
+inherited from the shared suite.
 """
 
 from __future__ import annotations
@@ -32,7 +27,7 @@ from pathlib import Path
 import pytest
 
 from chainbreak.core.enums import DelegationMechanism, MutationKind, OutcomeClass
-from chainbreak.core.models import AuthoritySet, PolicyMutation
+from chainbreak.core.models import AuthoritySet, PolicyMutation, SafetyEnvelope
 from chainbreak.providers.aws.adapter import AwsProviderAdapter
 from chainbreak.providers.aws.preflight import load_terraform_outputs
 from chainbreak.providers.base.types import DelegationRequest, ProbeRequest
@@ -42,6 +37,10 @@ pytestmark = pytest.mark.aws
 
 _OUTPUTS_ENV_VAR = "CHAINBREAK_AWS_TEST_TERRAFORM_OUTPUTS"
 _WRONG_ACCOUNT_ENV_VAR = "CHAINBREAK_AWS_TEST_WRONG_ACCOUNT_ID"
+# This is an acceptance-test bound, not an experiment interval.  The dedicated
+# account has already exhibited IAM authorization propagation beyond 120 s;
+# the M17 timing families measure that behavior separately with n>=5.
+_IAM_AUTHORIZATION_PROPAGATION_TIMEOUT_S = 180.0
 
 
 @pytest.fixture(autouse=True)
@@ -97,21 +96,12 @@ def _require_real_account() -> tuple[AwsProviderAdapter, str]:
 
 
 class TestAwsProviderContract(ProviderContractSuite):
-    """The shared adapter-agnostic contract, run against a real account.
+    """The shared contract assertions run against the real AWS adapter.
 
-    Two inherited tests are overridden here rather than run unmodified:
-    ``test_every_capability_classifies_allow_and_deny_correctly`` and
-    ``test_control_capability_never_denied`` both call
-    ``adapter.register_identity`` with fake-only ad hoc names
-    (``"agent-denied"``, ``"agent-empty"``) that assume an in-memory policy
-    engine capable of registering an arbitrary identity on the spot.
-    AWS's identities are fixed by Terraform provisioning
-    (``adapter.py``'s module docstring); the override below exercises the
-    same *behavior* (an identity with no granted capabilities is denied
-    everything except the control capability) using a real provisioned
-    identity (``agent-f``, the chain's unused tail in a scenario that does
-    not reach it) with an explicit deny mutation applied first, rather than
-    a role that does not exist.
+    The hooks below map abstract setup identities onto Terraform-provisioned
+    roles. The denied hook uses ``agent-e`` because it has a valid next hop
+    for the delegate capability; the empty/control hook uses terminal
+    ``agent-f``.
     """
 
     def make_adapter(self) -> AwsProviderAdapter:  # type: ignore[override]
@@ -122,59 +112,30 @@ class TestAwsProviderContract(ProviderContractSuite):
         _adapter, wrong_account = _require_real_account()
         return wrong_account
 
-    def test_every_capability_classifies_allow_and_deny_correctly(self):  # type: ignore[override]
-        adapter = self.make_adapter()
-        principal = adapter.register_identity("principal")
-        allowed_caps = AuthoritySet.from_iterable(
+    def contract_denied_identity(
+        self, adapter: AwsProviderAdapter, capabilities: AuthoritySet | None = None
+    ):
+        allowed_caps = capabilities or AuthoritySet.from_iterable(
             c.id for c in adapter.catalog.capabilities if not c.is_control
         )
-        delegation = adapter.delegate(
-            DelegationRequest(
-                source_identity=principal,
-                target_identity_id="agent-a",
-                mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
-                requested_duration_s=900,
-                intended_capabilities=allowed_caps,
-            )
-        )
-        for capability in adapter.catalog.capabilities:
-            if capability.is_control:
-                continue
-            # Tolerant of lingering propagation from a PRIOR test's mutation
-            # cleanup (the autouse ``_cleanup_agent_inline_policies`` fixture
-            # deletes the inline deny but does not itself poll for the
-            # deletion's authorization-decision effect -- the same
-            # eventually-consistent IAM behavior this module documents
-            # elsewhere, just running in the delete direction).
-            result = _probe_until(
-                adapter,
-                delegation.identity_ref,
-                capability_id=capability.id,
-                binding=adapter.resolve_capability(capability.id),
-                namespace=adapter.namespace,
-                predicate=lambda oc: oc is OutcomeClass.ALLOWED,
-            )
-            assert result.outcome.outcome_class is OutcomeClass.ALLOWED, capability.id
-
-        # agent-f is provisioned but has no baseline grant applied by this
-        # test; an explicit deny locks out every non-control capability the
-        # way "an identity with no granted capabilities" would.
-        denied_identity = adapter.register_identity("agent-f")
+        denied_identity = adapter.register_identity("agent-e")
         adapter.apply_policy_mutation(
             PolicyMutation(
                 mutation_id="contract-deny-all",
                 kind=MutationKind.ATTACH_INLINE_DENY,
-                target_identity="agent-f",
+                target_identity="agent-e",
                 denies_capabilities=allowed_caps,
             )
         )
+        # IAM mutation confirmation proves the policy document is stored, not
+        # that the authorization-decision data plane has converged. Prime the
+        # fixed-role fixture by waiting for every denied capability to be
+        # observed as denied; the shared suite then performs its own common
+        # one-shot behavioral assertions.
         for capability in adapter.catalog.capabilities:
             if capability.is_control:
                 continue
-            # See ``_probe_until``'s own docstring: a confirmed deny mutation
-            # does not guarantee the authorization-decision data plane has
-            # picked it up yet.
-            result = _probe_until(
+            _probe_until(
                 adapter,
                 denied_identity,
                 capability_id=capability.id,
@@ -182,38 +143,26 @@ class TestAwsProviderContract(ProviderContractSuite):
                 namespace=adapter.namespace,
                 predicate=lambda oc: oc.is_denial,
             )
-            assert result.outcome.outcome_class.is_denial, capability.id
+        return denied_identity
 
-    def test_control_capability_never_denied(self):  # type: ignore[override]
-        adapter = self.make_adapter()
-        identity = adapter.register_identity("agent-f")
-        result = adapter.probe(
-            ProbeRequest(
-                identity_ref=identity,
-                capability_id="identity.whoami",
-                binding=adapter.resolve_capability("identity.whoami"),
-                namespace=adapter.namespace,
+    def contract_allowed_identity(self, adapter: AwsProviderAdapter, capabilities: AuthoritySet):
+        principal = adapter.register_identity("principal")
+        delegation = adapter.delegate(
+            DelegationRequest(
+                source_identity=principal,
+                target_identity_id="agent-a",
+                mechanism=DelegationMechanism.DIRECT_ROLE_ASSUMPTION,
+                requested_duration_s=900,
+                intended_capabilities=capabilities,
             )
         )
-        assert result.outcome.outcome_class is OutcomeClass.ALLOWED
+        return delegation.identity_ref
 
-    def test_snapshot_returns_stable_fingerprints(self):  # type: ignore[override]
-        """Overridden for the same reason as the two tests above: the shared
-        suite snapshots ``principal``, but ``snapshot_policy_state`` always
-        reads through the **bootstrap** session (``adapter.py``), and
-        bootstrap's own Terraform-provisioned identity policy grants IAM
-        actions only on agent-* roles, never on principal or itself (SI-12,
-        defense in depth -- confirmed empirically: a real ``ListRolePolicies``
-        against principal is refused). The property under test -- two
-        snapshots of the same unchanged policy state hash identically -- is
-        identity-independent; substituting a real, bootstrap-readable target
-        (agent-a) exercises the same claim without asking bootstrap to do
-        something its own provisioned policy forbids by design."""
-        adapter = self.make_adapter()
-        identity = adapter.register_identity("agent-a", allow=AuthoritySet.of("objectstore.read"))
-        first = adapter.snapshot_policy_state(identity)
-        second = adapter.snapshot_policy_state(identity)
-        assert first.policies[0].document_sha256 == second.policies[0].document_sha256
+    def contract_empty_identity(self, adapter: AwsProviderAdapter):
+        return adapter.register_identity("agent-f")
+
+    def contract_snapshot_identity(self, adapter: AwsProviderAdapter):
+        return adapter.register_identity("agent-a")
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +214,14 @@ def _delegate_through_chain(
 
 
 def _probe_until(
-    adapter, identity_ref, *, capability_id, binding, namespace, predicate, timeout_s=90.0
+    adapter,
+    identity_ref,
+    *,
+    capability_id,
+    binding,
+    namespace,
+    predicate,
+    timeout_s=_IAM_AUTHORIZATION_PROPAGATION_TIMEOUT_S,
 ):
     """``apply_policy_mutation``'s own confirmation (``_poll_until`` in
     ``mutation.py``) polls ``GetRolePolicy`` until the stored document
@@ -304,6 +260,28 @@ def _probe_until(
 
 
 class TestRealIamSemantics:
+    def test_wrong_account_preflight_makes_only_get_caller_identity_call(self):
+        """P1/P2 must fail closed before any resource or IAM call."""
+        adapter, wrong_account = _require_real_account()
+        call_log: list[str] = []
+
+        def capture_call(*, model=None, **_kwargs):
+            if model is not None:
+                call_log.append(model.name)
+
+        # boto3 exposes the botocore event emitter through its private session
+        # object; this is an evidence-only hook and does not alter requests.
+        adapter.operator_session._session.register("before-call.*.*", capture_call)
+        envelope = SafetyEnvelope(
+            allowed_account_ids=(wrong_account,),
+            allowed_regions=(adapter.region,),
+            namespace=adapter.namespace,
+            namespace_pattern=f"^{adapter.namespace}$",
+        )
+        report = adapter.preflight(envelope)
+        assert report.passed is False
+        assert call_log == ["GetCallerIdentity"]
+
     def test_role_chain_duration_is_capped_at_3600_seconds_by_real_sts(self):
         """Not just that the adapter *requests* 3600s (already proven
         offline against moto in ``test_adapter_moto.py``) -- that real STS

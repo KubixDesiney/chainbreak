@@ -92,8 +92,9 @@ terraform init
 terraform plan
 terraform apply
 # ... run experiments ...
+namespace=$(terraform output -raw namespace) # retain this before destroy
 terraform destroy
-chainbreak infra verify-clean                  # confirm nothing survives, by tag
+chainbreak infra verify-clean --namespace "$namespace" # exact tags across every service
 ```
 
 `terraform.tfvars` is gitignored. The example file is not.

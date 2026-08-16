@@ -20,6 +20,9 @@ variable "operator_principal_arns" {
   }
 }
 
+# Contract-only compatibility input; the fixed six-role contract is validated
+# but the roles remain explicit for stable output names.
+# tflint-ignore: terraform_unused_declarations
 variable "agent_count" {
   description = "Documented for the module's variable surface; this implementation always provisions exactly six agent roles (agent-a..agent-f), matching AWS_PROVIDER_SPEC section 3's fixed six-role design (\"so scenarios up to depth 6 need no re-apply\") and this module's own unconditional agent_a_role_arn..agent_f_role_arn output list."
   type        = number

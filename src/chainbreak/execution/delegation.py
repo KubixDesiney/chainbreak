@@ -69,7 +69,9 @@ def materialize_graph(adapter: ProviderAdapter, graph: AuthorizationGraph) -> Ma
     materialized = MaterializedGraph()
     root = graph.root
     materialized.refs[root.identity_id] = adapter.register_identity(
-        root.identity_id, allow=root.expected_authority.capabilities
+        root.identity_id,
+        allow=root.expected_authority.capabilities,
+        provider_binding=root.provider_binding,
     )
     materialized.credentials[root.identity_id] = None
     materialized.edges_by_target[root.identity_id] = None
@@ -79,6 +81,11 @@ def materialize_graph(adapter: ProviderAdapter, graph: AuthorizationGraph) -> Ma
             DelegationRequest(
                 source_identity=materialized.refs[edge.source_id],
                 target_identity_id=edge.target_id,
+                target_provider_binding=next(
+                    node.provider_binding
+                    for node in graph.nodes
+                    if node.identity_id == edge.target_id
+                ),
                 mechanism=edge.mechanism,
                 requested_duration_s=edge.credential_lifetime_s,
                 intended_capabilities=edge.intended_capabilities,

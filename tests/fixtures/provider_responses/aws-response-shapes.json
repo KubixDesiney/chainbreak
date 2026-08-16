@@ -1,0 +1,101 @@
+{
+  "schema_version": "aws-provider-response-fixture.v1",
+  "fixtures": [
+    {
+      "id": "s3-explicit-deny-identity-policy",
+      "service": "s3",
+      "operation": "GetObject",
+      "response": {
+        "error_code": "AccessDenied",
+        "http_status": 403,
+        "message": "is not authorized to perform: s3:GetObject with an explicit deny in an identity-based policy"
+      },
+      "expected": {
+        "outcome_class": "DENIED_EXPLICIT",
+        "denial_attribution": "EXPLICIT_DENY"
+      }
+    },
+    {
+      "id": "dynamodb-implicit-no-allow",
+      "service": "dynamodb",
+      "operation": "GetItem",
+      "response": {
+        "error_code": "AccessDeniedException",
+        "http_status": 400,
+        "message": "is not authorized to perform: dynamodb:GetItem because no identity-based policy allows the dynamodb:GetItem action"
+      },
+      "expected": {
+        "outcome_class": "DENIED_IMPLICIT",
+        "denial_attribution": "IMPLICIT_NO_ALLOW"
+      }
+    },
+    {
+      "id": "s3-unattributed-deny",
+      "service": "s3",
+      "operation": "GetObject",
+      "response": {
+        "error_code": "AccessDenied",
+        "http_status": 403,
+        "message": "Access to this resource is forbidden by bucket policy."
+      },
+      "expected": {
+        "outcome_class": "DENIED_UNATTRIBUTED",
+        "denial_attribution": null
+      }
+    },
+    {
+      "id": "s3-unexpected-missing-after-precondition",
+      "service": "s3",
+      "operation": "GetObject",
+      "response": {
+        "error_code": "NoSuchKey",
+        "http_status": 404,
+        "message": "The specified key does not exist."
+      },
+      "expected": {
+        "outcome_class": "ERROR_INFRASTRUCTURE",
+        "disambiguation": "unexpected_missing_after_precondition"
+      }
+    },
+    {
+      "id": "lambda-function-fault",
+      "service": "lambda",
+      "operation": "Invoke",
+      "response": {
+        "function_error": "Unhandled",
+        "http_status": 200
+      },
+      "expected": {
+        "outcome_class": "ERROR_INFRASTRUCTURE",
+        "disambiguation": "function_fault"
+      }
+    },
+    {
+      "id": "lambda-allowed-payload",
+      "service": "lambda",
+      "operation": "Invoke",
+      "response": {
+        "http_status": 200,
+        "payload": {"ok": true, "nonce": "<NAMESPACE>"}
+      },
+      "expected": {
+        "outcome_class": "ALLOWED",
+        "disambiguation": "payload_verified"
+      }
+    },
+    {
+      "id": "aws-unexpected-error",
+      "service": "sqs",
+      "operation": "ReceiveMessage",
+      "response": {
+        "error_code": "InternalError",
+        "http_status": 500,
+        "message": "An internal service error occurred."
+      },
+      "expected": {
+        "outcome_class": "ERROR_INFRASTRUCTURE",
+        "disambiguation": "unexpected_error"
+      }
+    }
+  ]
+}

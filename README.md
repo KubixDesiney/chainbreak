@@ -160,7 +160,9 @@ chainbreak infra apply  aws-sandbox
 chainbreak run scenarios/scope-attenuation/basic.yaml     # writes an evidence bundle
 chainbreak analyze  <run-id>
 chainbreak report   <run-id> --format html
+namespace=$(terraform -chdir=infra/terraform/environments/aws-sandbox output -raw namespace)
 chainbreak infra destroy aws-sandbox
+chainbreak infra verify-clean aws-sandbox --namespace "$namespace"
 ```
 
 ## Documentation map

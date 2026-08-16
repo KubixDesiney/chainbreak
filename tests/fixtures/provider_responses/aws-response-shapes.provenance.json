@@ -1,0 +1,12 @@
+{
+  "fixture_file": "aws-response-shapes.json",
+  "fixture_version": "aws-provider-response-fixture.v1",
+  "source_documents": [
+    "AWS_PROVIDER_SPEC.md §6.1",
+    "AWS_PROVIDER_SPEC.md §6.2"
+  ],
+  "capture_method": "manual transcription of documented AWS response shapes",
+  "live_account_capture": false,
+  "redaction": "No account IDs, ARNs, hostnames, credentials, request IDs, or provider-specific identifiers are present.",
+  "purpose": "Stable offline canaries for response disambiguation; live IAM semantics remain validated by tests/aws/test_adapter_real.py."
+}

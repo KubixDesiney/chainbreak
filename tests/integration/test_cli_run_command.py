@@ -41,12 +41,22 @@ class TestArgumentHandling:
         assert result.exit_code == 2
         assert "unknown provider" in result.output
 
-    def test_aws_provider_is_a_documented_stub_until_m17(self):
+    def test_aws_provider_uses_the_factory_and_requires_validated_outputs(self, tmp_path: Path):
         from chainbreak.cli.main import app
 
-        result = CliRunner().invoke(app, ["run", str(BASIC_SCENARIO), "--provider", "aws"])
-        assert result.exit_code == 2
-        assert "not implemented until M17" in result.output
+        result = CliRunner().invoke(
+            app,
+            [
+                "run",
+                str(BASIC_SCENARIO),
+                "--provider",
+                "aws",
+                "--terraform-outputs",
+                str(tmp_path / "missing-outputs.json"),
+            ],
+        )
+        assert result.exit_code == 1
+        assert "could not read Terraform outputs" in result.output
 
     def test_unknown_fake_profile_exits_two(self):
         from chainbreak.cli.main import app

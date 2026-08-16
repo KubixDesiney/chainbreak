@@ -11,7 +11,9 @@ provider-specific.
 
 A `ProviderAdapter` Protocol defines seven methods. Two implementations ship in v0.1: `aws`
 and `fake`. A shared contract test suite lives in `tests/integration/test_provider_contract.py`
-and **both must pass it unmodified** — the fake in every CI run, AWS in the opt-in layer.
+and both must pass its shared behavioral assertions — the fake in every CI run, AWS in the
+opt-in layer. Fixed-role providers may supply explicit identity setup hooks, but may not
+override the behavioral assertions.
 
 ## Rationale
 

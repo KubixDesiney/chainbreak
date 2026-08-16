@@ -5,17 +5,11 @@ the mutation choke point and policy snapshotting behind the
 **Identity model.** AWS's real identities are fixed by Terraform
 provisioning (``bootstrap``, ``principal``, ``agent-a``..``agent-f`` --
 section 3), unlike the fake's in-memory ``PolicyEngine``, which can register
-an arbitrary named identity on the spot. ``register_identity`` here
-therefore recognizes exactly those seven names and raises for anything else
--- notably, this means ``tests/integration/test_provider_contract.py``'s
-shared ``ProviderContractSuite`` (which invents ad hoc identities like
-``"agent-denied"``/``"agent-empty"`` purely for fake-side test setup)
-**cannot run against this adapter unmodified**, contrary to M8's acceptance
-criterion 1 as literally written. This is a real specification tension
-discovered while implementing this module, not an oversight -- recorded in
-PROJECT_STATUS.md's M8 entry rather than worked around by inventing
-placeholder IAM roles that would misrepresent the fixed six-role model
-AWS_PROVIDER_SPEC section 3 documents.
+an arbitrary named identity on the spot. ``register_identity`` therefore
+recognizes exactly those seven names and raises for anything else. The shared
+provider contract supplies provider-specific setup hooks for fixed-role test
+fixtures, so its behavioral assertions remain common without inventing
+placeholder IAM roles.
 
 **The botocore before-call hook** (SI-2's independent check, SI-3's
 ``OperationAllowlist``) is installed once per boto3 client at construction
@@ -28,8 +22,9 @@ currently open."
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from botocore.exceptions import ClientError
@@ -64,9 +59,9 @@ from chainbreak.providers.aws import preflight as preflight_mod
 from chainbreak.providers.aws import probes as probes_mod
 from chainbreak.providers.aws import session as session_mod
 from chainbreak.providers.aws.bindings import build_aws_bindings, next_hop_role_arn
+from chainbreak.providers.aws.namespace import assert_aws_reference, assert_outbound_parameters
 from chainbreak.providers.aws.preflight import TerraformOutputs
 from chainbreak.providers.aws.retry import RetryOutcome, call_with_retry
-from chainbreak.providers.base.namespace import assert_namespace
 from chainbreak.providers.base.types import (
     DelegationRequest,
     DelegationResult,
@@ -123,12 +118,26 @@ def _iam_action(service_name: str, operation_name: str) -> str:
 @dataclass
 class _AllowlistHookState:
     current: OperationAllowlist | None = None
+    account_id: str | None = None
+    namespace: str | None = None
+    exact_parameters: dict[str, str] = field(default_factory=dict)
+    allowed_parameters: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
 def _install_allowlist_hook(client: Any, state: _AllowlistHookState) -> None:
     service_name = client.meta.service_model.service_name
 
     def _before_call(**kwargs: Any) -> None:
+        if state.account_id is not None and state.namespace is not None:
+            params = kwargs.get("params", {})
+            if isinstance(params, Mapping):
+                assert_outbound_parameters(
+                    params,
+                    account_id=state.account_id,
+                    namespace=state.namespace,
+                    exact_parameters=state.exact_parameters,
+                    allowed_parameters=state.allowed_parameters,
+                )
         if state.current is None:
             return
         model = kwargs.get("model")
@@ -140,6 +149,7 @@ def _install_allowlist_hook(client: Any, state: _AllowlistHookState) -> None:
 
 @dataclass(frozen=True, slots=True)
 class _Clients:
+    iam: Any
     s3: Any
     dynamodb: Any
     lambda_: Any
@@ -157,6 +167,7 @@ class AwsProviderAdapter:
     operator_session: Any
     outputs: TerraformOutputs
     run_id: str
+    i_know_what_i_am_doing: bool = False
     protected_identities: frozenset[str] = field(
         default_factory=lambda: frozenset({"bootstrap", "principal"})
     )
@@ -168,12 +179,18 @@ class AwsProviderAdapter:
     bindings: dict[str, ProviderCapabilityBinding] = field(init=False, repr=False)
 
     _ref_to_identity_id: dict[str, IdentityId] = field(init=False, default_factory=dict, repr=False)
+    _identity_output_bindings: dict[IdentityId, str] = field(
+        init=False, default_factory=dict, repr=False
+    )
     _identity_sessions: dict[str, Any] = field(init=False, default_factory=dict, repr=False)
     _clients_cache: dict[str, _Clients] = field(init=False, default_factory=dict, repr=False)
     _allowlist_states: dict[str, _AllowlistHookState] = field(
         init=False, default_factory=dict, repr=False
     )
     _bootstrap_session_cache: Any = field(init=False, default=None, repr=False)
+    _credentials: list[Any] = field(init=False, default_factory=list, repr=False)
+    _closed: bool = field(init=False, default=False, repr=False)
+    _bootstrap_refresh_skew_s: int = field(default=60, repr=False)
 
     def __post_init__(self) -> None:
         self.catalog = load_catalog()
@@ -183,6 +200,33 @@ class AwsProviderAdapter:
                 self.catalog, account_id=self.outputs.account_id, region=self.outputs.region
             )
         }
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise RuntimeError("AWS provider adapter is closed")
+
+    def _hook_state(self, ref_value: str) -> _AllowlistHookState:
+        state = self._allowlist_states.get(ref_value)
+        if state is None:
+            state = _AllowlistHookState(
+                account_id=self.outputs.account_id,
+                namespace=self.outputs.namespace,
+                exact_parameters={
+                    "Bucket": self.outputs.objectstore_bucket,
+                    "TableName": self.outputs.keyvalue_table,
+                    "FunctionName": self.outputs.function_name,
+                    "QueueUrl": self.outputs.queue_url,
+                },
+                allowed_parameters={
+                    "RoleName": frozenset(
+                        arn.rsplit("/", 1)[-1]
+                        for arn in self.outputs.all_resource_arns()
+                        if ":role/" in arn
+                    )
+                },
+            )
+            self._allowlist_states[ref_value] = state
+        return state
 
     # -- shared state -------------------------------------------------------
 
@@ -211,46 +255,75 @@ class AwsProviderAdapter:
         )
 
     def _sts_client(self, session: Any) -> Any:
-        return session.client(
+        client = session.client(
             "sts", region_name=self.region, endpoint_url=f"https://sts.{self.region}.amazonaws.com"
         )
+        _install_allowlist_hook(client, self._hook_state("operator"))
+        return client
 
     def _clients_for(self, ref_value: str, boto_session: Any) -> _Clients:
         cached = self._clients_cache.get(ref_value)
         if cached is not None:
             return cached
-        state = _AllowlistHookState()
-        self._allowlist_states[ref_value] = state
+        state = self._hook_state(ref_value)
         clients = _Clients(
+            iam=boto_session.client("iam", region_name=self.region),
             s3=boto_session.client("s3", region_name=self.region),
             dynamodb=boto_session.client("dynamodb", region_name=self.region),
             lambda_=boto_session.client("lambda", region_name=self.region),
             sqs=boto_session.client("sqs", region_name=self.region),
             sts=self._sts_client(boto_session),
         )
-        for client in (clients.s3, clients.dynamodb, clients.lambda_, clients.sqs, clients.sts):
+        for client in (
+            clients.iam,
+            clients.s3,
+            clients.dynamodb,
+            clients.lambda_,
+            clients.sqs,
+            clients.sts,
+        ):
             _install_allowlist_hook(client, state)
         self._clients_cache[ref_value] = clients
         return clients
 
     def _bootstrap_session(self) -> Any:
-        if self._bootstrap_session_cache is None:
-            sts = self._sts_client(self.operator_session)
-            response = sts.assume_role(
-                RoleArn=self.outputs.bootstrap_role_arn,
-                RoleSessionName=session_mod.build_session_name(self.namespace, "bootstrap"),
-                DurationSeconds=3600,
-                ExternalId=self.outputs.external_id,
-            )
-            credential = _credential_from_sts_response(response, credential_id=new_credential_id())
-            self._bootstrap_session_cache = session_mod.boto3_session_from_credential(
-                credential, region=self.region
-            )
-        return self._bootstrap_session_cache
+        self._ensure_open()
+        now = datetime.now(UTC)
+        if self._bootstrap_session_cache is not None:
+            cached_session, expires_at, _credential = self._bootstrap_session_cache
+            if now + timedelta(seconds=self._bootstrap_refresh_skew_s) < expires_at:
+                return cached_session
+            self._bootstrap_session_cache = None
+            _credential.scrub()
+            self._clients_cache.pop(self.outputs.bootstrap_role_arn, None)
+
+        sts = self._sts_client(self.operator_session)
+        response = sts.assume_role(
+            RoleArn=self.outputs.bootstrap_role_arn,
+            RoleSessionName=session_mod.build_session_name(self.namespace, "bootstrap"),
+            DurationSeconds=3600,
+            ExternalId=self.outputs.external_id,
+        )
+        credential = _credential_from_sts_response(response, credential_id=new_credential_id())
+        expiration = response["Credentials"].get("Expiration")
+        if not isinstance(expiration, datetime):
+            raise DelegationError("bootstrap AssumeRole response did not include an expiration")
+        if expiration.tzinfo is None:
+            expiration = expiration.replace(tzinfo=UTC)
+        session = session_mod.boto3_session_from_credential(credential, region=self.region)
+        self._credentials.append(credential)
+        self._bootstrap_session_cache = (session, expiration, credential)
+        return session
 
     # -- setup, not part of the Protocol -------------------------------------
 
-    def register_identity(self, identity_id: str, *, allow: Any = None) -> IdentityRef:
+    def register_identity(
+        self,
+        identity_id: str,
+        *,
+        allow: Any = None,
+        provider_binding: str | None = None,
+    ) -> IdentityRef:
         """Assume the corresponding real, Terraform-provisioned role. See
         the module docstring for why this only recognizes the seven fixed
         AWS_PROVIDER_SPEC identity names -- ``allow`` is accepted for
@@ -284,7 +357,11 @@ class AwsProviderAdapter:
         session = self.operator_session
         role_arn = ""
         for hop_id in chain:
-            role_arn = mutation_mod.role_arn_for_identity(hop_id, self.outputs)
+            role_arn = (
+                self.outputs.role_arn_for_output(provider_binding)
+                if provider_binding is not None and hop_id == identity_id
+                else mutation_mod.role_arn_for_identity(hop_id, self.outputs)
+            )
             session_name = session_mod.build_session_name(self.namespace, hop_id)
             sts = self._sts_client(session)
             response = sts.assume_role(
@@ -294,29 +371,45 @@ class AwsProviderAdapter:
                 ExternalId=self.outputs.external_id,
             )
             credential = _credential_from_sts_response(response, credential_id=new_credential_id())
+            self._credentials.append(credential)
             session = session_mod.boto3_session_from_credential(credential, region=self.region)
 
         ref = self._make_ref(role_arn)
         self._identity_sessions[ref.value] = session
         self._ref_to_identity_id[ref.value] = identity_id
+        if provider_binding is not None:
+            self._identity_output_bindings[identity_id] = provider_binding
         return ref
 
     # -- ProviderAdapter Protocol ---------------------------------------------
 
     def preflight(self, envelope: SafetyEnvelope) -> PreflightReport:
+        self._ensure_open()
         sts = self._sts_client(self.operator_session)
         tagging = self.operator_session.client("resourcegroupstaggingapi", region_name=self.region)
-        bootstrap = self._bootstrap_session()
-        registry = probes_mod.build_aws_preconditions(
-            s3_client=bootstrap.client("s3", region_name=self.region),
-            dynamodb_client=bootstrap.client("dynamodb", region_name=self.region),
-            lambda_client=bootstrap.client("lambda", region_name=self.region),
-            sqs_client=bootstrap.client("sqs", region_name=self.region),
-            outputs=self.outputs,
-        )
-        precondition_results = probes_mod.verify_all_preconditions(
-            registry, self._make_ref(self.outputs.bootstrap_role_arn)
-        )
+        iam = self.operator_session.client("iam", region_name=self.region)
+        _install_allowlist_hook(tagging, self._hook_state("operator"))
+        _install_allowlist_hook(iam, self._hook_state("operator"))
+
+        def precondition_results() -> dict[str, bool]:
+            # This callback is evaluated only after P1/P2/P3/P4/P5/P6/P7 have
+            # passed.  In particular, wrong-account preflight has exactly one
+            # AWS call: the operator STS GetCallerIdentity.
+            bootstrap = self._bootstrap_session()
+            clients = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap)
+            registry = probes_mod.build_aws_preconditions(
+                s3_client=clients.s3,
+                dynamodb_client=clients.dynamodb,
+                lambda_client=clients.lambda_,
+                sqs_client=clients.sqs,
+                outputs=self.outputs,
+            )
+            return dict(
+                probes_mod.verify_all_preconditions(
+                    registry, self._make_ref(self.outputs.bootstrap_role_arn)
+                )
+            )
+
         cost_estimate = preflight_mod.CostEstimate(
             estimated_calls_by_service={
                 "sts": 60,
@@ -342,11 +435,13 @@ class AwsProviderAdapter:
             return preflight_mod.run_preflight(
                 sts_client=sts,
                 resourcegroupstaggingapi_client=tagging,
+                iam_client=iam,
                 envelope=envelope,
                 terraform_outputs=self.outputs,
                 precondition_results=precondition_results,
                 cost_estimate=cost_estimate,
-                clock_offset_ms=0.0,
+                clock_offset_ms=None,
+                i_know_what_i_am_doing=self.i_know_what_i_am_doing,
             )
         except ChainbreakError as exc:
             return PreflightReport(
@@ -369,10 +464,90 @@ class AwsProviderAdapter:
             account_ref=self.account_ref,
             region=self.region,
             namespace=self.namespace,
+            sts_endpoint=self.sts_endpoint,
         )
 
+    @property
+    def sts_endpoint(self) -> str:
+        return f"https://sts.{self.region}.amazonaws.com"
+
+    def build_precondition_registry(self) -> Any:
+        """Return lazy, bootstrap-attributed matrix preconditions.
+
+        The callbacks do not assume the bootstrap role until the orchestrator
+        has completed P1-P11.  This keeps preflight's abort-fast account gate
+        ahead of all marker/resource calls.
+        """
+        from chainbreak.capabilities.preconditions import PreconditionRegistry
+
+        registry = PreconditionRegistry()
+
+        def verify(name: str, _ref: Any) -> bool:
+            bootstrap = self._bootstrap_session()
+            clients = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap)
+            checks = probes_mod.build_aws_preconditions(
+                s3_client=clients.s3,
+                dynamodb_client=clients.dynamodb,
+                lambda_client=clients.lambda_,
+                sqs_client=clients.sqs,
+                outputs=self.outputs,
+            )
+            return checks.resolve(name)(_ref)
+
+        for name in (
+            "objectstore.marker_present",
+            "keyvalue.marker_present",
+            "function.alive",
+            "queue.present",
+        ):
+
+            def verifier(ref: Any, check: str = name) -> bool:
+                return verify(check, ref)
+
+            registry.register(name, verifier)
+        return registry
+
+    def verify_output_marker(
+        self,
+        provisioning_ref: IdentityRef,
+        *,
+        run_id: str,
+        task_id: str,
+        output_capability: str | None = None,
+    ) -> bool:
+        """Verify a task side effect with a bootstrap-owned read.
+
+        The worker never supplies a marker claim to this method.  The key is
+        derived from the same run-scoped write shape used by the production
+        probe, and the client is always created from the bootstrap session.
+        """
+        if provisioning_ref.value != self.outputs.bootstrap_role_arn:
+            raise DelegationError("output-marker verification requires the bootstrap identity")
+        bootstrap = self._bootstrap_session()
+        clients = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap)
+        try:
+            if output_capability == "objectstore.write":
+                clients.s3.head_object(
+                    Bucket=self.outputs.objectstore_bucket,
+                    Key=f"{self.outputs.namespace}/scratch/{run_id}/{task_id}/objectstore.write",
+                )
+                return True
+            if output_capability == "keyvalue.write":
+                response = clients.dynamodb.get_item(
+                    TableName=self.outputs.keyvalue_table,
+                    Key={"pk": {"S": f"cb-scratch#{run_id}#{task_id}/keyvalue.write"}},
+                    ConsistentRead=True,
+                )
+                return "Item" in response
+        except ClientError:
+            return False
+        return False
+
     def delegate(self, request: DelegationRequest) -> DelegationResult:
-        assert_namespace(request.source_identity.value, self.namespace)
+        self._ensure_open()
+        assert_aws_reference(
+            request.source_identity.value, account_id=self.account_ref, namespace=self.namespace
+        )
         source_session = self._identity_sessions.get(request.source_identity.value)
         if source_session is None:
             raise DelegationError(
@@ -382,8 +557,12 @@ class AwsProviderAdapter:
             )
         sts_client = self._sts_client(source_session)
 
-        role_arn = mutation_mod.role_arn_for_identity(request.target_identity_id, self.outputs)
-        assert_namespace(role_arn, self.namespace)
+        role_arn = (
+            self.outputs.role_arn_for_output(request.target_provider_binding)
+            if request.target_provider_binding is not None
+            else mutation_mod.role_arn_for_identity(request.target_identity_id, self.outputs)
+        )
+        assert_aws_reference(role_arn, account_id=self.account_ref, namespace=self.namespace)
         session_name = session_mod.build_session_name(self.namespace, request.target_identity_id)
 
         result = session_mod.assume_role(
@@ -401,17 +580,25 @@ class AwsProviderAdapter:
             credential_id=new_credential_id(),
             salt=self._salt(),
         )
+        self._credentials.append(result.credential)
         boto_session = session_mod.boto3_session_from_credential(
             result.credential, region=self.region
         )
         self._identity_sessions[result.identity_ref.value] = boto_session
         self._ref_to_identity_id[result.identity_ref.value] = request.target_identity_id
+        if request.target_provider_binding is not None:
+            self._identity_output_bindings[request.target_identity_id] = (
+                request.target_provider_binding
+            )
         return result
 
     def probe(self, request: ProbeRequest) -> ProbeResult:
-        assert_namespace(request.identity_ref.value, self.namespace)
+        self._ensure_open()
+        assert_aws_reference(
+            request.identity_ref.value, account_id=self.account_ref, namespace=self.namespace
+        )
         target_ref = request.binding.resource_template.format(namespace=request.namespace)
-        assert_namespace(target_ref, self.namespace)
+        assert_aws_reference(target_ref, account_id=self.account_ref, namespace=self.namespace)
 
         identity_id = self._ref_to_identity_id[request.identity_ref.value]
         boto_session = self._identity_sessions[request.identity_ref.value]
@@ -419,7 +606,7 @@ class AwsProviderAdapter:
         state = self._allowlist_states[request.identity_ref.value]
 
         run_id = self.run_id
-        probe_id = f"{request.capability_id}-{request.trial}"
+        probe_id = request.operation_id or f"{request.capability_id}-{request.trial}"
         nonce = new_ulid()[:16]
         call = self._build_call(
             request.capability_id, clients, identity_id, run_id, probe_id, nonce
@@ -480,9 +667,7 @@ class AwsProviderAdapter:
             case "identity.whoami":
                 return lambda: probes_mod.probe_identity_whoami(clients.sts)
             case "identity.delegate":
-                next_hop = next_hop_role_arn(
-                    identity_id, account_id=outputs.account_id, namespace=self.namespace
-                )
+                next_hop = self._next_hop_role_arn(identity_id)
                 return lambda: probes_mod.probe_identity_delegate(
                     clients.sts,
                     next_hop_role_arn=next_hop,
@@ -495,6 +680,24 @@ class AwsProviderAdapter:
                     provider="aws",
                     capability_id=capability_id,
                 )
+
+    def _next_hop_role_arn(self, identity_id: str) -> str | None:
+        standard = next_hop_role_arn(
+            identity_id, account_id=self.outputs.account_id, namespace=self.namespace
+        )
+        if standard is None:
+            return None
+        if identity_id == "principal":
+            target_id = "agent-a"
+        elif identity_id.startswith("agent-"):
+            try:
+                target_id = f"agent-{chr(ord(identity_id[-1]) + 1)}"
+            except (IndexError, TypeError):
+                return standard
+        else:
+            return standard
+        binding = self._identity_output_bindings.get(target_id)
+        return self.outputs.role_arn_for_output(binding) if binding is not None else standard
 
     def _call_and_classify(self, call: Any, *, path: str) -> tuple[ProbeOutcome, RetryOutcome]:
         result, exc, retry_outcome = call_with_retry(call)
@@ -511,8 +714,9 @@ class AwsProviderAdapter:
         return probes_mod.classify_denial(exc, path=path), retry_outcome
 
     def apply_policy_mutation(self, mutation: PolicyMutation) -> MutationReceipt:
+        self._ensure_open()
         bootstrap = self._bootstrap_session()
-        iam_client = bootstrap.client("iam", region_name=self.region)
+        iam_client = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap).iam
         return mutation_mod.apply_mutation(
             iam_client,
             mutation,
@@ -522,9 +726,10 @@ class AwsProviderAdapter:
         )
 
     def snapshot_policy_state(self, identity_ref: IdentityRef) -> PolicyStateSnapshot:
+        self._ensure_open()
         identity_id = self._ref_to_identity_id[identity_ref.value]
         bootstrap = self._bootstrap_session()
-        iam_client = bootstrap.client("iam", region_name=self.region)
+        iam_client = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap).iam
         return policy_mod.snapshot_policy_state(
             iam_client,
             identity_id,
@@ -532,6 +737,32 @@ class AwsProviderAdapter:
             salt=self._salt(),
             now_ns=time.monotonic_ns(),
         )
+
+    def clear_caches(self) -> None:
+        """Drop client/session indexes deterministically without touching AWS."""
+        self._clients_cache.clear()
+        self._allowlist_states.clear()
+        self._identity_sessions.clear()
+        self._ref_to_identity_id.clear()
+        self._identity_output_bindings.clear()
+        self._bootstrap_session_cache = None
+
+    def close(self) -> None:
+        """Scrub live credentials and clear all adapter-held session state."""
+        if self._closed:
+            return
+        for credential in self._credentials:
+            credential.scrub()
+        self._credentials.clear()
+        self.clear_caches()
+        self._closed = True
+
+    def __enter__(self) -> AwsProviderAdapter:
+        self._ensure_open()
+        return self
+
+    def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+        self.close()
 
 
 def _credential_from_sts_response(

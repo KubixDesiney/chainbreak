@@ -364,6 +364,7 @@ def orchestrate(
                     salt=salt,
                     namespace=environment.namespace,
                     sequence_start=sequence,
+                    clock=clock,
                 )
                 for observation in poll_run.observations:
                     sink.write_observation(observation)
@@ -388,7 +389,9 @@ def orchestrate(
                         "matching WaitPlan exists -- a compiler invariant was violated",
                         phase_name=step.phase_name,
                     )
-                sink.write_event(deferred.run_wait_phase(adapter, wait_plan, sequence=sequence))
+                sink.write_event(
+                    deferred.run_wait_phase(adapter, wait_plan, sequence=sequence, clock=clock)
+                )
                 sequence += 1
 
             elif step.kind is PhaseKind.DEFERRED_EXECUTION:

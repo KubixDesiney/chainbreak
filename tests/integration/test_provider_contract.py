@@ -1,11 +1,9 @@
 """The shared provider contract suite (ARCHITECTURE.md section 3.8).
 
-``ProviderContractSuite`` is adapter-agnostic: it exercises only the
-``ProviderAdapter`` Protocol surface, never anything fake-specific. The AWS
-adapter (M8) is expected to subclass it too, supplying a real-account
-``make_adapter``/``envelope`` pair gated behind the ``aws`` marker -- "both
-adapters run it unmodified" is the actual point of this file existing
-separately from ``tests/unit/``.
+``ProviderContractSuite`` is adapter-agnostic: its behavioral assertions use
+only the ``ProviderAdapter`` Protocol surface. Providers with fixed,
+provisioned identities may override the two setup hooks below, but the
+contract assertions themselves stay shared and unchanged.
 """
 
 from __future__ import annotations
@@ -28,13 +26,31 @@ pytestmark = pytest.mark.integration
 
 
 class ProviderContractSuite:
-    """Subclasses provide ``make_adapter()`` and ``foreign_envelope()``."""
+    """Subclasses provide ``make_adapter()`` and account setup details."""
 
     def make_adapter(self) -> FakeProviderAdapter:
         raise NotImplementedError
 
     def wrong_account_id(self) -> str:
         raise NotImplementedError
+
+    def contract_denied_identity(
+        self, adapter: FakeProviderAdapter, capabilities: AuthoritySet | None = None
+    ):
+        """Return an identity that the contract can prove is denied."""
+        return adapter.register_identity("agent-denied")
+
+    def contract_allowed_identity(self, adapter: FakeProviderAdapter, capabilities: AuthoritySet):
+        """Return an identity that is allowed for ``capabilities``."""
+        return adapter.register_identity("principal", allow=capabilities)
+
+    def contract_empty_identity(self, adapter: FakeProviderAdapter):
+        """Return an identity with no grants except the control capability."""
+        return adapter.register_identity("agent-empty")
+
+    def contract_snapshot_identity(self, adapter: FakeProviderAdapter):
+        """Return a real identity whose policy can be snapshotted."""
+        return adapter.register_identity("principal", allow=AuthoritySet.of("objectstore.read"))
 
     def _envelope(self, adapter: FakeProviderAdapter, *, account_ref: str | None = None):
         return SafetyEnvelope(
@@ -101,7 +117,7 @@ class ProviderContractSuite:
         allowed_caps = AuthoritySet.from_iterable(
             c.id for c in adapter.catalog.capabilities if not c.is_control
         )
-        principal = adapter.register_identity("principal", allow=allowed_caps)
+        principal = self.contract_allowed_identity(adapter, allowed_caps)
 
         for capability in adapter.catalog.capabilities:
             if capability.is_control:
@@ -117,7 +133,7 @@ class ProviderContractSuite:
             )
             assert allowed_result.outcome.outcome_class is OutcomeClass.ALLOWED, capability.id
 
-        denied_identity = adapter.register_identity("agent-denied")
+        denied_identity = self.contract_denied_identity(adapter, allowed_caps)
         for capability in adapter.catalog.capabilities:
             if capability.is_control:
                 continue
@@ -135,7 +151,7 @@ class ProviderContractSuite:
     def test_control_capability_never_denied(self):
         adapter = self.make_adapter()
         # No capabilities granted at all -- identity.whoami must still pass.
-        identity = adapter.register_identity("agent-empty")
+        identity = self.contract_empty_identity(adapter)
         binding = adapter.resolve_capability("identity.whoami")
         result = adapter.probe(
             ProbeRequest(
@@ -225,9 +241,7 @@ class ProviderContractSuite:
 
     def test_snapshot_returns_stable_fingerprints(self):
         adapter = self.make_adapter()
-        principal = adapter.register_identity(
-            "principal", allow=AuthoritySet.of("objectstore.read")
-        )
+        principal = self.contract_snapshot_identity(adapter)
         first = adapter.snapshot_policy_state(principal)
         second = adapter.snapshot_policy_state(principal)
         assert first.policies[0].document_sha256 == second.policies[0].document_sha256
