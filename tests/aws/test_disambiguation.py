@@ -24,6 +24,7 @@ from chainbreak.providers.aws.disambiguation import (
     is_lambda_function_fault,
     is_s3_object_missing,
 )
+from chainbreak.providers.aws.probes import _redact_aws_identifier_message
 
 pytestmark = pytest.mark.unit
 
@@ -39,6 +40,17 @@ _BY_ID = {fixture["id"]: fixture for fixture in _FIXTURES}
 
 
 class TestClassifyDenialMessage:
+    def test_provider_messages_redact_arns_before_evidence_gate(self):
+        message = (
+            "User: arn:aws:sts::123456789012:assumed-role/cb-deadbeef-agent-a/session "
+            "is not authorized to perform: s3:GetObject on resource: "
+            "arn:aws:s3:::cb-deadbeef-objectstore/cb-deadbeef/markers/marker.json"
+        )
+        scrubbed = _redact_aws_identifier_message(message)
+        assert "123456789012" not in scrubbed
+        assert "arn:aws" not in scrubbed
+        assert "is not authorized to perform" in scrubbed
+
     def test_explicit_deny_identity_based_policy(self):
         message = _BY_ID["s3-explicit-deny-identity-policy"]["response"]["message"]
         outcome, attribution = classify_denial_message(message)

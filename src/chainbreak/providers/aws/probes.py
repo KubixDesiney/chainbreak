@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -41,6 +42,15 @@ from chainbreak.core.models import IdentityRef, ProbeOutcome
 from chainbreak.providers.aws import disambiguation
 from chainbreak.providers.aws.preflight import TerraformOutputs
 from chainbreak.providers.aws.retry import error_code, http_status
+
+_AWS_ARN_RE = re.compile(r"arn:aws[a-zA-Z0-9-]*:[^\s]+")
+_ACCOUNT_ID_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
+
+
+def _redact_aws_identifier_message(text: str) -> str:
+    """Redact AWS identifiers before the evidence secret gate sees them."""
+    text = _AWS_ARN_RE.sub("<REDACTED_ARN>", text)
+    return _ACCOUNT_ID_RE.sub("<REDACTED_ACCOUNT>", text)
 
 
 def classify_denial(exc: ClientError, *, path: str) -> ProbeOutcome:
@@ -69,7 +79,7 @@ def classify_denial(exc: ClientError, *, path: str) -> ProbeOutcome:
             outcome_class=OutcomeClass.ERROR_INFRASTRUCTURE,
             provider_status_code=status,
             provider_error_code=code,
-            message_redacted=message,
+            message_redacted=_redact_aws_identifier_message(message),
             disambiguation_path=f"{path}:unexpected_error",
         )
 
@@ -79,7 +89,7 @@ def classify_denial(exc: ClientError, *, path: str) -> ProbeOutcome:
         provider_status_code=status,
         provider_error_code=code,
         denial_attribution=attribution,
-        message_redacted=message,
+        message_redacted=_redact_aws_identifier_message(message),
         disambiguation_path=f"{path}:{outcome_class.value.lower()}",
     )
 
@@ -239,7 +249,7 @@ def probe_identity_whoami(sts_client: Any) -> ProbeOutcome:
     return ProbeOutcome(
         outcome_class=OutcomeClass.ALLOWED,
         disambiguation_path="control_capability",
-        message_redacted=response["Arn"],
+        message_redacted=_redact_aws_identifier_message(response["Arn"]),
     )
 
 
