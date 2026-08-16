@@ -944,6 +944,31 @@ class TestMutation:
         assert effects["CbDeny"] == "Deny"
         assert effects["CbGrant"] == "Allow"
 
+    def test_replace_inline_policy_assigns_unique_statement_ids(self, moto_fixture):
+        fixture, clients = moto_fixture
+        bindings = {
+            b.capability_id: b
+            for b in build_aws_bindings(build_catalog(), account_id=_ACCOUNT, region=_REGION)
+        }
+        mutation_mod.apply_mutation(
+            clients["iam"],
+            PolicyMutation(
+                mutation_id="m-replace-many",
+                kind=MutationKind.REPLACE_INLINE_POLICY,
+                target_identity="agent-a",
+                grants_capabilities=AuthoritySet.of("identity.whoami", "objectstore.read"),
+            ),
+            outputs=fixture.outputs,
+            bindings=bindings,
+            namespace=_NAMESPACE,
+            sleep=lambda _s: None,
+        )
+        doc = clients["iam"].get_role_policy(
+            RoleName=f"{_NAMESPACE}-agent-a", PolicyName=mutation_mod.DENY_POLICY_NAME
+        )["PolicyDocument"]
+        sids = [statement["Sid"] for statement in doc["Statement"]]
+        assert len(sids) == len(set(sids))
+
     def test_role_arn_for_identity_unknown_identity_raises(self, moto_fixture):
         fixture, _clients = moto_fixture
         from chainbreak.core.errors import MutationTargetForbiddenError

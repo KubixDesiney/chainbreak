@@ -107,14 +107,12 @@ def _deny_document(
 ) -> str:
     statements = [
         _statement(
-            sid="CbDeny",
+            sid="CbDeny" if index == 0 else f"CbDeny{index}",
             effect="Deny",
-            actions=[a for cap_id in denies.sorted for a in bindings[cap_id].actions],
-            resources=[
-                bindings[cap_id].resource_template.format(namespace=namespace)
-                for cap_id in denies.sorted
-            ],
+            actions=list(bindings[cap_id].actions),
+            resources=[bindings[cap_id].resource_template.format(namespace=namespace)],
         )
+        for index, cap_id in enumerate(denies.sorted)
     ]
     return json.dumps({"Version": "2012-10-17", "Statement": statements}, separators=(",", ":"))
 
@@ -124,12 +122,12 @@ def _grant_document(
 ) -> str:
     statements = [
         _statement(
-            sid="CbGrant",
+            sid="CbGrant" if index == 0 else f"CbGrant{index}",
             effect="Allow",
             actions=list(bindings[cap_id].actions),
             resources=[bindings[cap_id].resource_template.format(namespace=namespace)],
         )
-        for cap_id in grants.sorted
+        for index, cap_id in enumerate(grants.sorted)
     ]
     return json.dumps({"Version": "2012-10-17", "Statement": statements}, separators=(",", ":"))
 
