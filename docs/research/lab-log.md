@@ -139,6 +139,21 @@ observation: none publishable; no timing estimate or family result is inferred f
 anomalies: explained cross-scenario contamination; next block orders stale-authority before the trust-policy mutation, with trust-policy and negative controls last
 notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
 
+## 2026-08-16 block-02R2 — checklist recorded before reordered clean execution
+
+checklist: 0.1 pass (clean commit `72a7b88`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (adapter regression `73 passed`, Ruff clean); 0.3 pass (live P1–P11 at 13:35 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 13:33 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
+infrastructure: applied 13:34 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `72a7b88` (clean before execution)
+sampling plan: set-valued families n=3 per scenario; timing families use one independent run in this window, two in block-03, and two in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
+execution order: set-valued families, stale-authority timing, revocation timing with trust-policy last, then all six negative controls
+scenarios: all five families and six negative controls required in this block; positive runs pending
+runs: pending
+negative controls: pending
+exclusions: none at checklist time
+observation: pending
+anomalies: none at checklist time
+notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
