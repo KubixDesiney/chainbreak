@@ -35,6 +35,9 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+block outcome: invalid before scenario completion; no result published.
+exclusions: run `01M04VMT6DFQ98E8NCABXEFVK9` excluded, reason `SecretLeakError` at `$.outcome.message_redacted` (`base64_blob`) caused by raw AWS ARN text reaching the evidence gate before provider-side identifier redaction. This was an apparatus evidence-boundary defect; no provider measurement was inferred. Sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
+
 ## No experiments have been run
 
 As of the current commit, CHAINBREAK's architecture and specifications are complete and the
