@@ -105,6 +105,16 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+block outcome: invalid/incomplete; no result published. The first revocation timing pass reached
+`trust-policy-null-condition.yaml` and the adapter emitted an invalid trust-policy Deny without
+`Principal`; AWS returned `MalformedPolicyDocumentException` before the mutation was applied.
+runs: completed before failure — `01M05A992C67BFGYQEN7DEV4M1` (scope attenuation), `01M05AAFQH0T2XDXE3FXT0CCGD` (delegation-drift five-hop), `01M05ACHF91NDQA96RSM06F2XP` (delegation-drift four-hop), `01M05AEK5FDE9Z543JH6WZRCGP` (delegation-drift role-chain-five-hop), `01M05AGTNC57NBH0GBBWVP3TFY` (delegation-drift six-hop), `01M05AK3CT464GK6680XGG31RF` (delegation-drift three-hop), `01M05AMPFJ16E7FS9ABMJA7P28` (delegation-drift two-hop), `01M05AP72G7A6QSAZA27T4EDF0` (silent-narrowing full-authority), `01M05APXVB0J1XFD23GZ1V8FT8` (silent-narrowing), `01M05ARPN2A75WRSZ6H4V8KRP0` (revocation delete-session-scope), `01M05AVC997Z6BJB5FMV9357ZQ` (revocation inline-deny), `01M05AWSCN0KBZ906T24Z70QZ` (revocation remove-policy), `01M05B120B9SYRH844PPENARM5` (revocation revoke-older-sessions); partial run `01M05B2D0H5Z5FBRSGTAFN9ZVA` (trust-policy-null-condition)
+negative controls: not run; block stopped before controls
+exclusions: partial run `01M05B2D0H5Z5FBRSGTAFN9ZVA` excluded, reason `MalformedPolicyDocumentException` because the adapter omitted required trust-policy `Principal`; all block-02-now runs excluded from publication because the five-family/two-pass timing/six-control matrix was incomplete
+observation: none publishable; no timing estimate or family result is inferred from this invalid block
+anomalies: explained adapter defect; fixed in the follow-up commit by adding `Principal: {"AWS": "*"}` and a regression assertion; not an unexplained provider defect
+notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.

@@ -88,6 +88,7 @@ def _statement(
     actions: list[str],
     resources: list[str] | None = None,
     condition: dict[str, Any] | None = None,
+    principal: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """``resources=None`` omits the ``Resource`` field entirely -- required
     for trust-policy statements, which IAM rejects
@@ -99,6 +100,8 @@ def _statement(
         statement["Resource"] = resources
     if condition:
         statement["Condition"] = condition
+    if principal is not None:
+        statement["Principal"] = principal
     return statement
 
 
@@ -245,6 +248,7 @@ def apply_mutation(
                         sid="CbRevokeFutureAssumeRole",
                         effect="Deny",
                         actions=["sts:AssumeRole"],
+                        principal={"AWS": "*"},
                     ),
                 ],
             }

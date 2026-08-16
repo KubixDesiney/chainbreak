@@ -1099,7 +1099,8 @@ class TestMutation:
         trust = clients["iam"].get_role(RoleName=f"{_NAMESPACE}-agent-d")["Role"][
             "AssumeRolePolicyDocument"
         ]
-        assert any(s.get("Sid") == "CbRevokeFutureAssumeRole" for s in trust["Statement"])
+        appended = next(s for s in trust["Statement"] if s.get("Sid") == "CbRevokeFutureAssumeRole")
+        assert appended["Principal"] == {"AWS": "*"}
 
     def test_revoke_older_sessions_writes_a_token_issue_time_deny(self, moto_fixture):
         fixture, clients = moto_fixture
