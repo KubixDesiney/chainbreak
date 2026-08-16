@@ -22,6 +22,19 @@ controls on the same applied sandbox, log every exclusion with run ID and reason
 and verify-clean before the next block. The schedule is not evidence of execution; only the
 entries below are.
 
+## 2026-08-16 block-01 — checklist recorded before execution
+
+checklist: 0.1 pass (clean commit `1c934ea`); 0.2 pass (`1767 passed, 9 skipped, 28 deselected`); 0.3 pass (live P1–P11); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate; CLI did not emit a numeric offset); 0.7 pass (pre-apply verify-clean: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
+infrastructure: applied 09:37 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, local commit `1c934ea` (clean before execution)
+scenarios: pending execution; all five families and six negative controls required in this block
+runs: pending
+negative controls: pending
+exclusions: none at checklist time
+observation: pending
+anomalies: none at checklist time
+notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
+
 ## No experiments have been run
 
 As of the current commit, CHAINBREAK's architecture and specifications are complete and the
