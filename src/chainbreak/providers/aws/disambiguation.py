@@ -78,4 +78,11 @@ def is_s3_object_missing(error_code: str, *, http_status: int | None) -> bool:
 
 
 def is_access_denied_code(error_code: str) -> bool:
-    return error_code in {"AccessDenied", "AccessDeniedException", "UnauthorizedException"}
+    return error_code in {
+        "AccessDenied",
+        "AccessDeniedException",
+        "UnauthorizedException",
+        # An expired session token is an expected denial in the post-expiry
+        # stale-authority scenario, including for the whoami control probe.
+        "ExpiredToken",
+    }
