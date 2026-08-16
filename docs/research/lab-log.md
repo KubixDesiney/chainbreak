@@ -14,8 +14,9 @@ The operator approved the M17 schedule in this task. Planned windows are deliber
 separated by clock hour so timing trials are not treated as one contiguous sample:
 
 - block-01: 2026-08-16 10:00–11:30 UTC
-- block-02: 2026-08-16 16:00–17:30 UTC
-- block-03: 2026-08-17 10:00–11:30 UTC
+- block-02-now: 2026-08-16 12:55–14:25 UTC (rescheduled here with operator approval)
+- block-03: 2026-08-16 16:00–17:30 UTC
+- block-04: 2026-08-17 10:00–11:30 UTC
 
 Each block must complete the nine-item checklist, run all five families and all six negative
 controls on the same applied sandbox, log every exclusion with run ID and reason, and destroy
@@ -89,6 +90,20 @@ negative controls: not run
 observation: none publishable; no timing estimate or family result is inferred from this incomplete block
 anomalies: none observed; sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed.
 notes: next attempt must use the separately scheduled block-02 window.
+
+## 2026-08-16 block-02-now — checklist recorded before clean execution
+
+checklist: 0.1 pass (clean commit `6adb4f4`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (adapter regression `73 passed`, Ruff clean); 0.3 pass (live P1–P11 at 12:55 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 12:51 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
+infrastructure: applied 12:54 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `6adb4f4` (clean before execution)
+sampling plan: set-valued families n=3 per scenario; timing families use two independent runs in this window, two in block-03, and one in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
+scenarios: all five families and six negative controls required in this block; positive runs pending
+runs: pending
+negative controls: pending
+exclusions: none at checklist time
+observation: pending
+anomalies: none at checklist time
+notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
 ## No valid M17 block has been published
 
