@@ -1681,6 +1681,34 @@ class TestCallAndClassifyErrorPaths:
         with pytest.raises(TimeoutError, match="simulated connection timeout"):
             _probe(adapter, ref, "objectstore.read")
 
+    def test_expired_token_on_whoami_is_classified_as_expected_denial(
+        self, moto_fixture, monkeypatch
+    ):
+        adapter, ref = _delegated_agent_a_ref(moto_fixture, "run-classify-expired")
+
+        from botocore.exceptions import ClientError
+
+        from chainbreak.providers.aws import retry as retry_mod
+
+        expired = ClientError(
+            {
+                "Error": {"Code": "ExpiredToken", "Message": "expired session"},
+                "ResponseMetadata": {"HTTPStatusCode": 403},
+            },
+            "GetCallerIdentity",
+        )
+
+        def fake_call_with_retry(call, **kwargs):
+            return None, expired, retry_mod.RetryOutcome(attempt_number=1, retries=0)
+
+        monkeypatch.setattr(
+            "chainbreak.providers.aws.adapter.call_with_retry", fake_call_with_retry
+        )
+
+        result = _probe(adapter, ref, "identity.whoami")
+        assert result.outcome.provider_error_code == "ExpiredToken"
+        assert result.outcome.outcome_class.is_denial
+
     def test_client_error_on_a_non_whoami_path_is_classified_not_raised(
         self, moto_fixture, monkeypatch
     ):

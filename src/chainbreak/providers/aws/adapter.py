@@ -61,7 +61,7 @@ from chainbreak.providers.aws import session as session_mod
 from chainbreak.providers.aws.bindings import build_aws_bindings, next_hop_role_arn
 from chainbreak.providers.aws.namespace import assert_aws_reference, assert_outbound_parameters
 from chainbreak.providers.aws.preflight import TerraformOutputs
-from chainbreak.providers.aws.retry import RetryOutcome, call_with_retry
+from chainbreak.providers.aws.retry import RetryOutcome, call_with_retry, error_code
 from chainbreak.providers.base.types import (
     DelegationRequest,
     DelegationResult,
@@ -705,7 +705,12 @@ class AwsProviderAdapter:
             if result is None:  # pragma: no cover -- call_with_retry's own contract
                 raise AssertionError("call_with_retry returned neither a result nor an exception")
             return result, retry_outcome
-        if path == "identity.whoami":
+        # ExpiredToken is the expected expired-credential outcome in the
+        # post-expiry stale-authority scenario, including its whoami control.
+        # Other whoami failures remain apparatus faults rather than denials.
+        if path == "identity.whoami" and not (
+            isinstance(exc, ClientError) and error_code(exc) == "ExpiredToken"
+        ):
             # Apparatus fault, not a denial (AWS_PROVIDER_SPEC section 6.2):
             # the run aborts rather than reporting a false denial.
             raise exc

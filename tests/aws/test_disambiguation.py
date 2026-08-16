@@ -138,7 +138,7 @@ class TestS3ObjectMissing:
 
 class TestAccessDeniedCode:
     @pytest.mark.parametrize(
-        "code", ["AccessDenied", "AccessDeniedException", "UnauthorizedException"]
+        "code", ["AccessDenied", "AccessDeniedException", "UnauthorizedException", "ExpiredToken"]
     )
     def test_recognized_codes(self, code):
         assert is_access_denied_code(code) is True

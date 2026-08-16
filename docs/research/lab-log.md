@@ -203,6 +203,19 @@ observation: pending
 anomalies: none at checklist time
 notes: execution begins after this checklist is committed; any DETECTOR_FAILURE invalidates this block.
 
+## 2026-08-16 block-02R4 outcome — invalid/incomplete
+
+block outcome: invalid/incomplete; no result published. All nine set-valued runs
+completed, and the deferred-execution and long-defer timing runs completed. The
+post-expiry timing run failed before its expired-credential observations could be
+sealed, so revocation timing and all six negative controls were not run.
+runs: set-valued — `01M05EPZ1V8AH0B2QJGWSYFCDY`, `01M05ERAZ16XV980FGEMBBSW7N`, `01M05ETDV49CBVZ94V5E0P7FK9`, `01M05EW9CEC5WWSAJP972EHKC3`, `01M05EYJEZ9DBKJS07M6RYCKHT`, `01M05F1HSV6Y8M637JMFY5S7YJ`, `01M05F3BFBCF84HKEP20BEZEWB`, `01M05F4ZEEEATMNPQQ2MZQEJW5`, `01M05F5WK980YENW5DPS1BYJBA`; stale timing — `01M05F7ARSBH57799N3CHBZBNT` deferred-execution (120 s), `01M05FC41N7WD23MB96S87QQJD` long-defer (600 s); partial post-expiry — `01M05FZJ102GJGT3HEQZZ9CBRA`
+negative controls: not run; block stopped before revocation and controls
+exclusions: partial run `01M05FZJ102GJGT3HEQZZ9CBRA` excluded, reason `ExpiredToken` on the expected post-expiry `identity.whoami` control was re-raised as an apparatus fault by the adapter before classification; all block-02R4 runs excluded because the required timing/revocation/control matrix was incomplete
+observation: none publishable; no timing estimate or family result is inferred from this invalid block
+anomalies: explained adapter classification defect, not an unexplained provider defect; `ExpiredToken` is now classified as the expected denial for expired credentials, while other `identity.whoami` failures remain apparatus faults. Focused regression suite passed (`104 passed`) and Ruff passed.
+notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, second destroy was a no-op, and second verify-clean passed. The next block must use the committed fix and a newly recorded nine-item checklist.
+
 ## No valid M17 block has been published
 
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.

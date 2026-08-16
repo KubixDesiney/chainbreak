@@ -19,11 +19,13 @@ then, only on the final exception, calls :func:`classify_denial`.
 
 ``identity.whoami``'s probe needs no special casing under this structure --
 it already lets its exception propagate like everything else. What is
-special is what ``adapter.py`` does with that final exception: a failed
-``GetCallerIdentity`` is not a denial (IAM cannot deny it), it is the
-apparatus itself being broken -- credentials, network, or endpoint -- and
-AWS_PROVIDER_SPEC section 6.2 says the run aborts rather than reporting a
-false denial, so ``adapter.py`` re-raises rather than classifying it.
+special is what ``adapter.py`` does with that final exception: ordinary
+failed ``GetCallerIdentity`` calls are not denials (IAM cannot deny them),
+but an ``ExpiredToken`` is the expected expired-credential outcome in the
+post-expiry stale-authority scenario, including its whoami control. Other
+apparatus failures -- credentials, network, or endpoint faults -- still
+abort rather than reporting a false denial, as required by
+AWS_PROVIDER_SPEC section 6.2.
 """
 
 from __future__ import annotations

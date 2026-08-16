@@ -42,6 +42,7 @@ _NEVER_RETRY_CODES = frozenset(
         "AccessDenied",
         "AccessDeniedException",
         "UnauthorizedException",
+        "ExpiredToken",
     }
 )
 
