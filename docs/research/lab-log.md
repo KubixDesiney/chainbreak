@@ -321,6 +321,37 @@ cleanup: first destroy completed with `44 destroyed`; second destroy completed w
 The next valid block must satisfy the complete family/control matrix and the timing/sample
 requirements before any result is published.
 
+## 2026-08-17 M17-20260817-W09 — applied, budget live-gate invalid, cleaned
+
+checklist: preflight contract passed; clean tree and unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; blanket operator approval for W09
+apply and subsequent M17 apply/destroy gates was recorded; fresh post-apply status and
+Terraform outputs were captured before validation.
+infrastructure: applied at 12:11:09 UTC, 44 resources added, 0 changed, 0 destroyed;
+fresh fingerprint `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`,
+exact namespace captured before teardown as `cb-3cee2aea`, region `eu-west-3`.
+adapter/catalog: repository commit `1d395216e6058eedc1fe3e777f8250d156ccb0f1`;
+provider `aws`; negative controls enabled; budget limit configured in the workflow as
+`1.0` USD.
+scenarios: suite requested; all five positive benchmark families were not run because
+the post-apply live gate failed first; all six negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded because fresh
+`chainbreak validate --provider aws --stage live --check-budget --block-id
+M17-20260817-W09` failed `AWS live validation (P1-P11) + budget` with the exact detail
+`budget missing a positive monthly COST limit or active subscribed alarm`. No benchmark
+or control measurement is inferred. The marker checks were not reached in this block.
+observation: none publishable; no timing or family score is inferred.
+anomalies: explained budget-guard apparatus failure; this block provides no evidence
+for or against an AWS provider defect. Public archive and scrub diff were not produced
+because no run was sealed.
+cleanup: destroy approval was recorded under the blanket operator approval; first
+destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
+no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
 ---
 
 ## Template
