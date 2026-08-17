@@ -29,6 +29,12 @@ The exact namespace is captured before apply and retained through destroy. A sta
 namespace/output capture is never silently substituted. A block whose Stage A was not recorded
 is not a CHAINBREAK experiment.
 
+The GitHub workflow implements the approval boundary as three reviewed jobs: `preflight` runs
+Stage A, `experiment` becomes eligible only after Stage A succeeds and requires a fresh
+environment approval before apply, and `destroy` requires a separate environment approval after
+evidence capture. Terraform state crosses the job boundary only as an encrypted short-lived
+cleanup input; it is never uploaded in plaintext.
+
 ### Stage B — post-apply live gate
 
 Run only after Stage A and a successful apply. All are hard gates except the documented P11
