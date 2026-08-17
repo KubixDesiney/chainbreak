@@ -74,6 +74,8 @@ resource "aws_sns_topic_policy" "budget_alerts" {
 resource "aws_budgets_budget" "guardrail" {
   count = var.enable_budget_alarm ? 1 : 0
 
+  depends_on = [aws_sns_topic_policy.budget_alerts]
+
   name              = "${local.namespace}-budget"
   budget_type       = "COST"
   limit_amount      = tostring(var.budget_limit_usd)
@@ -86,18 +88,16 @@ resource "aws_budgets_budget" "guardrail" {
     Namespace = local.namespace
   }
 
-  dynamic "notification" {
-    for_each = var.budget_notification_email != "" ? [var.budget_notification_email] : []
-    content {
-      comparison_operator = "GREATER_THAN"
-      threshold           = 80
-      threshold_type      = "PERCENTAGE"
-      # Forecast notifications need historical usage before AWS can evaluate
-      # them. The live safety gate needs an immediately inspectable alarm, so
-      # use the actual monthly cost signal instead.
-      notification_type          = "ACTUAL"
-      subscriber_email_addresses = [notification.value]
-      subscriber_sns_topic_arns  = [aws_sns_topic.budget_alerts[0].arn]
-    }
+  # Keep this block unconditional whenever the budget exists. The SNS topic is
+  # the durable guard subscriber; the operator email is an additional
+  # subscriber when configured. A conditional dynamic block previously allowed
+  # the budget to be created without any notification in AWS.
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.budget_notification_email != "" ? [var.budget_notification_email] : []
+    subscriber_sns_topic_arns  = [aws_sns_topic.budget_alerts[0].arn]
   }
 }

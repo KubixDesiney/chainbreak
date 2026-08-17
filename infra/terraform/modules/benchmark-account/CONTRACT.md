@@ -16,7 +16,7 @@ probing is safe.
 | `expected_account_id` | `string` | Must match the caller's account, else fail the plan |
 | `namespace_salt` | `string` | Operator-chosen salt so two workspaces cannot collide |
 | `budget_limit_usd` | `number` | Default `5`. Budgets alarm threshold |
-| `budget_notification_email` | `string` | Where the alarm goes; `""` disables notification only, never the budget |
+| `budget_notification_email` | `string` | Optional additional email subscriber; the SNS guard subscriber is always configured |
 | `enable_negative_controls` | `bool` | Default `false` |
 
 ## Required outputs

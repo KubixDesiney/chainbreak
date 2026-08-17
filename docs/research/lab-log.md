@@ -495,6 +495,43 @@ removed 46 resources; second destroy removed 0; exact namespace verification rep
 `chainbreak infra verify-clean: nothing remaining`. Cleanup succeeded.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
+## 2026-08-17 M17-20260817-W14 — budget notification omitted, cleaned
+
+workflow: GitHub Actions run `32032420874`; block ID `M17-20260817-W14`; window
+2026-08-17 12:56-13:04 UTC; repository commit `f0b2045bc0dc0cb005f9d09adcbcbfe92a6f6984`.
+checklist: preflight contract passed; clean tree and full unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; blanket operator approval for W14
+apply and destroy was recorded. Apply completed and the fresh post-apply live gate ran
+six bounded attempts before cleanup.
+infrastructure: apply complete with 46 resources; exact namespace `cb-3cee2aea`;
+region `eu-west-3`; fresh infrastructure fingerprint
+`sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`.
+adapter/catalog: provider `aws`; capability catalog `v1.0.0`; 24 scenarios structurally
+valid; negative controls enabled.
+post-apply live gate: attempt 1 had a fresh `keyvalue.marker_present` failure with
+`code=AccessDeniedException status=400`; attempt 2 passed the marker checks and reached
+the budget check. Attempts 2 through 6 reported the exact redacted budget shape:
+`type='COST'; time_unit='MONTHLY'; limit=1.00; notifications=0; states=[];
+subscriber_counts=[]`. The live table reported `AWS live validation (P1-P11) + budget
+FAIL` with `budget missing a positive monthly COST limit or active subscribed alarm`.
+This proves the budget existed without a notification object; no provider defect is
+inferred.
+scenarios: suite requested; all five positive benchmark families were not run; all six
+negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+exclusions: whole block excluded because the required post-apply live gate failed;
+the suite and analysis steps were skipped. No timing, family score, or control result
+is inferred from this block.
+archives: no public scrubbed archive or scrub diff was produced because no run was sealed.
+cleanup: destroy approval was recorded under the blanket operator approval. First destroy
+removed 46 resources; second destroy removed 0; exact namespace verification reported
+`chainbreak infra verify-clean: nothing remaining`. Cleanup succeeded.
+repair after W14: make the budget notification block unconditional, retain the SNS guard
+subscriber and optional email subscriber, and explicitly sequence budget creation after
+the SNS topic policy.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
 repair after W13: the budget notification is changed from `FORECASTED` to `ACTUAL` so
 the guard does not depend on AWS forecast-history availability; the live validator now
 records redacted budget shape, notification-state, and subscriber-count diagnostics on
