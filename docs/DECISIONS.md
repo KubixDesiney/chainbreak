@@ -95,6 +95,31 @@ since M10 rather than leaving it open indefinitely.
 
 ---
 
+## Release-gate decisions
+
+**2026-08-17 — keep the release gate closed after W03.** The local AWS profile could apply and
+clean the sandbox, but its root session failed the adapter's required `AssumeRole` step. W03 is
+therefore excluded, and no AWS result, real-AWS M18 comparison, or v0.1.0 release claim may be
+inferred from it. Fake-provider reports remain labelled apparatus checks. The owner must provide
+a valid non-root benchmark operator session and decide how to handle the historical live-account
+finding before any publication.
+
+**2026-08-17 — keep the release gate closed after W04.** An IAM-user profile was available, but
+Terraform failed during S3 lifecycle creation before any scenario run. W04 was cleaned after
+root-assisted teardown and exact namespace verification. It is excluded infrastructure
+apparatus evidence and cannot support an AWS result or real-AWS M18 comparison.
+
+**2026-08-17 — stop after W05 authorization failure.** The IAM-user profile can provision the
+sandbox and pass P1-P11, but it lacks `sts:AssumeRole` on the benchmark roles. W05 is excluded
+after its first scenario, and no temporary permission was attached without owner authorization.
+
+**2026-08-17 — make report limitations provider-aware.** The shared limitations text now says
+that real-AWS bundles cover one account/region while fake bundles use synthetic values and are
+apparatus checks. This resolves the contradiction between the fake-provider banner and the old
+AWS-specific limitation wording.
+
+---
+
 ## Deferred decisions
 
 Named so they are not silently forgotten.

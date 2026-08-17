@@ -16,8 +16,10 @@ __all__ = ["LIMITATIONS", "REGION_NOT_CAPTURED", "format_timing_result"]
 #: never drift between formats. Each sentence deliberately contains its
 #: corresponding required term as a literal substring.
 LIMITATIONS: tuple[str, ...] = (
-    "Single account: every run in this bundle executed against a single AWS account.",
-    "Single region: every run in this bundle executed against a single region.",
+    "Single account: real-AWS bundles cover one account; fake-provider bundles use one "
+    "synthetic account and are apparatus checks.",
+    "Single region: real-AWS bundles cover one region; fake-provider bundles use one "
+    "synthetic region and are apparatus checks.",
     "Simple policies: the shipped scenarios exercise a small number of statements per "
     "identity, not production-scale policy complexity.",
     "Deterministic worker: v0.1's task worker is a deterministic, synthetic implementation "

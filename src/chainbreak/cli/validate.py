@@ -186,6 +186,31 @@ def _check_live_budget(adapter: object) -> CheckResult:
             return CheckResult("live budget/alarm", False, "AWS Budgets returned no budget")
         limit = float(budget.get("BudgetLimit", {}).get("Amount", "0"))
         notifications = budget.get("NotificationsWithSubscribers", [])
+        if not isinstance(notifications, list) or not notifications:
+            # AWS Budgets can omit SNS-backed subscribers from the compound
+            # describe-budget field even though the dedicated APIs report an
+            # active notification and subscriber. Reconstruct the same shape
+            # from those authoritative endpoints instead of failing closed on
+            # an incomplete response projection.
+            notifications = []
+            notification_response = client.describe_notifications_for_budget(
+                AccountId=outputs.account_id,
+                BudgetName=f"{outputs.namespace}-budget",
+            )
+            for notification in notification_response.get("Notifications", []):
+                if not isinstance(notification, dict):
+                    continue
+                subscriber_response = client.describe_subscribers_for_notification(
+                    AccountId=outputs.account_id,
+                    BudgetName=f"{outputs.namespace}-budget",
+                    Notification=notification,
+                )
+                notifications.append(
+                    {
+                        "Notification": notification,
+                        "Subscribers": subscriber_response.get("Subscribers", []),
+                    }
+                )
         active_notifications = [
             item
             for item in notifications
@@ -285,9 +310,7 @@ def _check_live_aws(
         )
         envelope = resolve_safety_envelope(settings, namespace=adapter.namespace)
         report = adapter.preflight(envelope)
-        failed = {
-            check.name: check.detail for check in report.checks if not check.passed
-        }
+        failed = {check.name: check.detail for check in report.checks if not check.passed}
         if not report.passed:
             return CheckResult(
                 "AWS live validation (P1-P11)",

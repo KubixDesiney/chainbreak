@@ -46,7 +46,6 @@ from chainbreak.providers.aws import disambiguation
 from chainbreak.providers.aws.preflight import TerraformOutputs
 from chainbreak.providers.aws.retry import error_code, http_status
 
-
 _LOGGER = logging.getLogger(__name__)
 
 _AWS_ARN_RE = re.compile(r"arn:aws[a-zA-Z0-9-]*:[^\s]+")

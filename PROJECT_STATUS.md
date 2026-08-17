@@ -4,15 +4,20 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Verification refresh:** 2026-08-16. Dedicated-account acceptance for M8/M9 passed live P1–P11,
+**Verification refresh:** 2026-08-17. Dedicated-account acceptance for M8/M9 passed live P1–P11,
 all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown, and service
 enumeration. The shared contract behavioral assertions run unchanged with explicit AWS setup
 hooks for its fixed Terraform roles. M17 has only invalid/incomplete apparatus attempts: zero
-valid or publishable blocks and no M17 measurement.
+valid or publishable blocks and no M17 measurement. The new local W03 apply was cleaned, but its
+root-session `AssumeRole` live-gate failure excluded it before any scenario run. W04 was also
+cleaned after Terraform's S3 lifecycle creation failure, with no scenario run. W05 passed the
+live gate but was excluded at the first scenario because the IAM-user operator lacked
+`sts:AssumeRole`; its infrastructure was cleaned.
 
-**Last updated:** 2026-08-16 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
-dedicated-account acceptance complete; M17 has zero valid/publishable blocks; M18 offline
-complete with real-AWS exercise pending; M19 not started.
+**Last updated:** 2026-08-17 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
+dedicated-account acceptance complete; M17 has zero valid/publishable blocks after excluded W03,
+W04, and W05 attempts; M18 offline complete with real-AWS exercise pending; M19 offline release
+preparation complete, release gate blocked pending valid M17 evidence.
 
 ---
 
@@ -22,8 +27,9 @@ complete with real-AWS exercise pending; M19 not started.
 > (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 has had invalid/incomplete
 > apparatus attempts only: zero valid or publishable blocks and no M17 measurement. M18's
 > offline reproducibility portion is complete; its real-AWS exercise remains pending. M19
-> has not started. The offline baseline before this documentation pass was 1,772 passed
-> tests.**
+> offline release preparation is complete, but the release gate is blocked. The current
+> unit/integration gate is 1,812 passed, 9 skipped and 28
+> deselected.**
 
 CHAINBREAK has a complete architecture, a verified domain model, a validated scenario corpus,
 and a full implementation plan. The execution engine runs end to end against the deterministic
@@ -909,7 +915,7 @@ Six genuine findings, not design choices:
    using it directly with no further literal "cb-"), but `bindings.py`, `probes.py` and
    `session.py`'s first drafts each prepended a second, literal `"cb-"` when building ARNs,
    object keys and session names. Caught immediately by the first moto integration test —
-   `PutRolePolicy`/`CreateRole` calls citing role names like `cb-cb-a1b2c3d4-agent-b` that could
+   `PutRolePolicy`/`CreateRole` calls citing role names like `cb-NAMESPACE_SCRUBBED-agent-b` that could
    never match a real Terraform-provisioned role. Fixed across all three modules; a comment at
    each fix site now states the convention explicitly.
 5. **The first `UPDATE_TRUST_POLICY` mutation attempt failed against real IAM semantics moto
@@ -1998,10 +2004,11 @@ provisioning.
 M8 and M9 dedicated-account criteria are complete. M18's real-AWS comparison and archive/migrate
 exercise remain pending on a valid M17 evidence bar.
 
-### Not started
+### M19 preparation complete, release blocked
 
-M19 has not started. M17 has only invalid/incomplete attempts and zero valid/publishable blocks;
-M18's offline portion is complete and its real-AWS comparison remains pending. See
+M19's offline preparation is complete. M17 has only invalid/incomplete attempts and zero
+valid/publishable blocks; M18's offline portion is complete and its real-AWS comparison remains
+pending. See
 [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
@@ -2273,8 +2280,8 @@ M17 apparatus entries and their exclusions; no valid block has been published.
 2. **The real-AWS portion of M18 is pending.** Offline compare/archive/migration and dependency
    hardening are complete; real-AWS comparison and archive/migration exercise must follow a valid
    M17 block.
-3. **M19 has not started.** The results write-up, release artifacts, tag, and publication remain
-   gated on M17 and M18.
+3. **M19 release gate is blocked.** The results write-up and scrubbed apparatus artifacts are
+   prepared, but the tag and publication remain gated on M17 and M18.
 
 The following ledger is historical milestone context, not the active issue list. Resolved entries
 are retained only where they explain a past apparatus repair; they are not current blockers.
@@ -2499,7 +2506,7 @@ real-AWS M17 block and the real-AWS half of M18 still require the account and id
 **M0–M16 are complete, including dedicated-account acceptance for M8 and M9. M17 has only
 invalid/incomplete apparatus attempts, with zero valid/publishable blocks and no measurement.
 M18's offline portion is complete; its real-AWS comparison/archive/migration exercise remains
-pending. M19 has not started.**
+pending. M19's offline release preparation is complete, but its release gate is blocked.**
 
 The next action is a future, explicitly approved M17 run that satisfies the complete family,
 negative-control, block, timing, and cleanup gates. No result may be inferred from the historical

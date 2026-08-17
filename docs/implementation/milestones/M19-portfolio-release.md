@@ -2,8 +2,10 @@
 
 ## Current status
 
-Not started. M19 remains gated on a valid M17 result and the pending real-AWS portion of M18;
-no release, tag, or publication is part of this documentation pass.
+Release gate blocked. M19 preparation added the measurement-free results gate, an explicitly
+labelled fake-provider apparatus sample, a changelog, and a tree/history scan. It remains gated
+on valid M17 blocks and the pending real-AWS portion of M18; no release, tag, or publication is
+part of this pass.
 
 ## Purpose
 Ship v0.1.0: a coherent, honest, reviewable open-source artifact.
@@ -19,7 +21,7 @@ Documentation consistency pass, the portfolio narrative, a release checklist, an
 docs/PORTFOLIO_STORY.md      # exists; update with what was actually measured
 docs/research/results-v0.1.md
 CHANGELOG.md
-examples/reports/             # scrubbed sample report from a real run
+examples/reports/             # scrubbed fake-provider apparatus sample until AWS evidence exists
 LICENSE                       # Apache-2.0
 ```
 
@@ -29,7 +31,8 @@ LICENSE                       # Apache-2.0
   README. Resolve every contradiction; do not paper over one.
 - F2 `PORTFOLIO_STORY.md` updated to describe **only measured results**, each with its run ID.
 - F3 `CHANGELOG.md` for v0.1.0.
-- F4 A scrubbed sample report from a real run under `examples/`.
+- F4 A scrubbed sample report under `examples/`; until valid M17 AWS evidence exists, it must
+  be labelled as a fake-provider apparatus check and excluded from AWS results.
 - F5 README status block matches `PROJECT_STATUS.md` exactly.
 - F6 Every documented command works as documented, verified by executing each one.
 

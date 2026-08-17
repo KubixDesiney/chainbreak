@@ -2,12 +2,13 @@
 
 How to present this project honestly, and what it actually demonstrates.
 
-> **Read this first.** As of the current commit, CHAINBREAK has a complete architecture, a
-> verified domain model, a validated scenario corpus, and a full implementation plan. **No
-> AWS experiment has been run. No measurement exists.** Every claim below is scoped
-> accordingly, and this document must be updated at M19 to describe only what M17 actually
-> measured. Presenting designed-but-unmeasured work as results would be both dishonest and,
-> in an interview with a competent engineer, immediately detectable.
+> **Read this first.** As of 2026-08-17, CHAINBREAK has a complete architecture, a verified
+> domain model, a validated scenario corpus, and a full implementation plan. Real AWS sandbox
+> attempts W03 and W04 were excluded before any scenario run: W03 failed the root-session
+> `AssumeRole` gate and W04 failed Terraform S3 lifecycle creation. W05 passed the live gate but
+> its IAM-user operator lacked `sts:AssumeRole` on the benchmark roles. **No valid AWS measurement
+> exists.** Fake-provider reports are apparatus checks only. Presenting designed-but-unmeasured
+> work as results would be dishonest.
 
 ---
 

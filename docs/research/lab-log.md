@@ -1,6 +1,6 @@
 # CHAINBREAK Lab Log
 
-**Status as of 2026-08-16:** historical apparatus evidence only. Every M17 entry below is
+**Status as of 2026-08-17:** historical apparatus evidence only. Every M17 entry below is
 invalid, incomplete, or a pre-block guard failure; all are superseded/excluded and none yields a
 valid or publishable block. Intermediate values in these entries are apparatus observations, not
 measurements, and must not be used as results. The live namespace is represented everywhere in
@@ -266,7 +266,7 @@ fresh post-apply status and outputs were captured; separate operator approval re
 for destroy.
 infrastructure: applied 11:13:49 UTC, fingerprint
 `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`, exact
-namespace captured as `cb-3cee2aea` before teardown, region `eu-west-3`; 44 resources
+namespace captured as `NAMESPACE_SCRUBBED` before teardown, region `eu-west-3`; 44 resources
 were created and the budget guard was present in Terraform state.
 adapter/catalog: repository commit `a19319e`; provider `aws`; negative controls were
 enabled; no benchmark or control run was started.
@@ -284,7 +284,7 @@ anomalies: live infrastructure validation found a missing marker precondition af
 apply. This is recorded as an apparatus/infrastructure failure pending diagnosis, not
 as a provider measurement.
 cleanup: first destroy completed with `44 destroyed`; second destroy completed with
-`0 destroyed` and no changes; exact namespace `cb-3cee2aea` verify-clean passed with
+`0 destroyed` and no changes; exact namespace `NAMESPACE_SCRUBBED` verify-clean passed with
 `nothing remaining`; cleanup artifact recorded `state_ready=true`.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
@@ -297,7 +297,7 @@ fresh post-apply status and outputs were captured; separate operator approval re
 for destroy.
 infrastructure: applied 11:24:28 UTC, fingerprint
 `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`, exact
-namespace captured as `cb-3cee2aea` before teardown, region `eu-west-3`; 44 resources
+namespace captured as `NAMESPACE_SCRUBBED` before teardown, region `eu-west-3`; 44 resources
 were created and state was sealed for cleanup.
 adapter/catalog: repository commit `4f8249b`; provider `aws`; negative controls were
 enabled; no benchmark or control run was started.
@@ -316,7 +316,7 @@ anomalies: the same three marker preconditions failed in two consecutive freshly
 applied blocks while the Lambda precondition passed. This repeated infrastructure /
 apparatus failure is recorded for diagnosis; public measurement work remains stopped.
 cleanup: first destroy completed with `44 destroyed`; second destroy completed with
-`0 destroyed` and no changes; exact namespace `cb-3cee2aea` verify-clean passed with
+`0 destroyed` and no changes; exact namespace `NAMESPACE_SCRUBBED` verify-clean passed with
 `nothing remaining`; cleanup artifact recorded `state_ready=true`.
 The next valid block must satisfy the complete family/control matrix and the timing/sample
 requirements before any result is published.
@@ -330,7 +330,7 @@ apply and subsequent M17 apply/destroy gates was recorded; fresh post-apply stat
 Terraform outputs were captured before validation.
 infrastructure: applied at 12:11:09 UTC, 44 resources added, 0 changed, 0 destroyed;
 fresh fingerprint `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`,
-exact namespace captured before teardown as `cb-3cee2aea`, region `eu-west-3`.
+exact namespace captured before teardown as `NAMESPACE_SCRUBBED`, region `eu-west-3`.
 adapter/catalog: repository commit `1d395216e6058eedc1fe3e777f8250d156ccb0f1`;
 provider `aws`; negative controls enabled; budget limit configured in the workflow as
 `1.0` USD.
@@ -352,7 +352,7 @@ notification in the AWS-documented healthy `OK` state as well as `ALARM`; focuse
 protocol tests passed (`12 passed`).
 cleanup: destroy approval was recorded under the blanket operator approval; first
 destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
-no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
+no changes; exact namespace `NAMESPACE_SCRUBBED` verify-clean passed with `nothing remaining`.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
 ## 2026-08-17 M17-20260817-W10 — applied, marker live-gate invalid, cleaned
@@ -366,7 +366,7 @@ apply and subsequent M17 apply/destroy gates was recorded; fresh post-apply stat
 Terraform outputs were captured before validation.
 infrastructure: applied at 12:20:50 UTC, 44 resources added, 0 changed, 0 destroyed;
 fresh fingerprint `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`,
-exact namespace captured before teardown as `cb-3cee2aea`, region `eu-west-3`.
+exact namespace captured before teardown as `NAMESPACE_SCRUBBED`, region `eu-west-3`.
 adapter/catalog: repository commit `a53becb53075914a445a561f84996ac307f389d5`;
 provider `aws`; negative controls enabled; budget guard passed the live check.
 scenarios: suite requested; all five positive benchmark families were not run because
@@ -386,7 +386,7 @@ no unexplained provider defect is declared. Public archive and scrub diff were n
 produced because no run was sealed.
 cleanup: destroy approval was recorded under the blanket operator approval; first
 destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
-no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
+no changes; exact namespace `NAMESPACE_SCRUBBED` verify-clean passed with `nothing remaining`.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
 ## 2026-08-17 M17-20260817-W11 — applied, stabilized marker gate then budget-gate invalid, cleaned
@@ -400,7 +400,7 @@ apply and subsequent M17 apply/destroy gates was recorded; fresh post-apply stat
 Terraform outputs were captured before each live-gate attempt.
 infrastructure: applied at 12:29:38 UTC, 44 resources added, 0 changed, 0 destroyed;
 fresh fingerprint `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`,
-exact namespace captured before teardown as `cb-3cee2aea`, region `eu-west-3`.
+exact namespace captured before teardown as `NAMESPACE_SCRUBBED`, region `eu-west-3`.
 adapter/catalog: repository commit `50f1211c581c77bde22178f55745d8898a19469d`;
 provider `aws`; negative controls enabled. The six-attempt stabilization loop was
 active for this block.
@@ -422,7 +422,7 @@ supports adding an SNS budget subscriber; no unexplained provider defect is decl
 Public archive and scrub diff were not produced because no run was sealed.
 cleanup: destroy approval was recorded under the blanket operator approval; first
 destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
-no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
+no changes; exact namespace `NAMESPACE_SCRUBBED` verify-clean passed with `nothing remaining`.
 repair: committed after this block in the working tree as the next change: add a
 namespace-tagged SNS budget notification topic and Budgets publish policy, retain the
 supplied email recipient, and enumerate SNS during cleanup.
@@ -438,7 +438,7 @@ verify-clean passed; budget guard contract passed; blanket operator approval for
 apply and subsequent M17 apply/destroy gates was recorded. The apply did not complete,
 so no post-apply live gate was run.
 infrastructure: apply attempted; no complete infrastructure fingerprint was captured;
-the exact namespace was the approved `cb-3cee2aea`, region `eu-west-3`.
+the exact namespace was the approved `NAMESPACE_SCRUBBED`, region `eu-west-3`.
 adapter/catalog: repository commit `67e8ce3b50e6cc05384883ed0ec7fe6539c13cc8`;
 provider `aws`; negative controls enabled.
 scenarios: suite requested; all five positive benchmark families were not run; all six
@@ -469,7 +469,7 @@ short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status
 verify-clean passed; budget guard contract passed; blanket operator approval for W13
 apply and destroy was recorded. The apply completed, so the fresh post-apply live gate
 ran six bounded attempts and was recorded before cleanup.
-infrastructure: apply complete with 46 resources; exact namespace `cb-3cee2aea`;
+infrastructure: apply complete with 46 resources; exact namespace `NAMESPACE_SCRUBBED`;
 region `eu-west-3`; fresh infrastructure fingerprint
 `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`.
 adapter/catalog: provider `aws`; capability catalog `v1.0.0`; 24 scenarios structurally
@@ -504,7 +504,7 @@ short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status
 verify-clean passed; budget guard contract passed; blanket operator approval for W14
 apply and destroy was recorded. Apply completed and the fresh post-apply live gate ran
 six bounded attempts before cleanup.
-infrastructure: apply complete with 46 resources; exact namespace `cb-3cee2aea`;
+infrastructure: apply complete with 46 resources; exact namespace `NAMESPACE_SCRUBBED`;
 region `eu-west-3`; fresh infrastructure fingerprint
 `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`.
 adapter/catalog: provider `aws`; capability catalog `v1.0.0`; 24 scenarios structurally
@@ -543,7 +543,7 @@ verify-clean passed; budget guard contract passed; standing operator approval fo
 apply and all subsequent M17 apply/destroy gates was active and recorded. Apply completed,
 so fresh Terraform outputs and the post-apply live gate were captured before cleanup.
 infrastructure: apply complete at 13:10:57 UTC with 46 resources; exact namespace
-`cb-3cee2aea`; region `eu-west-3`; fresh infrastructure fingerprint
+`NAMESPACE_SCRUBBED`; region `eu-west-3`; fresh infrastructure fingerprint
 `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`.
 adapter/catalog: provider `aws`; capability catalog `v1.0.0`; 24 scenarios structurally
 valid; negative controls enabled.
@@ -572,10 +572,64 @@ No provider defect is declared from this incomplete block; public work is paused
 private reproduction, documented-behavior review, and coordinated disclosure if warranted.
 cleanup: destroy approval was recorded under the standing operator approval. First destroy
 completed with `46 destroyed`; second destroy completed with `0 destroyed` and `No changes`;
-exact namespace `cb-3cee2aea` verification reported `chainbreak infra verify-clean: nothing
+exact namespace `NAMESPACE_SCRUBBED` verification reported `chainbreak infra verify-clean: nothing
 remaining`. Cleanup succeeded.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated;
 further public apply is stopped pending the SECURITY.md coordinated-disclosure sequence.
+
+## 2026-08-17 M17-20260817-W03 — local profile apply, root-session live-gate failure, cleaned
+
+checklist: the local guarded pre-apply configuration and exact-namespace clean check passed;
+Terraform apply completed; this was not a valid M17 block because the available AWS profile
+was an account-root session rather than the required non-root benchmark operator role.
+infrastructure: applied and destroyed in `eu-west-3`; exact namespace verification passed after
+two destroys. Namespace value intentionally omitted from this public log.
+adapter/catalog: provider `aws`; capability catalog `v1.0.0`; no scenario run was started.
+stage B: failed at AWS P1-P11 role delegation with `AccessDenied` because AWS rejected
+`AssumeRole` from the root session (`Roles may not be assumed by root accounts`).
+runs: none; no sealed run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded because the live gate failed before baseline or scenario
+execution; no timing, family score, control result, or AWS conclusion is inferred.
+archives: none from W03. The separately generated fake-provider archive is an apparatus check
+and is excluded from AWS evidence.
+anomalies: credential/session shape is an operator setup blocker, not a provider finding.
+cleanup: first destroy completed; second destroy was a no-op; exact `verify-clean` reported
+`nothing remaining`.
+outcome: invalid/incomplete; M17 remains at zero valid/publishable blocks and results-v0.1.md
+must not contain AWS measurements until a non-root benchmark role is available.
+
+## 2026-08-17 M17-20260817-W04 — IAM-user apply apparatus failure, cleaned
+
+operator: the available `default` profile resolved to an IAM-user session. The required
+live account validation was attempted only after a fresh infrastructure apply path was
+available; no scenario run started.
+
+infrastructure: Terraform apply failed while creating the S3 lifecycle configuration with
+`couldn't find resource`. The partial state was torn down with root-assisted Terraform after
+the IAM-user cleanup path was denied `iam:ListInstanceProfilesForRole`; exact namespace
+verification then returned `nothing remaining`.
+
+measurements: none. There is no run ID, no sealed bundle, no valid M17 block, and no AWS
+measurement from W04. This is an excluded infrastructure apparatus failure.
+
+## 2026-08-17 M17-20260817-W05 — IAM-user AssumeRole authorization failure, cleaned
+
+operator: the IAM-user bootstrap path was repaired to retain an IAM-user ARN as an explicit
+Terraform trust principal. Terraform apply completed with 46 resources, and the live P1-P11
+gate passed after the budget validator used the dedicated AWS notification/subscriber APIs.
+
+scenarios: the first negative-control scenario reached delegation and failed at AWS STS
+`AssumeRole`: the IAM user was not authorized for `sts:AssumeRole` on the benchmark role. The
+block was stopped before a usable measurement suite existed; no AWS result is inferred.
+The four preliminary run IDs
+`01M0873C5REM8EZKTWBB9CGCN9`, `01M0874RVT86PZFY7QNWZJX5AA`,
+`01M0875HWP716STKEQ5C3P7XBB`, and `01M08765T25VGDDCT04Q8SPX93` are excluded with W05;
+they are partial apparatus runs, not publishable M17 evidence.
+
+cleanup: Terraform destroy completed twice and exact namespace verification returned
+`nothing remaining`. W05 is excluded. Granting the operator temporary `sts:AssumeRole`
+permission requires owner authorization and was not performed.
 
 repair after W13: the budget notification is changed from `FORECASTED` to `ACTUAL` so
 the guard does not depend on AWS forecast-history availability; the live validator now

@@ -64,7 +64,13 @@ def resolve_operator_role_arn(assumed_role_arn: str, profile: str, region: str) 
     that the STS ARN omits, and a trust policy needs the full path form. Ask IAM
     rather than reconstructing it -- the path contains the SSO instance region,
     which is not necessarily the region you are benchmarking in.
+
+    An IAM-user caller ARN is already a valid explicit trust principal. Keep it
+    as-is so a deliberately scoped sandbox operator can bootstrap the benchmark
+    without falling back to an empty trust list.
     """
+    if assumed_role_arn.startswith("arn:aws:iam::") and ":user/" in assumed_role_arn:
+        return assumed_role_arn
     match = ASSUMED_ROLE_RE.match(assumed_role_arn)
     if not match:
         return ""

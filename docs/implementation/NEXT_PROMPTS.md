@@ -1,7 +1,7 @@
 # Ready-to-run Claude Code prompts — final phase
 
-**State verified 2026-08-16.** M0–M16 are complete, including dedicated-account acceptance for
-M8 and M9. The offline baseline before the documentation pass was 1,772 passed tests. M17 has
+**State verified 2026-08-17.** M0–M16 are complete, including dedicated-account acceptance for
+M8 and M9. The current unit/integration gate is 1,812 passed, 9 skipped and 28 deselected. M17 has
 only invalid/incomplete apparatus attempts recorded: zero valid/publishable blocks and no M17
 measurement. M18's offline portion is complete; its real-AWS exercise is pending. M19 has not
 started.

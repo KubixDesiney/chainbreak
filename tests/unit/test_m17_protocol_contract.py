@@ -202,6 +202,47 @@ def test_live_budget_check_requires_an_active_subscribed_alarm() -> None:
     assert _check_live_budget(adapter).passed is True
 
 
+def test_live_budget_check_reconstructs_sns_subscriber_projection() -> None:
+    from chainbreak.cli.validate import _check_live_budget
+
+    class BudgetClient:
+        def describe_budget(self, **_: object) -> dict[str, object]:
+            return {
+                "Budget": {
+                    "BudgetType": "COST",
+                    "TimeUnit": "MONTHLY",
+                    "BudgetLimit": {"Amount": "5", "Unit": "USD"},
+                    "NotificationsWithSubscribers": None,
+                }
+            }
+
+        def describe_notifications_for_budget(self, **_: object) -> dict[str, object]:
+            return {
+                "Notifications": [
+                    {
+                        "NotificationType": "ACTUAL",
+                        "ComparisonOperator": "GREATER_THAN",
+                        "Threshold": 80,
+                        "ThresholdType": "PERCENTAGE",
+                        "NotificationState": "OK",
+                    }
+                ]
+            }
+
+        def describe_subscribers_for_notification(self, **_: object) -> dict[str, object]:
+            return {"Subscribers": [{"SubscriptionType": "SNS"}]}
+
+    class Session:
+        def client(self, *_: object, **__: object) -> BudgetClient:
+            return BudgetClient()
+
+    adapter = SimpleNamespace(
+        outputs=SimpleNamespace(account_id="123456789012", namespace="cb-a1b2c3d4"),
+        operator_session=Session(),
+    )
+    assert _check_live_budget(adapter).passed is True
+
+
 def test_live_gate_fails_closed_when_outputs_are_missing(tmp_path: Path) -> None:
     from chainbreak.cli.validate import _check_fresh_terraform_outputs
 

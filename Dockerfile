@@ -51,6 +51,7 @@ ENV PYTHONHASHSEED=0 \
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin chainbreak
 
 COPY --from=build /build/dist/*.whl /tmp/wheels/
+COPY --from=build /build/scenarios /home/chainbreak/scenarios
 COPY requirements-runtime.lock /tmp/requirements-runtime.lock
 # Install the exact, hash-verified runtime/report closure first, then install
 # the wheel without dependency resolution. This keeps the image offline after

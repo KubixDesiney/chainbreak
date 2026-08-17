@@ -5,10 +5,11 @@ an implementation agent can execute one without inventing missing requirements.
 
 Ready-to-copy Claude Code prompts are in [CLAUDE_CODE_HANDOFF.md](../CLAUDE_CODE_HANDOFF.md).
 
-**Current state (2026-08-16):** M0–M16 are complete, including dedicated-account acceptance for
+**Current state (2026-08-17):** M0–M16 are complete, including dedicated-account acceptance for
 M8 and M9. M17 has zero valid or publishable blocks; its invalid/incomplete attempts remain
 superseded/excluded apparatus evidence in the lab log. M18's offline portion is complete and its
-real-AWS exercise is pending. M19 has not started.
+real-AWS exercise is pending. M19's offline release preparation is complete, but its release gate
+is blocked.
 
 ---
 
