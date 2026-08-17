@@ -89,11 +89,18 @@ chainbreak validate --provider aws --stage live --check-budget --block-id <block
 chainbreak run scenarios/scope-attenuation/basic.yaml --provider aws --block-id <block-id> --run-id-file artifacts/run-ids.txt
 while read -r run_id; do
   chainbreak analyze "$run_id" --provider aws --block-id <block-id>
-  chainbreak evidence export "$run_id" --provider aws --block-id <block-id> --archive --output "artifacts/$run_id.tar.gz"
+chainbreak evidence export "$run_id" --provider aws --block-id <block-id> --public --archive --output "artifacts/$run_id.tar.gz"
 done < artifacts/run-ids.txt
+chainbreak infra destroy aws-sandbox --provider aws --block-id <block-id> --auto-approve
 chainbreak infra destroy aws-sandbox --provider aws --block-id <block-id> --auto-approve
 chainbreak infra verify-clean aws-sandbox --provider aws --block-id <block-id> --namespace "$(< artifacts/namespace.txt)"
 ```
+
+The workflow runs Stage A in a reviewed `preflight` job, then pauses for a second required
+environment approval before the apply job. After all runs are sealed, analyzed, and exported
+with the scrub diff captured, it pauses for a separate required environment approval before the
+destroy job. The destroy job decrypts only the short-lived state handoff, runs destroy twice,
+and then performs exact namespace verification. Plaintext Terraform state is never uploaded.
 
 For a suite, repeat the `chainbreak run` line for every positive and negative-control
 scenario, keeping the same outputs, provider, block id, and applied namespace. Never use
@@ -112,8 +119,9 @@ aws-sandbox --provider aws --block-id <recovery-block> --auto-approve` followed 
 --region <region> --namespace <captured-namespace>`. Do not start another apply until
 verify-clean reports zero exact-namespace resources.
 
-The artifact path contains scrubbed evidence, run ids, and namespace metadata only. Terraform
-state and `.terraform/` are never uploaded as ordinary artifacts.
+The evidence artifact contains scrubbed evidence, run ids, and namespace metadata. The separate
+destroy handoff may contain only an encrypted state file plus the exact namespace and a status
+marker; plaintext Terraform state and `.terraform/` are never uploaded.
 
 ## Definition of done
 All acceptance criteria met with **real run IDs and real output pasted**. `PROJECT_STATUS.md`

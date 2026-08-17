@@ -36,15 +36,26 @@ def test_workflow_is_valid_yaml_and_manual_only() -> None:
 
 def test_workflow_has_two_gates_in_safe_order() -> None:
     text = _workflow_text()
-    stage_a = text.index("Stage A — pre-apply clean gate")
+    stage_a = text.index("Stage A - pre-apply clean gate")
     apply = text.index("chainbreak infra apply")
-    stage_b = text.index("Stage B — post-apply live gate")
+    stage_b = text.index("Stage B - post-apply live gate")
     live_validate = text.index("--stage live")
-    destroy = text.index("name: Destroy infrastructure")
-    verify = text.index("name: Verify exact namespace is clean")
-    assert stage_a < apply < stage_b < live_validate < destroy < verify
+    assert stage_a < apply < stage_b < live_validate
+    assert text.index("name: Destroy twice and verify the exact namespace") > live_validate
     assert "destroyed sandbox" in text.lower() or "destroyed" in PROTOCOL.read_text().lower()
     assert "stale" in PROTOCOL.read_text(encoding="utf-8").lower()
+
+
+def test_apply_and_destroy_are_separate_reviewed_jobs() -> None:
+    text = _workflow_text()
+    assert "preflight:" in text
+    assert "experiment:" in text
+    assert "destroy:" in text
+    assert text.count("environment: aws-benchmark") >= 3
+    assert "needs: preflight" in text
+    assert "needs: [preflight, experiment]" in text
+    assert "state.enc" in text
+    assert "openssl enc -aes-256-cbc" in text
 
 
 def test_no_fake_default_or_removed_cli_options_in_m17() -> None:
@@ -117,12 +128,12 @@ def test_environment_contract_is_complete_and_negative_controls_are_real() -> No
 def test_namespace_is_captured_before_destroy_and_reused_for_exact_cleanup() -> None:
     text = _workflow_text()
     capture = text.index("--capture-namespace artifacts/namespace.txt")
-    destroy = text.index("name: Destroy infrastructure")
-    cleanup = text.rindex('--namespace "$(< artifacts/namespace.txt)"')
+    destroy = text.index("name: Destroy twice and verify the exact namespace")
+    cleanup = text.index('--namespace "$namespace"')
     assert capture < destroy < cleanup
     assert "artifacts/namespace-derived.txt" in text
     assert "cmp --silent artifacts/namespace-derived.txt artifacts/namespace.txt" in text
-    assert '--namespace "$(< artifacts/namespace.txt)"' in text
+    assert 'namespace="$(< destroy-input/namespace.txt)"' in text
 
 
 def test_concurrency_and_artifact_contract() -> None:
@@ -130,7 +141,9 @@ def test_concurrency_and_artifact_contract() -> None:
     assert "concurrency:" in text
     assert "cancel-in-progress: false" in text
     assert "path: artifacts/" in text
-    assert "tfstate" not in text.lower()
+    assert "state.enc" in text
+    assert "path: destroy-input/" in text
+    assert "path: infra/terraform/environments/aws-sandbox/terraform.tfstate" not in text
     assert ".terraform" not in text
     assert re.search(r"uses: [^@\s]+@[0-9a-f]{40}(?:\s|#|$)", text)
     assert not re.search(r"uses: [^@\s]+@v\d", text)
