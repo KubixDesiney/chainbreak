@@ -48,12 +48,17 @@ class TestBuildRevertPlan:
         assert "cannot be un-revoked" in plan.action
 
     @pytest.mark.parametrize(
-        "kind", [MutationKind.UPDATE_TRUST_POLICY, MutationKind.DELETE_SESSION_POLICY_SCOPE]
+        "kind", [MutationKind.DELETE_SESSION_POLICY_SCOPE]
     )
     def test_control_kinds_are_not_actionable(self, graph, kind):
         plan = build_revert_plan(graph, "agent-b", kind)
         assert plan.actionable is False
         assert "no action required" in plan.action
+
+    def test_trust_policy_null_control_is_reverted(self, graph):
+        plan = build_revert_plan(graph, "agent-b", MutationKind.UPDATE_TRUST_POLICY)
+        assert plan.actionable is True
+        assert "trust policy" in plan.action
 
 
 class TestBuildRevertLogEvent:

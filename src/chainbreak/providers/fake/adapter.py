@@ -535,6 +535,30 @@ class FakeProviderAdapter:
             wall_sent=wall_sent,
         )
 
+    def restore_declared_policy(
+        self, target_identity: str, declared_capabilities: AuthoritySet
+    ) -> MutationReceipt:
+        self.engine.replace(target_identity, allow=declared_capabilities, deny=EMPTY_AUTHORITY)
+        now_ns = self.clock.now_ms * 1_000_000
+        return MutationReceipt(
+            confirmed=True,
+            confirmation_method="read_after_write",
+            confirmation_latency_ms=0.0,
+            monotonic_sent_ns=now_ns,
+            wall_sent=virtual_ms_to_datetime(self.clock.now_ms),
+        )
+
+    def restore_trust_policy(self, target_identity: str) -> MutationReceipt:
+        del target_identity
+        now_ns = self.clock.now_ms * 1_000_000
+        return MutationReceipt(
+            confirmed=True,
+            confirmation_method="read_after_write",
+            confirmation_latency_ms=0.0,
+            monotonic_sent_ns=now_ns,
+            wall_sent=virtual_ms_to_datetime(self.clock.now_ms),
+        )
+
     def snapshot_policy_state(self, identity_ref: IdentityRef) -> PolicyStateSnapshot:
         identity_id = self._ref_to_identity_id[identity_ref.value]
         allow = self.engine.identity_allow(identity_id)

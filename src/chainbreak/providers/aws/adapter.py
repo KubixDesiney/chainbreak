@@ -730,6 +730,31 @@ class AwsProviderAdapter:
             namespace=self.namespace,
         )
 
+    def restore_declared_policy(
+        self, target_identity: str, declared_capabilities: Any
+    ) -> MutationReceipt:
+        del declared_capabilities  # Terraform's managed ceiling is the source of truth.
+        self._ensure_open()
+        bootstrap = self._bootstrap_session()
+        iam_client = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap).iam
+        return mutation_mod.restore_declared_policy(
+            iam_client,
+            target_identity=target_identity,
+            outputs=self.outputs,
+            namespace=self.namespace,
+        )
+
+    def restore_trust_policy(self, target_identity: str) -> MutationReceipt:
+        self._ensure_open()
+        bootstrap = self._bootstrap_session()
+        iam_client = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap).iam
+        return mutation_mod.restore_trust_policy(
+            iam_client,
+            target_identity=target_identity,
+            outputs=self.outputs,
+            namespace=self.namespace,
+        )
+
     def snapshot_policy_state(self, identity_ref: IdentityRef) -> PolicyStateSnapshot:
         self._ensure_open()
         identity_id = self._ref_to_identity_id[identity_ref.value]

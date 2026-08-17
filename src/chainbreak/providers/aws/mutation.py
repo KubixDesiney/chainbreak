@@ -31,6 +31,7 @@ import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import unquote
 
 from botocore.exceptions import ClientError
 
@@ -49,6 +50,7 @@ from chainbreak.providers.aws.preflight import TerraformOutputs
 DENY_POLICY_NAME = "cb-deny"
 GRANT_POLICY_NAME = "cb-grant"
 REVOKE_OLDER_POLICY_NAME = "cb-revoke-older"
+TRANSIENT_POLICY_NAMES = (DENY_POLICY_NAME, GRANT_POLICY_NAME, REVOKE_OLDER_POLICY_NAME)
 
 _PROTECTED_ROLE_NAME_FRAGMENTS = ("bootstrap", "principal")
 
@@ -168,7 +170,99 @@ def _poll_until(
             return True, (time.monotonic() - start) * 1000
         if time.monotonic() - start >= _READ_AFTER_WRITE_TIMEOUT_S:
             return False, (time.monotonic() - start) * 1000
-        sleep(_READ_AFTER_WRITE_INTERVAL_S)
+            sleep(_READ_AFTER_WRITE_INTERVAL_S)
+
+
+def restore_declared_policy(
+    iam_client: Any,
+    *,
+    target_identity: IdentityId,
+    outputs: TerraformOutputs,
+    namespace: str,
+) -> MutationReceipt:
+    """Remove all harness-owned inline policies from one benchmark role.
+
+    Terraform's managed ceiling policy is the declared authority. Reverting a
+    run must therefore remove the temporary inline deny/grant/revocation
+    policies, rather than replacing one of them with an allow document that
+    becomes an orphaned policy on the next run.
+    """
+    role_arn = role_arn_for_identity(target_identity, outputs)
+    assert_aws_reference(role_arn, account_id=outputs.account_id, namespace=namespace)
+    assert_role_is_benchmark_agent(role_arn)
+    role_name = role_arn.rsplit("/", 1)[-1]
+    sent_ns = time.monotonic_ns()
+    sent_at = datetime.now(UTC)
+    for policy_name in TRANSIENT_POLICY_NAMES:
+        with contextlib.suppress(ClientError):
+            iam_client.delete_role_policy(RoleName=role_name, PolicyName=policy_name)
+    confirmed, latency_ms = _poll_until(
+        lambda: all(
+            _try_get_role_policy(iam_client, role_name, name) is None
+            for name in TRANSIENT_POLICY_NAMES
+        ),
+        lambda value: value is True,
+    )
+    return MutationReceipt(
+        confirmed=confirmed,
+        confirmation_method="read_after_write",
+        confirmation_latency_ms=latency_ms,
+        monotonic_sent_ns=sent_ns,
+        wall_sent=sent_at,
+    )
+
+
+def restore_trust_policy(
+    iam_client: Any,
+    *,
+    target_identity: IdentityId,
+    outputs: TerraformOutputs,
+    namespace: str,
+) -> MutationReceipt:
+    """Restore the Terraform-declared trust policy after the null control."""
+    role_arn = role_arn_for_identity(target_identity, outputs)
+    assert_aws_reference(role_arn, account_id=outputs.account_id, namespace=namespace)
+    assert_role_is_benchmark_agent(role_arn)
+    if target_identity == "agent-a":
+        predecessor = outputs.principal_role_arn
+    else:
+        letter = target_identity.rsplit("-", 1)[-1]
+        previous = chr(ord(letter) - 1)
+        predecessor = outputs.agent_role_arns[previous]
+    document = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"AWS": [predecessor, outputs.bootstrap_role_arn]},
+                "Action": "sts:AssumeRole",
+                "Condition": {
+                    "StringEquals": {"sts:ExternalId": outputs.external_id},
+                    "StringLike": {"sts:RoleSessionName": f"{namespace}-*"},
+                },
+            }
+        ],
+    }
+    role_name = role_arn.rsplit("/", 1)[-1]
+    sent_ns = time.monotonic_ns()
+    sent_at = datetime.now(UTC)
+    iam_client.update_assume_role_policy(
+        RoleName=role_name, PolicyDocument=json.dumps(document, separators=(",", ":"))
+    )
+    confirmed, latency_ms = _poll_until(
+        lambda: iam_client.get_role(RoleName=role_name)["Role"]["AssumeRolePolicyDocument"],
+        lambda value: (
+            isinstance(value, dict)
+            and json.loads(unquote(json.dumps(value, separators=(",", ":")))) == document
+        ),
+    )
+    return MutationReceipt(
+        confirmed=confirmed,
+        confirmation_method="read_after_write",
+        confirmation_latency_ms=latency_ms,
+        monotonic_sent_ns=sent_ns,
+        wall_sent=sent_at,
+    )
 
 
 def apply_mutation(

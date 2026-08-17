@@ -83,6 +83,14 @@ def build_revert_plan(
                 "un-revoked -- delegate a fresh credential to restore access"
             ),
         )
+    if mutation_kind is MutationKind.UPDATE_TRUST_POLICY:
+        return RevertPlan(
+            target_identity=target_identity,
+            mutation_kind=mutation_kind,
+            declared_capabilities=declared,
+            actionable=True,
+            action=(f"restore the Terraform-declared trust policy on {target_identity!r}"),
+        )
     return RevertPlan(
         target_identity=target_identity,
         mutation_kind=mutation_kind,
@@ -116,13 +124,23 @@ def revert_mutation(
     -- the log entry already recorded why)."""
     if not plan.actionable:
         return None
-    mutation = PolicyMutation(
-        mutation_id=f"mut_{new_ulid()}",
-        kind=MutationKind.REPLACE_INLINE_POLICY,
-        target_identity=plan.target_identity,
-        grants_capabilities=plan.declared_capabilities,
-    )
-    receipt = adapter.apply_policy_mutation(mutation)
+    if plan.mutation_kind is MutationKind.UPDATE_TRUST_POLICY:
+        restore = getattr(adapter, "restore_trust_policy", None)
+        if not callable(restore):  # pragma: no cover - compatibility fallback
+            return None
+        receipt = restore(plan.target_identity)
+    else:
+        restore = getattr(adapter, "restore_declared_policy", None)
+        if callable(restore):
+            receipt = restore(plan.target_identity, plan.declared_capabilities)
+        else:  # pragma: no cover - compatibility for third-party adapters
+            mutation = PolicyMutation(
+                mutation_id=f"mut_{new_ulid()}",
+                kind=MutationKind.REPLACE_INLINE_POLICY,
+                target_identity=plan.target_identity,
+                grants_capabilities=plan.declared_capabilities,
+            )
+            receipt = adapter.apply_policy_mutation(mutation)
     return {
         "event_id": new_event_id(),
         "sequence": sequence,
