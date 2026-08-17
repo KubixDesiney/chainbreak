@@ -184,7 +184,7 @@ def test_live_budget_check_requires_an_active_subscribed_alarm() -> None:
                     "BudgetLimit": {"Amount": "5", "Unit": "USD"},
                     "NotificationsWithSubscribers": [
                         {
-                            "Notification": {"NotificationState": "ALARM"},
+                            "Notification": {"NotificationState": "OK"},
                             "Subscribers": [{"SubscriptionType": "EMAIL"}],
                         }
                     ],

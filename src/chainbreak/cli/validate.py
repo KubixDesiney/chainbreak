@@ -189,7 +189,10 @@ def _check_live_budget(adapter: object) -> CheckResult:
         active_notifications = [
             item
             for item in notifications
-            if item.get("Notification", {}).get("NotificationState") == "ALARM"
+            # ``OK`` is the healthy state for an active budget notification;
+            # ``ALARM`` means the threshold has already been crossed. A
+            # live guard must accept both states and require subscribers.
+            if item.get("Notification", {}).get("NotificationState") in {"OK", "ALARM"}
             and item.get("Subscribers")
         ]
         valid_shape = (
