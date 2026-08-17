@@ -266,9 +266,15 @@ def _check_live_aws(
         )
         envelope = resolve_safety_envelope(settings, namespace=adapter.namespace)
         report = adapter.preflight(envelope)
-        failed = [check.name for check in report.checks if not check.passed]
+        failed = {
+            check.name: check.detail for check in report.checks if not check.passed
+        }
         if not report.passed:
-            return CheckResult("AWS live validation (P1-P11)", False, f"failed checks: {failed}")
+            return CheckResult(
+                "AWS live validation (P1-P11)",
+                False,
+                f"failed checks: {failed}",
+            )
         if check_budget:
             budget_check = _check_live_budget(adapter)
             if not budget_check.passed:
