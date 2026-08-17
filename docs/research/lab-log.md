@@ -238,6 +238,25 @@ notes: residual prior-sandbox resources were destroyed (`44 destroyed`), exact v
 Invalid and incomplete AWS executions are recorded above with their run IDs and reasons.
 **No valid M17 block has produced a publishable measurement.**
 
+## 2026-08-17 M17 workflow preflight exclusions
+
+These workflow attempts stopped before AWS apply. They are apparatus/preflight
+failures, not measurements, and no Chainbreak run IDs were produced.
+
+| block | GitHub workflow run | pre-apply result | exclusion reason | AWS apply |
+|---|---:|---|---|---|
+| M17-20260817-W01 | `32021454170` | failed environment contract | Environment-scoped `CHAINBREAK_BUDGET_LIMIT_USD` was not mapped at workflow scope; no OIDC, namespace, or apply | no |
+| M17-20260817-W02 | `32021740136` | failed environment contract | Direct `CHAINBREAK_BUDGET_LIMIT_USD` mapping was missing from the per-job environment; no OIDC, namespace, or apply | no |
+| M17-20260817-W03 | `32021898659` | OIDC apparatus failure | Role trust used the legacy GitHub subject and credentials action retried; no namespace or apply | no |
+| M17-20260817-W04 | `32022274942` | clean-gate failure | Namespace/artifact capture created an untracked `artifacts/` directory before the clean-tree check; no apply | no |
+| M17-20260817-W05 | `32022533049` | clean-gate failure | Same artifact-ordering defect; diagnostic output recorded `?? artifacts/`; no apply | no |
+| M17-20260817-W06 | `32022681703` | test-gate failure | Full unit/integration gate reported 9 failures, 1,803 passed, 9 skipped, 28 deselected. The AWS env was visible to tests that require default/fake settings; no OIDC, namespace, or apply | no |
+
+All six attempts were cancelled before any apply approval or AWS resource creation.
+They are excluded from family/control matrices, sample counts, timing windows,
+scores, and public archives. The W06 test-isolation fix is pending commit and a
+new preflight run.
+
 The next valid block must satisfy the complete family/control matrix and the timing/sample
 requirements before any result is published.
 
