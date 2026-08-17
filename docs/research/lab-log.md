@@ -257,6 +257,37 @@ They are excluded from family/control matrices, sample counts, timing windows,
 scores, and public archives. The W06 test-isolation fix is pending commit and a
 new preflight run.
 
+## 2026-08-17 M17-20260817-W07 — applied, live-gate invalid, cleaned
+
+checklist: preflight contract passed; clean tree and unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; pre-apply namespace/status/verify-clean
+passed; budget guard contract passed; separate operator approval recorded for apply;
+fresh post-apply status and outputs were captured; separate operator approval recorded
+for destroy.
+infrastructure: applied 11:13:49 UTC, fingerprint
+`sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`, exact
+namespace captured as `cb-3cee2aea` before teardown, region `eu-west-3`; 44 resources
+were created and the budget guard was present in Terraform state.
+adapter/catalog: repository commit `a19319e`; provider `aws`; negative controls were
+enabled; no benchmark or control run was started.
+scenarios: suite requested; positive-family matrix not run; all six negative controls
+not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded because fresh `chainbreak validate --provider aws
+--stage live --check-budget --block-id M17-20260817-W07` failed its AWS P1-P11 gate
+with `marker_preconditions`; no measurement is inferred and no provider conclusion
+is drawn from the failure.
+observation: none publishable; no public scrubbed archive or scrub diff was produced
+because no run was sealed.
+anomalies: live infrastructure validation found a missing marker precondition after
+apply. This is recorded as an apparatus/infrastructure failure pending diagnosis, not
+as a provider measurement.
+cleanup: first destroy completed with `44 destroyed`; second destroy completed with
+`0 destroyed` and no changes; exact namespace `cb-3cee2aea` verify-clean passed with
+`nothing remaining`; cleanup artifact recorded `state_ready=true`.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
 The next valid block must satisfy the complete family/control matrix and the timing/sample
 requirements before any result is published.
 
