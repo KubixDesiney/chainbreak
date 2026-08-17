@@ -125,7 +125,12 @@ jobs:
       - name: Stage A - pre-apply clean gate
         run: |
           set -euo pipefail
-          test -z "$(git status --porcelain)"
+          git_status="$(git status --porcelain)"
+          if [[ -n "$git_status" ]]; then
+            echo "::error::working tree is not clean"
+            printf '%s\n' "$git_status"
+            exit 1
+          fi
           pytest -m "unit or integration" -q
           chainbreak validate --provider aws --stage pre-apply --check-budget --block-id "$BLOCK_ID"
           output_path="infra/terraform/environments/aws-sandbox/outputs.json"
