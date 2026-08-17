@@ -326,7 +326,7 @@ def _function_alive(lambda_client: Any, outputs: TerraformOutputs) -> bool:
         lambda_client.get_function(FunctionName=outputs.function_name)
     except ClientError as exc:
         _LOGGER.warning(
-            "AWS marker precondition failed: queue.present code=%s status=%s",
+            "AWS marker precondition failed: function.alive code=%s status=%s",
             error_code(exc),
             http_status(exc),
         )
@@ -337,7 +337,12 @@ def _function_alive(lambda_client: Any, outputs: TerraformOutputs) -> bool:
 def _queue_present(sqs_client: Any, outputs: TerraformOutputs) -> bool:
     try:
         sqs_client.get_queue_attributes(QueueUrl=outputs.queue_url, AttributeNames=["QueueArn"])
-    except ClientError:
+    except ClientError as exc:
+        _LOGGER.warning(
+            "AWS marker precondition failed: queue.present code=%s status=%s",
+            error_code(exc),
+            http_status(exc),
+        )
         return False
     return True
 

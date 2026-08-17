@@ -355,6 +355,40 @@ destroy completed with `44 destroyed`; second destroy completed with `0 destroye
 no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
+## 2026-08-17 M17-20260817-W10 — applied, marker live-gate invalid, cleaned
+
+workflow: GitHub Actions run `32029065389`; block ID `M17-20260817-W10`; window
+2026-08-17 12:16-12:22 UTC.
+checklist: preflight contract passed; clean tree and full unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; blanket operator approval for W10
+apply and subsequent M17 apply/destroy gates was recorded; fresh post-apply status and
+Terraform outputs were captured before validation.
+infrastructure: applied at 12:20:50 UTC, 44 resources added, 0 changed, 0 destroyed;
+fresh fingerprint `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`,
+exact namespace captured before teardown as `cb-3cee2aea`, region `eu-west-3`.
+adapter/catalog: repository commit `a53becb53075914a445a561f84996ac307f389d5`;
+provider `aws`; negative controls enabled; budget guard passed the live check.
+scenarios: suite requested; all five positive benchmark families were not run because
+the post-apply live gate failed; all six negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded because fresh
+`chainbreak validate --provider aws --stage live --check-budget --block-id
+M17-20260817-W10` reported failed marker checks
+`objectstore.marker_present`, `keyvalue.marker_present`, and `queue.present`.
+Fresh diagnostic output recorded S3 `403` and DynamoDB `AccessDeniedException` with
+HTTP `400`; the queue failure had no diagnostic code before the logging repair. The
+`function.alive` check passed. No benchmark or control measurement is inferred.
+observation: none publishable; no timing or family score is inferred.
+anomalies: apparatus/IAM propagation or resource-policy wiring failure under diagnosis;
+no unexplained provider defect is declared. Public archive and scrub diff were not
+produced because no run was sealed.
+cleanup: destroy approval was recorded under the blanket operator approval; first
+destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
+no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
 ---
 
 ## Template
