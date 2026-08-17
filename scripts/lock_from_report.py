@@ -16,7 +16,9 @@ pinned third-party download, and has no hash to pin regardless (it is
 installed from the working directory, not a distributed artifact).
 
 Usage:
-    docker run --rm -v "$PWD:/repo:ro" -w /repo python:3.12-slim bash -c \\
+    docker run --rm -v "$PWD:/repo:ro" -w /repo \\
+      python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65 \\
+      bash -c \\
       "pip install --no-cache-dir '.[dev,aws,report,analysis]' \\
        --report /tmp/report.json && cat /tmp/report.json" > report.json
     python scripts/lock_from_report.py report.json requirements.lock

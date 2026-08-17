@@ -30,10 +30,7 @@ pytestmark = pytest.mark.unit
 
 _FIXTURES = json.loads(
     (
-        Path(__file__).parents[1]
-        / "fixtures"
-        / "provider_responses"
-        / "aws-response-shapes.json"
+        Path(__file__).parents[1] / "fixtures" / "provider_responses" / "aws-response-shapes.json"
     ).read_text(encoding="utf-8")
 )["fixtures"]
 _BY_ID = {fixture["id"]: fixture for fixture in _FIXTURES}

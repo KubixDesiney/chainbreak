@@ -1,15 +1,23 @@
 # CHAINBREAK AWS experiment workflow
 #
 # SAFETY (threat T-12):
-#   - workflow_dispatch ONLY. Never triggered by push or pull_request.
-#   - Bound to the `aws-benchmark` GitHub environment, which must be configured
-#     with required reviewers.
-#   - OIDC role assumption. NO static access keys, ever.
-#   - Infrastructure destroy runs in an always() step.
+#   - workflow_dispatch ONLY; never triggered by push or pull_request.
+#   - The `aws-benchmark` environment must have required reviewers configured.
+#   - OIDC role assumption only; no static access keys.
+#   - Stage A completes before apply. Stage B is live-only and requires fresh
+#     outputs/current Terraform state, P1-P11, markers, clock status, and the
+#     live namespace budget/alarm.
+#   - Destroy and exact verify-clean run in always() cleanup steps.
 #
-# This workflow spends real money (< $1 per run) and creates real IAM identities
-# in the operator's benchmark account. It exists so experiment runs are
-# reproducible and logged, not for convenience.
+# Environment contract (configure these on the `aws-benchmark` environment; the
+# workflow never prints their values):
+#   vars: CHAINBREAK_ACCOUNT_ID, CHAINBREAK_REGION, CHAINBREAK_BUDGET_LIMIT_USD
+#   secrets: CHAINBREAK_BENCHMARK_ROLE_ARN, CHAINBREAK_NAMESPACE_SALT,
+#     CHAINBREAK_OPERATOR_PRINCIPAL_ARNS, CHAINBREAK_BUDGET_NOTIFICATION_EMAIL
+#
+# Recovery after cancellation/orphaning is documented in
+# docs/implementation/milestones/M17-aws-experiment-suite.md. The namespace file
+# is captured before destroy and is the only namespace accepted by verify-clean.
 
 name: AWS experiment
 
@@ -17,11 +25,11 @@ on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: "Scenario path, or 'suite' for the full set"
+        description: "Scenario path, or 'suite' for all positive and negative controls"
         required: true
-        default: scenarios/scope-attenuation/basic.yaml
+        default: suite
       block_id:
-        description: "Experiment block id (control C-7: distribute timing trials across blocks)"
+        description: "Explicit experiment block id (C-7 timing randomization)"
         required: true
       confirm:
         description: "Type APPLY to confirm real infrastructure will be created"
@@ -29,21 +37,72 @@ on:
 
 permissions:
   contents: read
-  id-token: write        # required for OIDC; nothing else
+  id-token: write
+
+# A namespace is derived from the account, Terraform workspace, and environment
+# salt. Serialize all jobs using the shared environment so two applies cannot
+# race the same namespace. Cancellation never interrupts an active cleanup.
+concurrency:
+  group: chainbreak-aws-benchmark-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   experiment:
-    if: ${{ github.event.inputs.confirm == 'APPLY' }}
+    if: ${{ inputs.confirm == 'APPLY' }}
     runs-on: ubuntu-latest
-    environment: aws-benchmark       # required reviewers configured here
+    environment: aws-benchmark
     timeout-minutes: 90
+    env:
+      BLOCK_ID: ${{ inputs.block_id }}
+      SCENARIO: ${{ inputs.scenario }}
+      CHAINBREAK_ALLOWED_ACCOUNT_IDS: ${{ vars.CHAINBREAK_ACCOUNT_ID }}
+      CHAINBREAK_ALLOWED_REGIONS: ${{ vars.CHAINBREAK_REGION }}
+      CHAINBREAK_NAMESPACE_PREFIX: cb
+      CHAINBREAK_DEFAULT_PROVIDER: aws
+      CHAINBREAK_MAX_ESTIMATED_COST_USD: "1.0"
+      CHAINBREAK_MAX_RUN_DURATION_SECONDS: "1800"
+      CHAINBREAK_ALLOW_CONCURRENT_RUNS: "false"
+      TF_VAR_expected_account_id: ${{ vars.CHAINBREAK_ACCOUNT_ID }}
+      TF_VAR_region: ${{ vars.CHAINBREAK_REGION }}
+      TF_VAR_namespace_salt: ${{ secrets.CHAINBREAK_NAMESPACE_SALT }}
+      TF_VAR_operator_principal_arns: ${{ secrets.CHAINBREAK_OPERATOR_PRINCIPAL_ARNS }}
+      TF_VAR_budget_limit_usd: ${{ vars.CHAINBREAK_BUDGET_LIMIT_USD }}
+      TF_VAR_budget_notification_email: ${{ secrets.CHAINBREAK_BUDGET_NOTIFICATION_EMAIL }}
+      TF_VAR_enable_negative_controls: "true"
+      TF_VAR_enable_cloudtrail: "false"
+      TF_VAR_enable_data_events: "false"
+      TF_VAR_scratch_expiry_days: "1"
+      TF_VAR_log_retention_days: "1"
+      TF_INPUT: "0"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.9.8" }
-      - run: pip install -e ".[dev,aws,report,analysis]"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: "1.9.8"
+      - name: Install CHAINBREAK
+        run: pip install -e ".[dev,aws,report,analysis]"
+
+      - name: Validate environment-scoped contract without printing values
+        run: |
+          set -euo pipefail
+          for variable_name in \
+            CHAINBREAK_ALLOWED_ACCOUNT_IDS CHAINBREAK_ALLOWED_REGIONS \
+            CHAINBREAK_BUDGET_LIMIT_USD TF_VAR_expected_account_id TF_VAR_region \
+            TF_VAR_namespace_salt TF_VAR_operator_principal_arns \
+            TF_VAR_budget_limit_usd TF_VAR_budget_notification_email; do
+            if [[ -z "${!variable_name:-}" ]]; then
+              echo "::error::required environment contract value is unset: ${variable_name}"
+              exit 1
+            fi
+          done
+          [[ "$TF_VAR_enable_negative_controls" == "true" ]] || {
+            echo "::error::TF_VAR_enable_negative_controls must be true for M17 suite runs"
+            exit 1
+          }
+          [[ -n "$BLOCK_ID" ]] || { echo "::error::block_id is required"; exit 1; }
 
       - name: Assume the benchmark role via OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
@@ -51,42 +110,104 @@ jobs:
           role-to-assume: ${{ secrets.CHAINBREAK_BENCHMARK_ROLE_ARN }}
           aws-region: ${{ vars.CHAINBREAK_REGION }}
 
-      # SI-6: this fails closed if the assumed account is not allowlisted.
-      - name: Preflight
-        run: chainbreak validate --json
+      - name: Prepare exact namespace capture
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          chainbreak infra namespace aws-sandbox --provider aws --block-id "$BLOCK_ID" \
+            > artifacts/namespace-derived.txt
+
+      # Stage A is entirely before apply. If an old outputs.json exists, status
+      # must prove it matches current Terraform output before its namespace is
+      # accepted; otherwise the deterministic contract namespace is used.
+      - name: Stage A — pre-apply clean gate
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          pytest -m "unit or integration" -q
+          chainbreak validate --provider aws --stage pre-apply --check-budget --block-id "$BLOCK_ID"
+          output_path="infra/terraform/environments/aws-sandbox/outputs.json"
+          if [[ -f "$output_path" ]]; then
+            chainbreak infra status aws-sandbox --provider aws --block-id "$BLOCK_ID" \
+              --capture-namespace artifacts/namespace-current.txt
+            cmp --silent artifacts/namespace-derived.txt artifacts/namespace-current.txt
+          fi
+          cp artifacts/namespace-derived.txt artifacts/namespace.txt
+          chainbreak infra verify-clean aws-sandbox --provider aws --block-id "$BLOCK_ID" \
+            --region "$CHAINBREAK_ALLOWED_REGIONS" --namespace "$(< artifacts/namespace.txt)"
+          test "$CHAINBREAK_ALLOW_CONCURRENT_RUNS" = "false"
+
+      - name: Mark apply attempt for cancellation recovery
+        run: touch artifacts/apply-attempted
 
       - name: Apply benchmark infrastructure
-        run: chainbreak infra apply aws-sandbox --auto-approve
+        run: chainbreak infra apply aws-sandbox --provider aws --block-id "$BLOCK_ID" --auto-approve
 
-      - name: Run experiment
-        env:
-          CHAINBREAK_BLOCK_ID: ${{ github.event.inputs.block_id }}
+      # Stage B cannot pass against a destroyed sandbox: apply captures outputs,
+      # status compares them to current Terraform state, and validate requires
+      # those outputs plus live P1-P11/markers/clock/budget evidence.
+      - name: Stage B — post-apply live gate
         run: |
-          if [ "${{ github.event.inputs.scenario }}" = "suite" ]; then
-            for f in $(find scenarios -name '*.yaml'); do chainbreak run "$f"; done
+          set -euo pipefail
+          chainbreak infra status aws-sandbox --provider aws --block-id "$BLOCK_ID" \
+            --capture-namespace artifacts/namespace.txt
+          cmp --silent artifacts/namespace-derived.txt artifacts/namespace.txt
+          chainbreak validate --provider aws --stage live --check-budget --block-id "$BLOCK_ID" \
+            --terraform-outputs infra/terraform/environments/aws-sandbox/outputs.json
+
+      - name: Run AWS experiment suite and capture exact run ids
+        run: |
+          set -euo pipefail
+          : > artifacts/run-ids.txt
+          if [[ "$SCENARIO" == "suite" ]]; then
+            while IFS= read -r -d '' scenario_path; do
+              chainbreak run "$scenario_path" --provider aws --block-id "$BLOCK_ID" \
+                --terraform-outputs infra/terraform/environments/aws-sandbox/outputs.json \
+                --run-id-file artifacts/run-ids.txt
+            done < <(find scenarios -type f -name '*.yaml' -print0 | sort -z)
           else
-            chainbreak run "${{ github.event.inputs.scenario }}"
+            chainbreak run "$SCENARIO" --provider aws --block-id "$BLOCK_ID" \
+              --terraform-outputs infra/terraform/environments/aws-sandbox/outputs.json \
+              --run-id-file artifacts/run-ids.txt
           fi
+          test -s artifacts/run-ids.txt
 
-      - name: Analyze and export scrubbed evidence
+      - name: Analyze every sealed run and export scrubbed archives
         run: |
-          chainbreak runs list --json
-          chainbreak analyze --latest
-          chainbreak evidence export --latest --public --archive -o artifacts/
+          set -euo pipefail
+          while IFS= read -r run_id; do
+            [[ "$run_id" =~ ^[0-9A-Z]{26}$ ]] || {
+              echo "::error::invalid captured run id"; exit 1;
+            }
+            chainbreak analyze "$run_id" --provider aws --block-id "$BLOCK_ID" --runs-root runs
+            chainbreak evidence export "$run_id" --provider aws --block-id "$BLOCK_ID" \
+              --archive --output "artifacts/${run_id}.tar.gz" --runs-root runs
+          done < artifacts/run-ids.txt
 
-      # Always destroy, even if the experiment failed. An orphaned benchmark
-      # account is the most likely real cost risk (T-06).
+      # Always destroy after namespace capture, including failure/cancellation
+      # during a run. The artifact directory contains no Terraform state.
       - name: Destroy infrastructure
         if: always()
-        run: chainbreak infra destroy aws-sandbox --auto-approve
+        run: |
+          set -euo pipefail
+          if [[ -f artifacts/apply-attempted ]]; then
+            chainbreak infra destroy aws-sandbox --provider aws --block-id "$BLOCK_ID" --auto-approve
+          else
+            echo "apply was not attempted; no destroy issued"
+          fi
 
-      - name: Verify nothing remains
+      - name: Verify exact namespace is clean
         if: always()
-        run: chainbreak infra verify-clean
+        run: |
+          set -euo pipefail
+          test -s artifacts/namespace.txt
+          chainbreak infra verify-clean aws-sandbox --provider aws --block-id "$BLOCK_ID" \
+            --region "$CHAINBREAK_ALLOWED_REGIONS" --namespace "$(< artifacts/namespace.txt)"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: chainbreak-evidence-${{ github.event.inputs.block_id }}
+          name: chainbreak-evidence-${{ inputs.block_id }}
           path: artifacts/
           retention-days: 30
+          include-hidden-files: false

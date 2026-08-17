@@ -4,33 +4,33 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Verification refresh:** 2026-08-16. The dedicated-account M8/M9 validation cycle passed
-live P1–P11, all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown,
-and service enumeration. The shared contract behavioral assertions now run unchanged, with
-explicit AWS setup hooks for its fixed Terraform roles. No M17 experiment block has run.
+**Verification refresh:** 2026-08-16. Dedicated-account acceptance for M8/M9 passed live P1–P11,
+all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown, and service
+enumeration. The shared contract behavioral assertions run unchanged with explicit AWS setup
+hooks for its fixed Terraform roles. M17 has only invalid/incomplete apparatus attempts: zero
+valid or publishable blocks and no M17 measurement.
 
-**Last updated:** 2026-08-16 · **Version:** 0.1.0a0 · **Phase:** M9 accepted; M8 live
-semantics and evidence pass; M17 not started; M18's
-offline portion is complete.
+**Last updated:** 2026-08-16 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
+dedicated-account acceptance complete; M17 has zero valid/publishable blocks; M18 offline
+complete with real-AWS exercise pending; M19 not started.
 
 ---
 
 ## The honest headline
 
-> CHAINBREAK has a complete architecture, a verified domain model, a validated scenario
-> corpus, and a full implementation plan.
->
-> **The execution engine runs end to end against the deterministic fake provider for all five
-> benchmark families now (M10 scope attenuation, M11 delegation drift, M12 revocation
-> propagation, M13 stale authority, M14 silent narrowing) — a real apparatus test, not a
-> benchmark result. M15 turns that evidence into six independent category results, with no
-> composite score anywhere (ADR-010). M16 renders that evidence into terminal, Markdown and
-> self-contained HTML reports, with the reporting-language rules enforced by lint at render
-> time rather than left to operator discipline. M17 has not run: the dedicated-account work
-> completed so far is M8/M9 acceptance validation, not a five-family experiment.**
->
-> Offline figures remain apparatus checks or design parameters unless explicitly labelled. The
-> M17 figures below are scrubbed real-account measurements and are not acceptance claims.
+> **Status: 0.1.0a0 — M0–M16 are complete, including dedicated-account acceptance for M8
+> (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 has had invalid/incomplete
+> apparatus attempts only: zero valid or publishable blocks and no M17 measurement. M18's
+> offline reproducibility portion is complete; its real-AWS exercise remains pending. M19
+> has not started. The offline baseline before this documentation pass was 1,772 passed
+> tests.**
+
+CHAINBREAK has a complete architecture, a verified domain model, a validated scenario corpus,
+and a full implementation plan. The execution engine runs end to end against the deterministic
+fake provider for all five benchmark families — an apparatus check, not an AWS benchmark result.
+M15 turns that evidence into six independent category results, and M16 renders it into terminal,
+Markdown, and self-contained HTML reports. M17 has no valid/publishable block, so no M17 result is
+reported below.
 
 ### M8/M9 dedicated-account verification record — 2026-08-15
 
@@ -64,10 +64,9 @@ content omitted:
 criteria and verification commands. Fourteen ADRs accepted. Twelve security invariants defined
 with named enforcement points. Fifteen threats modelled with seven accepted residual risks.
 
-**Implementation: M0 through M7 complete. M8's offline portion (the AWS adapter itself) is
-complete; its dedicated-account run passed all 21 AWS tests. M9's local portion (all five Terraform modules, both
-environments, and `cli/infra.py`) is written and locally validated; its dedicated-account
-cleanup contract now passes, including zero-manual-step destroy. M10 (the
+**Implementation: M0 through M16 complete. M8's AWS adapter and M9's Terraform sandbox both
+passed dedicated-account acceptance, including all 21 AWS tests, the cleanup contract, and
+zero-manual-step destroy. M10 (the
 delegation-drift benchmark, Family B) are both complete against the fake provider — M10 was the
 first milestone whose acceptance criteria required an actual end-to-end run to satisfy, not just
 unit-level proof of the pieces; M11 extended the same execution engine to multi-hop chains and
@@ -99,8 +98,8 @@ bundle into `findings.json` end to end, wired to `chainbreak analyze`. M8 built 
 adapter — preflight P1–P11, STS delegation for all five mechanisms, the ten capability probes
 with content verification and denial-message disambiguation, the mutation choke point, retry with
 full-jitter backoff, and policy snapshotting — verified against moto-emulated AWS resources and,
-for the message-parsing logic, against literal AWS error strings; its dedicated-account run is
-recorded below, with four real-AWS denial/ambiguity failures still open. M9 wrote all five Terraform modules
+for the message-parsing logic, against literal AWS error strings; its dedicated-account acceptance
+passed with no unresolved adapter denial/ambiguity failures. M9 wrote all five Terraform modules
 (`benchmark-account`, `resources`, `identities`, `delegation`, `observability`) and both
 environments (`aws-sandbox`, `local-development`) to their contracts, plus a real
 `cli/infra.py` wrapping `plan`/`apply`/`destroy`/`status`/`verify-clean`; `terraform fmt -check
@@ -166,10 +165,9 @@ or a Terraform infrastructure profile, so a genuine `chainbreak run --provider f
 triggers them and `chainbreak analyze` correctly reports `DETECTOR_FAILED` for each — S2 doing
 exactly what it exists to do, not a scoring bug (flagged as a follow-up, not fixed here, since the
 fix belongs in the fake provider or scenario compiler, out of M15's own file list); and
-`analysis/stale.py` has never populated `StaleAuthorityMeasurement.stale_window_seconds` (no
-mutation-timing input to compute it from), so `scoring/categories.py` omits that measurement
-rather than approximating it from a different instant (F: prefer omission over a confident wrong
-number). M16 renders that same evidence into terminal, Markdown and self-contained HTML reports —
+`analysis/stale.py` now populates `StaleAuthorityMeasurement.stale_window_seconds` from the
+mutation send instant; `scoring/categories.py` consumes that value. M16 renders that same
+evidence into terminal, Markdown and self-contained HTML reports —
 `reporting/language.py` implements EXPERIMENT_PROTOCOL.md section 7's language rules as a lint
 every renderer calls before returning rather than a convention renderers are merely asked to
 follow; `reporting/figures.py` builds seven figure kinds as hand-built inline SVG rather than
@@ -180,8 +178,9 @@ test, since a third-party bundle's `security_interpretation` is a plausible XSS 
 rendered page. M0 through M9 are domain/capability/scenario/CLI/provider-laboratory/evidence/
 analysis/AWS-adapter-offline/Terraform-local work; M10 through M14 are the milestones that
 actually execute something end to end — against the fake provider only; M15 and M16 are both
-downstream of that evidence rather than producing more of it. M17 has not executed a
-five-family dedicated-account experiment; its gate is recorded above.
+downstream of that evidence rather than producing more of it. M17 has no valid or publishable
+five-family dedicated-account block; all incomplete attempts are recorded as superseded/excluded
+apparatus evidence in the lab log.
 M18's offline portion — `chainbreak compare`'s three-level classification, `--archive`, the
 migration framework, a verified-deterministic Docker image, and a hash-locked
 `requirements.lock` enforced with `--require-hashes` in CI — is also complete, ahead of
@@ -207,8 +206,8 @@ validate; only the real-AWS half of that comparison remains blocked on M17.
 | Config, SafetyGate, CLI | Complete **and verified in code** — layered config resolution, `SafetyGate` at 100% coverage, monotonic run clock, redaction filter, full `chainbreak` Typer surface | [M04-cli-config-safety.md](docs/implementation/milestones/M04-cli-config-safety.md), `config/`, `core/safety.py`, `core/clock.py`, `cli/` |
 | Provider abstraction | Complete **and verified in code** — `ProviderAdapter` Protocol, live wire types, `assert_namespace` (SI-2) | ARCHITECTURE §3.8, [ADR-008](docs/adr/ADR-008-provider-adapter-boundary.md), `providers/base/` |
 | Fake provider laboratory | Complete **and verified in code** — real policy engine, session lifetimes, injectable consistency model, 10/10 capability bindings, 3 named profiles, all 23 scenarios walk without crashing; M13 added an opt-in per-credential authority-caching mode (`enable_authority_caching`), never active for M10-M12 scenarios | ARCHITECTURE §3.9, `providers/fake/` |
-| AWS provider | Implemented and verified offline (moto call-shape tests, pure-logic disambiguation/retry/policy-synthesis tests) — **not yet verified against a real account** | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md), `providers/aws/` |
-| Terraform | All five modules + both environments implemented; `fmt`/`validate` clean locally — **never applied against a real account** | `infra/terraform/`, [M09-terraform-sandbox.md](docs/implementation/milestones/M09-terraform-sandbox.md) |
+| AWS provider | Implemented and verified offline; dedicated-account acceptance passed all 21 AWS tests and the wrong-account call-log gate; no valid M17 experiment result | [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md), `providers/aws/` |
+| Terraform | All five modules + both environments implemented; dedicated-account apply/destroy/no-op/verify-clean acceptance passed | `infra/terraform/`, [M09-terraform-sandbox.md](docs/implementation/milestones/M09-terraform-sandbox.md) |
 | Execution engine (Family A: scope attenuation; Family B: delegation drift; Family C: revocation propagation; Family D: stale authority; Family E: silent narrowing) | Complete **and verified in code, run end to end** — phase loop against the full `PhaseKind` enum, every member with a real branch as of M14 (`PROBE`/`SNAPSHOT`/`MUTATE`/`POLL`/`WAIT`/`DEFERRED_EXECUTION`/`TASK`), C-1/C-2/C-6/F6 controls, multi-hop chains to depth 6, all five revocation mechanisms with a pre-mutation revert log and `finally`-block reversion, paired pinned/fresh-credential probes with unconditional re-delegation for the fresh leg, four deterministic task workers with independent side-effect verification, `chainbreak run` wired (including `--fake-profile`) — **against the fake provider only; never run against AWS** | ARCHITECTURE §3.11, [M10-scope-attenuation.md](docs/implementation/milestones/M10-scope-attenuation.md), [M11-delegation-drift.md](docs/implementation/milestones/M11-delegation-drift.md), [M12-revocation.md](docs/implementation/milestones/M12-revocation.md), [M13-stale-authority.md](docs/implementation/milestones/M13-stale-authority.md), [M14-silent-narrowing.md](docs/implementation/milestones/M14-silent-narrowing.md), `execution/` |
 | Delegation-drift analysis (Family B) | Complete **and verified in code, run end to end** — per-hop drift classification and cause-citation chaining (any depth, not only the origin's immediate child), first-divergence-per-path wired into analysis output, F6's rate-per-hop/exclusion-rate depth-sweep aggregation with an explicit `INCONCLUSIVE` verdict | AUTHORIZATION_MODEL §4.4-4.5, [M11-delegation-drift.md](docs/implementation/milestones/M11-delegation-drift.md), `analysis/drift.py` |
 | Revocation-propagation execution (Family C) | Complete **and verified in code, run end to end** — `MutationPlan`/`PollPlan` compiled from scenario `MUTATE`/`POLL` phases, serial polling with `STABLE_DENIAL`/`STABLE_ALLOW`/`TIMEOUT` stability detection, an unconfirmed mutation receipt aborting the run (F4), pre-mutation policy snapshots, revert log written before every mutation and reverted in a `finally` block regardless of outcome (F8/F9) — the interval math and finding rules that consume the resulting evidence already existed from M7 | AUTHORIZATION_MODEL §5.1, [M12-revocation.md](docs/implementation/milestones/M12-revocation.md), `execution/mutation.py`, `execution/polling.py`, `execution/revert.py` |
@@ -841,10 +840,11 @@ because the milestone's full scope and acceptance criteria have not been met.
 None currently. (`schemas/*.json` and `schemas/run-index.sql`, listed here through M6, are now
 simply part of M6, which is complete.)
 
-### In progress
+### Completed acceptance refresh
 
-**M8 — AWS provider adapter.** Offline portion complete; the dedicated-account run executed,
-but four real-AWS denial/ambiguity tests remain failing. Delivered:
+**M8 — AWS provider adapter.** Complete; offline verification and dedicated-account acceptance
+passed all 21 AWS tests, the wrong-account call-log gate, and the fixed-role contract setup.
+Delivered:
 `providers/aws/preflight.py` (`TerraformOutputs` + `load_terraform_outputs` — P5's loader,
 validating all sixteen required output names from AWS_PROVIDER_SPEC section 8; `run_preflight`
 — P1–P11 in order, P1/P2 raising immediately with no further AWS call, P8/P9 producing
@@ -1009,9 +1009,8 @@ handling, atomic/stale-output lifecycle, and `status`/`verify-clean` against `mo
 including an IAM-role leftover that prevents a clean result.
 `tests/aws/test_cleanup_contract.py` (`e2e`-marked, per M9's own "Tests" section: "applies,
 destroys, destroys again, then runs verify-clean") drives the real `chainbreak infra` CLI
-commands end to end against `aws-sandbox` — **executed: 2 passed**, gated behind
-`CHAINBREAK_ALLOW_AWS_TESTS=1` and a `terraform.tfvars` file that has never existed in this
-environment.
+commands end to end against `aws-sandbox` — **executed: 2 passed** in the dedicated account,
+gated behind `CHAINBREAK_ALLOW_AWS_TESTS=1`.
 
 **M9 acceptance evidence:** criterion 1 (`terraform validate`/`fmt -check`) is met; criterion 2
 (`checkov`/`tflint` clean) is met by the recorded Checkov result (`138 passed, 0 failed, 30
@@ -1043,7 +1042,8 @@ with a recorded `CREDENTIAL_REDELEGATED` event, once its remaining lifetime drop
 matrix's own conservatively-estimated duration); `execution/preconditions.py` (resolves every
 precondition a matrix's capabilities require against a `PreconditionRegistry`, by the provisioning
 identity, before any probe in the matrix runs). `cli/run.py` implemented for real (`--provider
-fake` end to end; `--provider aws` a documented stub until M17) — registered as a plain root-app
+fake` end to end and `--provider aws` through the validated Terraform-output factory) — registered
+as a plain root-app
 command (`app.command("run")(run.run)`), not a sub-`Typer` app, the same fix `cli/analyze.py`
 already documents: a sub-app's `@app.callback(invoke_without_command=True)` misparses a required
 positional once an option follows it, exactly this milestone's own verification command's shape.
@@ -1663,12 +1663,9 @@ no fake-provider equivalent — a genuine `chainbreak run --provider fake` on an
 triggers the defect, so `chainbreak analyze` correctly reports `DETECTOR_FAILED` for each,
 exactly what S2 exists to surface; this is flagged as a follow-up rather than fixed here (a
 fake-provider extension or scenario-language addition, out of M15's own file list — see the
-new known issue below). Separately, `analysis/stale.py` has never populated
-`StaleAuthorityMeasurement.stale_window_seconds` (no mutation-timing input reaches it), so
-`scoring/categories.py::_authority_freshness` omits that `Measurement` entirely rather than
-approximating it from `deferral_seconds` (a different instant — wall_start minus
-credential.issued_at, not minus t_M) — "prefer INCONCLUSIVE over a guess" applied to a missing
-measurement, not just a missing finding.
+new known issue below). Separately, the former stale-window gap is resolved: `analysis/stale.py`
+receives the mutation send instant and `scoring/categories.py::_authority_freshness` consumes
+the resulting `stale_window_seconds` rather than approximating it from `deferral_seconds`.
 
 `cli/analyze.py` now writes `scores.json` alongside `findings.json` on every
 `chainbreak analyze <run-id>` (via `scoring.categories.score_bundle`), echoes each category's
@@ -1782,16 +1779,10 @@ Three things worth recording as genuine findings, not just design choices:
    than trusting the renderer unit tests (which run under pytest's own captured-output encoding
    and would never have surfaced it).
 
-Two known gaps surfaced while building `format_timing_result`, neither fixed here because fixing
-either means changing an earlier milestone's evidence schema, out of M16's own file list: (1)
-`Manifest.provenance` has no `region` key — `cli/run.py` (M10) never populated one, so every
-rendered timing result's `region=` field reads a documented placeholder
-(`format.py::REGION_NOT_CAPTURED`) naming the gap rather than inventing a value; (2) `git_dirty`/
-`git_commit` are declared on `core/models.py::Provenance` and already read by
-`evidence/index.py`, but `cli/run.py` never populates them either, so a real run's `git_dirty`
-always renders `false` today — `reporting/terminal.py`'s own rendering of a `True` value is
-proven correct by `tests/unit/test_report_terminal.py` constructing a `ReportData` directly
-rather than depending on a real bundle ever producing one. Both are flagged as follow-ups.
+The former provenance gaps are resolved in the current run path: `cli/run.py` records the
+environment region plus `git_commit` and `git_dirty` in the bundle provenance, and the report
+layer consumes those fields. The response-shape fixtures remain documented transcriptions, not
+live captures, with provenance files documenting that boundary.
 
 Negative controls, all three performed for real: (1) a `ReportData` built with a `Finding` whose
 `security_interpretation` contains `<script>alert('xss')</script>` renders the literal
@@ -1842,7 +1833,7 @@ $ pytest -m unit tests/unit/test_report_language.py -q
 32 passed in 0.09s
 ```
 
-Full suite: 1744 passed, 9 skipped, 23 deselected (was 1607 before M16 — +88 new tests across
+Historical M16 snapshot: 1744 passed, 9 skipped, 23 deselected (was 1607 before M16 — +88 new tests across
 `test_report_language.py` (32), `test_no_unsafe_template_filters.py` (5),
 `test_cli_report_command.py` (9), `test_report_figures.py` (18), `test_report_terminal.py` (11)
 and `test_report_generation.py` (12), minus one `test_cli_commands.py` case moved out of the
@@ -1980,14 +1971,14 @@ untested because this development environment's `schemas/` always exists and is 
 
 ```
 $ pytest -m "unit or integration" -q
-1744 passed, 9 skipped, 23 deselected
+Historical M18 snapshot: 1744 passed, 9 skipped, 23 deselected
 $ ruff check . && mypy
 All checks passed! / Success: no issues found in 120 source files
 $ lint-imports
 Contracts: 6 kept, 0 broken.
 ```
 
-Full suite was 1693 before this milestone; +51 net (test_compare.py 24, test_archive.py 7,
+The pre-M18 historical suite was 1693; +51 net (test_compare.py 24, test_archive.py 7,
 test_migrate.py 10, test_compare_negative_controls.py 2, test_cli_runs_command.py's two new
 `--archive` cases, test_import_boundaries.py's two new regex-regression cases, minus one
 `test_cli_commands.py` case retired now that `compare`'s own real behavior has a dedicated test
@@ -2004,23 +1995,21 @@ comparison (two real AWS runs of the same scenario, `compare`d against each othe
 archive/migrate exercise, both pending on the separate M17 evidence bar rather than on account
 provisioning.
 
-M8's remaining acceptance criteria are now narrowed to the unmodified-contract mismatch;
-the live adapter suite, fixtures, and call-log evidence are complete.
-M9's dedicated-account criteria are complete. M18's real-AWS comparison and archive/migrate
-exercise remain pending on the separate M17 evidence bar.
+M8 and M9 dedicated-account criteria are complete. M18's real-AWS comparison and archive/migrate
+exercise remain pending on a valid M17 evidence bar.
 
 ### Not started
 
-M17 and M19 (M8/M9 validation is complete except for the documented contract-model gap;
-M18's offline portion is complete and its real-AWS comparison remains pending; M10 through M16 are done,
-see their entries above). See [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+M19 has not started. M17 has only invalid/incomplete attempts and zero valid/publishable blocks;
+M18's offline portion is complete and its real-AWS comparison remains pending. See
+[docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
 
 ## Tests
 
 ```
-1744 passed, 9 skipped, 23 deselected in ~90s   (Python 3.12.7, pytest -m "unit or integration")
+Historical pre-current-refresh snapshot: 1744 passed, 9 skipped, 23 deselected in ~90s   (Python 3.12.7, pytest -m "unit or integration")
 23 skipped, 1752 deselected                     (Python 3.12.7, pytest -m "aws or e2e" -- gated by CHAINBREAK_ALLOW_AWS_TESTS)
 ```
 
@@ -2063,7 +2052,7 @@ see their entries above). See [docs/implementation/MILESTONES.md](docs/implement
 | `tests/unit/test_clock.py` | 12 | `RunClock` before/at/past its deadline via an injected fake monotonic source, `elapsed_seconds`/`remaining_seconds`/`expired`, the real `time.monotonic_ns` default path, `no_offset_estimator` |
 | `tests/unit/test_logging_filter.py` | 14 | AKIA/ASIA keys, a simulated botocore DEBUG record with a JSON-quoted session token (acceptance criterion 3), key=value and JSON-quoted spellings, `install()` idempotence, third-party loggers covered even with `propagate = False` set on themselves |
 | `tests/unit/test_cli_surface.py` | 5 | S1: no option anywhere in the real command tree matches a bypass keyword; `--auto-approve` deliberately not flagged (documented exception); the negative-control detector both catches a planted `--skip-safety` fixture and stays silent on a clean one |
-| `tests/unit/test_cli_commands.py` | 17 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: the remaining not-yet-implemented command (`compare` — `runs`/`evidence export --public` resolved by M6, `analyze` resolved by M7, `infra {plan,apply,destroy,status,verify-clean}` resolved by M9, `run --provider fake` resolved by M10, `report` resolved by M16 — see `test_cli_infra_command.py`, `test_cli_run_command.py` and `test_cli_report_command.py` respectively; `run --provider aws` remains a documented stub until M17) exits 2 with "not implemented until M\<n\>", never a stack trace |
+| `tests/unit/test_cli_commands.py` | 17 | F3: each of `validate`'s six checks at the function level, plus an end-to-end `CliRunner` pass on a correct config (text and `--json`) and an informative failure on a missing one; F4: the remaining not-yet-implemented command (`compare` — `runs`/`evidence export --public` resolved by M6, `analyze` resolved by M7, `infra {plan,apply,destroy,status,verify-clean}` resolved by M9, `run --provider fake` resolved by M10, `report` resolved by M16 — see `test_cli_infra_command.py`, `test_cli_run_command.py` and `test_cli_report_command.py` respectively) exits 2 with "not implemented until M\<n\>", never a stack trace; AWS-provider wiring is implemented and acceptance-tested separately |
 | `tests/unit/test_cli_scenario_command.py` | 6 | `chainbreak scenario validate`/`list` against a real scenario, a missing file, a structurally invalid document, the repo corpus, a missing directory, an empty directory |
 | `tests/unit/test_namespace_guard.py` | 7 | `assert_namespace` exact/embedded/lookalike/empty-ref cases, error context carries both `namespace` and `ref` |
 | `tests/unit/test_fake_policy_engine.py` | 16 | F2's full evaluation order: identity allow alone, explicit deny beating identity and session allow, session intersection never granting, resource policy granting across the intersection, `replace`/`apply_allow`/`remove_allow`, `evaluate_against` against an explicit snapshot with no registered identity at all |
@@ -2098,8 +2087,8 @@ see their entries above). See [docs/implementation/MILESTONES.md](docs/implement
 | `tests/integration/test_scope_attenuation.py` | 7 | M10 acceptance criteria, through the real `execution/orchestrator.py`: `scope-attenuation/basic.yaml` end to end producing a sealed bundle and findings with no `AUTHORITY_EXPANSION` (criterion 1); both scope-attenuation negative controls in both directions via the same fake-side defect injection `test_negative_controls.py` established (criterion 2); the probe-order seed recorded and replaying it reproducing the identical order, a different seed producing a different one (criterion 4) |
 | `tests/integration/test_control_capability.py` | 4 | C-1/acceptance criterion 3: `calibrate_matrix` succeeds and returns one observation per control capability; a throttled apparatus (every call including `identity.whoami`'s own fails) raises `ControlCapabilityFailedError` naming the identity and matrix; the full orchestrator discards every matrix in the run (not just one identity's row) and writes zero observations for any of them, only a `MATRIX_DISCARDED` event each |
 | `tests/integration/test_probe_matrix_execution.py` | 9 | Trial repetition (every non-control capability gets exactly `matrix.trials` observations, trial numbers `1..trials`); C-6's shuffle reproducing identically for the same `(seed, matrix, identity)` and differing for a different seed; C-2's precondition check raising before any probe runs, naming the failed marker, and passing cleanly when all markers are present; F6's `needs_redelegation` threshold math, `ensure_fresh_credential` actually re-delegating and recording a `CREDENTIAL_REDELEGATED` event, being a no-op for a healthy credential, and never firing for the root identity (no edge, no expiring credential) |
-| `tests/integration/test_orchestrator_error_paths.py` | 9 | An unmapped scenario phase name raising a named `ExecutionError` rather than guessing; a failed preflight aborting before `finalize()` runs (F2: partial evidence left on disk, no `manifest.json`); F6 re-delegation actually firing mid-run and being recorded; the still-unimplemented `WAIT`/`DEFERRED_EXECUTION`/`TASK` `PhaseKind`s raising and naming their milestone; a synthetic `MUTATE`/`POLL` step with no matching compiled `MutationPlan`/`PollPlan` correctly reported as a compiler invariant violation, not "not implemented" (M12: both are real now); `SNAPSHOT` a harmless no-op when reached |
-| `tests/integration/test_cli_run_command.py` | 9 | `chainbreak run`'s CLI-level argument handling (missing/unknown scenario, unknown provider, `--provider aws`'s documented-stub message, an unknown `--fake-profile`, a structurally invalid scenario exiting 1 not a stack trace), the `--fake-profile eventual` happy path, and the fake-provider happy path through a real `CliRunner` invocation, including `chainbreak analyze` consuming the bundle it produced |
+| `tests/integration/test_orchestrator_error_paths.py` | 9 | An unmapped scenario phase name raising a named `ExecutionError` rather than guessing; a failed preflight aborting before `finalize()` runs (F2: partial evidence left on disk, no `manifest.json`); F6 re-delegation actually firing mid-run and being recorded; historical coverage of the former `WAIT`/`DEFERRED_EXECUTION`/`TASK` milestone errors; a synthetic `MUTATE`/`POLL` step with no matching compiled `MutationPlan`/`PollPlan` correctly reported as a compiler invariant violation, not "not implemented" (M12: both are real now); `SNAPSHOT` a harmless no-op when reached |
+| `tests/integration/test_cli_run_command.py` | 9 | `chainbreak run`'s CLI-level argument handling (missing/unknown scenario, unknown provider, implemented `--provider aws` wiring, an unknown `--fake-profile`, a structurally invalid scenario exiting 1 not a stack trace), the `--fake-profile eventual` happy path, and the fake-provider happy path through a real `CliRunner` invocation, including `chainbreak analyze` consuming the bundle it produced |
 | `tests/unit/test_drift_aggregation.py` | 9 | M11 F6: `build_depth_result`'s hop/divergence/exclusion counting against a hand-built graph (root never counted as a hop); `DepthResult`'s rate properties guard against division by zero; `summarize_depth_sweep`'s confound verdict in both directions (stable or divergence-only-rising rates are not inconclusive; both rates rising together is, and names why) plus depth-order-independent input |
 | `tests/unit/test_chain.py` | 2 | `materialize_chain`'s S1 depth guard: within bound delegates to `delegation.materialize_graph` normally; over bound raises a named `ExecutionError` before any delegation happens |
 | `tests/integration/test_delegation_drift.py` | 6 | M11 acceptance criteria, through the real `execution/orchestrator.py` (via `execution/chain.py`): AUTHORIZATION_MODEL section 7's worked example end to end (hop 3 `ORIGINATED`, hop 4 `PROPAGATED` citing hop 3's finding, first divergence at hop 3 reaching real path-analysis output); hop 4 `CORRECTED` when it drops hop 3's gain, with no finding raised at all; citation surviving three propagated hops past the origin (the bug M11 found and fixed); `nc-non-monotone-chain` in both directions. Uses `role-chain-five-hop.yaml`, a test-support fixture (plain `ROLE_CHAIN` throughout — see its own docstring for why the depth-sweep scenarios can't carry an identity-policy-level defect past their session-policy-scoped hops) |
@@ -2250,17 +2239,18 @@ SI-5 SafetyGate gate. Coverage is otherwise not enforced project-wide.
 
 ## Measured experiments
 
-**None.** "Run against fake" below means the execution engine actually runs that family end to
-end against the deterministic fake provider — an apparatus check, not a measurement (see "The
-honest headline"). No family has been run against real infrastructure; no row here is a result.
+**No valid or publishable M17 measurement exists.** "Run against fake" below means the execution
+engine actually runs that family end to end against the deterministic fake provider — an
+apparatus check, not an AWS measurement. Invalid/incomplete AWS attempts are retained in the lab
+log as superseded/excluded apparatus evidence; none is a result.
 
 | Family | Implemented | Run against fake | Run against AWS |
 |---|---|---|---|
-| Scope attenuation | yes (M10) | yes | no |
-| Delegation drift | yes (M11) | yes | no |
-| Revocation propagation | yes (M12) | yes | no |
-| Stale authority | yes (M13) | yes | no |
-| Silent narrowing | yes (M14) | yes | no |
+| Scope attenuation | yes (M10) | yes | 0 valid/publishable M17 blocks |
+| Delegation drift | yes (M11) | yes | 0 valid/publishable M17 blocks |
+| Revocation propagation | yes (M12) | yes | 0 valid/publishable M17 blocks |
+| Stale authority | yes (M13) | yes | 0 valid/publishable M17 blocks |
+| Silent narrowing | yes (M14) | yes | 0 valid/publishable M17 blocks |
 
 Negative controls authored: 6 of 6. Executed against fake: 6 of 6 (`nc-scope-expansion`,
 `nc-surviving-authority`, `nc-non-monotone-chain` via `tests/fixtures/mini_orchestrator.py`'s
@@ -2268,29 +2258,44 @@ real-fake-adapter-calls-without-the-real-orchestrator stand-in; `nc-no-revocatio
 `nc-stale-credential-reuse` and `nc-silent-success` via the real `execution/orchestrator.py`
 directly — M12 moved `nc-no-revocation` there first, M13 added `nc-stale-credential-reuse`, M14
 added `nc-silent-success`).
-Executed against AWS: 0 of 6.
+Executed in a valid/publishable AWS block: 0 of 6.
 
-[docs/research/lab-log.md](docs/research/lab-log.md) is empty and will receive its first entry
-at M17.
+[docs/research/lab-log.md](docs/research/lab-log.md) contains the historical invalid/incomplete
+M17 apparatus entries and their exclusions; no valid block has been published.
 
 ---
 
-## Known issues
+## Current known issues
 
-1. **No hash-locked lockfile yet (T-14).** M0 established a real, addressable development
-   environment (a `.venv` under Python 3.12, not the prior ad hoc sandbox), but `pip install
-   --require-hashes` and a committed lockfile are still outstanding. `pyproject.toml`
-   dependency bounds are the only supply-chain control today; `pip-audit` runs in CI but a
-   compromised transitive release between audits is still possible. Not blocking M1; should
-   land before M8 pulls in `boto3`.
+1. **No valid/publishable M17 block exists.** The historical attempts in
+   `docs/research/lab-log.md` are invalid/incomplete apparatus evidence and remain excluded from
+   measurement claims. A valid five-family/six-control M17 block is still pending.
+2. **The real-AWS portion of M18 is pending.** Offline compare/archive/migration and dependency
+   hardening are complete; real-AWS comparison and archive/migration exercise must follow a valid
+   M17 block.
+3. **M19 has not started.** The results write-up, release artifacts, tag, and publication remain
+   gated on M17 and M18.
+
+The following ledger is historical milestone context, not the active issue list. Resolved entries
+are retained only where they explain a past apparatus repair; they are not current blockers.
+
+Resolved and retired from the active list: the AWS `run` path is implemented; preflight order is
+fail-closed with only `GetCallerIdentity` before an account mismatch; cleanup enumerates the IAM
+blind spot; bundle provenance records region, commit, and dirty state; AWS sessions refresh and
+close with secret state scrubbed; stale-window population is wired; and P8
+`CONFIGURATION_ERROR` findings are wired through the preflight/analysis path. CI still does not
+run TFLint or a documentation-link job.
+
+## Historical known-issue ledger
+
+1. **Resolved by M18 offline hardening.** `requirements.lock` is committed and the hash-locked
+   install path is exercised by the CI security job.
 2. ~~`BindingRegistry` and `PreconditionRegistry` are empty at runtime, outside tests.~~
    **Half-resolved by M5, for the fake provider.** `providers/fake/bindings.py` and
    `providers/fake/probes.py` register real, production bindings and precondition verifiers
    for all 10 catalog capabilities into `FakeProviderAdapter.bindings`/`.preconditions` at
-   construction time — not a test fixture, the actual adapter callers will use. The AWS half
-   remains open until M8: compiling a real `provider: aws` scenario still requires supplying
-   `tests/conftest.py::synthetic_aws_registry` (or an equivalent), since no production AWS
-   binding exists yet.
+   construction time — not a test fixture, the actual adapter callers use. The AWS half is now
+   supplied by the production adapter factory and passed dedicated-account acceptance.
 3. ~~G-4's provider-binding half is not enforced.~~ **Resolved by M3.** `scenarios/compiler.py`
    calls `resolve_bindings` (M2) against the graph `graph/builder.py` (M1) already built,
    which is what full G-4 enforcement actually needed — a component able to import both
@@ -2300,33 +2305,26 @@ at M17.
 4. ~~`OperationAllowlist` is not wired to anything yet.~~ **Resolved by M5.**
    `providers/fake/adapter.py`'s `probe()` wraps every call in `OperationAllowlist`, recording
    the binding's declared action(s) — the first real (non-test) caller since M2 built the
-   mechanism. The AWS adapter's botocore `before-call` hook (M8) remains the other intended
-   caller and is still unbuilt; the fake's own call pattern always records exactly its own
+   mechanism. The AWS adapter's botocore `before-call` hook (M8) is now the other production
+   caller; the fake's own call pattern always records exactly its own
    binding's actions, so today's wiring cannot itself observe a *cross-capability* mismatch
    (a caller passing a binding for one capability alongside a different declared
    `capability_id`) — worth a defensive assertion if that ever turns out to matter in
    practice, not added now since it is out of M5's scope.
 5. ~~`chainbreak scenario validate` (the CLI) does not exist yet.~~ **Resolved by M4.**
    `cli/scenario.py`'s `validate` command wraps `scenarios.loader.validate_scenario` directly.
-   One consequence carries forward from known issue 2, worth stating explicitly here since
-   it is now user-visible rather than just a test-fixture concern: stage 4 (provider binding)
-   always resolves against an empty `BindingRegistry` today, because no provider package has
-   registered a real binding into one yet (M5 fake, M8 AWS). Running `chainbreak scenario
-   validate` against any of the repo's real, structurally valid scenarios today exits 4
-   (`EXIT_BINDING`), never 0 (`EXIT_VALID`) — this is correct current behavior, not a bug, and
-   is why `chainbreak validate`'s own "scenarios" check (F3) treats `EXIT_BINDING` as
-   informational rather than a failure until a provider exists.
+   Scenario validation now resolves against the same synthetic non-network registry used by the
+   runtime compilation path, so the shipped scenarios validate offline without Terraform or AWS.
 6. ~~No `.tf` files exist. Only contracts. `chainbreak infra *` will not work until M9.~~
-   **Resolved by M9, locally.** All five modules and both environments are implemented and
+    **Resolved by M9 and dedicated-account acceptance.** All five modules and both environments are implemented and
    `terraform fmt -check -recursive`/`terraform validate` pass against a Terraform 1.9.8 binary
    downloaded for this milestone specifically (not committed — it lives outside the repo, in the
    local temp directory the CI runner would install its own copy into instead), using a
    filesystem-mirrored AWS provider plugin to work around this sandbox's slow direct-registry
    throughput. `chainbreak infra plan/apply/destroy/status/verify-clean` are all implemented and
    unit-tested (`status`/`verify-clean` for real against `mock_aws()`; `plan`/`apply`/`destroy`
-   only for argument handling, since exercising them for real needs a real account). What remains
-   open, carried forward as new known issue 18 below: `checkov`/`tflint` (M9 acceptance criterion
-   2) have not run anywhere in this environment, and no `terraform apply` has ever executed.
+   only for argument handling in the offline suite). Dedicated-account acceptance covered the
+   real apply/destroy path; Checkov and TFLint passed in that acceptance environment.
 7. **`make` itself is not available in the M0 development environment.** `Makefile` targets
    were verified by running the commands each target wraps directly, not via `make lint`
    etc. Low risk (the targets are one-line wrappers) but genuinely unexercised.
@@ -2350,9 +2348,9 @@ at M17.
     graph and M10's own file list (`execution/orchestrator.py`, `execution/matrix.py`,
     `execution/delegation.py`) — see the M5 entry under "Completed" for how acceptance
     criteria 3 and 4 were verified instead, at the provider layer that existed at the time.
-    `execution/orchestrator.py` now exists and `chainbreak run` drives the full phase loop
-    against the fake provider for all five benchmark families (M10–M14); `--provider aws`
-    remains a documented stub until M17.
+`execution/orchestrator.py` now exists and `chainbreak run` drives the full phase loop
+against the fake provider for all five benchmark families (M10–M14); `--provider aws` is
+implemented through the validated Terraform-output factory. M17 has produced no valid result.
 11. **`Manifest.block_id` is always `None` today.** Added at M6 for schema symmetry with
     `ExperimentRun` and because `schemas/run-index.sql`'s `runs.block_id` column already exists,
     but nothing populates it until the orchestrator (M10+) and control C-7's block randomization
@@ -2373,17 +2371,11 @@ at M17.
     same way `_revocation_findings` already did for the timing family since M12;
     `analysis/task_contract.py::extract_task_outcomes` extracts `TASK_OUTCOME_RECORDED` events the
     same way, and `task_contract_findings` calls all three task-contract rules automatically.
-    `CONFIGURATION_ERROR` remains open with no milestone currently named to close it. `chainbreak
-    analyze` against any real bundle now reports findings from every family except that one.
-14. **No AWS account or Terraform infrastructure exists; nothing in `providers/aws/` has ever
-    executed against real AWS.** Every behavior verified so far is either pure logic (message
-    parsing, retry math, policy-document synthesis) or verified against moto's in-memory
-    emulation, which the M8 entry above states plainly does not enforce real IAM
-    allow/deny semantics. Real IAM behavior — the actual ground truth ADR-009 chose empirical
-    probing over policy simulation specifically to measure — remains completely unverified.
-    `tests/aws/test_adapter_real.py` exists and is ready to run the moment an account and
-    Terraform-provisioned infrastructure exist; until then, treat every AWS-adapter behavior as
-    "implemented per spec," not "confirmed correct."
+`CONFIGURATION_ERROR` wiring is resolved: preflight P8 classifies missing-marker infrastructure
+as configuration failure, and the analysis path preserves that classification.
+14. **Resolved by the dedicated-account acceptance.** The AWS adapter's live P1–P11, IAM
+    semantics, wrong-account call-log, Terraform apply/destroy, service enumeration, and exact
+    cleanup paths were exercised. This does not constitute a valid M17 five-family measurement.
 15. **`AwsProviderAdapter.register_identity` cannot satisfy the shared `ProviderContractSuite`
     unmodified.** AWS's identities are fixed by Terraform provisioning (`bootstrap`, `principal`,
     `agent-a`..`agent-f`); the suite's own fake-oriented tests invent ad hoc names
@@ -2394,11 +2386,9 @@ at M17.
     live account captures.** The fixtures are explicitly provenance-labeled and contain no
     account identifiers, ARNs, hostnames, credentials, or request IDs; live IAM semantics are
     validated separately by the real adapter suite.
-17. **`adapter.py::_bootstrap_session` caches its assumed bootstrap credential for the adapter's
-    entire lifetime with no refresh.** A long-running real benchmark (AWS_PROVIDER_SPEC section
-    9 estimates ~20 minutes wall clock for a full suite) could outlast a short-duration bootstrap
-    session before M8's own real-account tests ever get to exercise this path. Not addressed now
-    since it cannot be tested without a real account either; worth revisiting once one exists.
+17. **Resolved by the current AWS adapter.** The bootstrap session refreshes before expiry and
+    `AwsProviderAdapter.close()` clears the cached session/credential state; the acceptance suite
+    covers both behaviors.
 18. ~~`checkov`/`tflint` (M9 acceptance criterion 2) have not run anywhere in this development
     environment.~~ **`checkov` half-resolved.** A first `pip install checkov` attempt had
     stalled on this network's own throughput (the same constraint that required downloading the
@@ -2407,15 +2397,11 @@ at M17.
     (3.3.9) now runs clean locally (138 passed, 0 failed, 30 documented skips) and in CI
     ([run 31261194217](https://github.com/KubixDesiney/chainbreak/actions/runs/31261194217), one
     fix iteration after the first M9 push — see the "Tests" section for the full story).
-    `tflint` was never attempted and has still never run anywhere, in this environment or in CI
-    (CI's own `terraform` job runs `checkov` only, not `tflint`); until it does, the "no
-    `Resource: "*"` except `sts:GetCallerIdentity`" rule (S1) is enforced only by
-    each module's own HCL having been written to it deliberately, not by an independent check.
-19. **No `terraform apply` has ever run, anywhere, against anything — not even LocalStack.**
-    `environments/local-development` exists and validates, but this development environment has
-    no Docker/LocalStack available either, so even the LocalStack-compatible path is unverified
-    beyond `terraform validate`. Every module's actual provisioning behavior — not just its HCL
-    syntax — remains unconfirmed until a real (or LocalStack) apply happens.
+    TFLint passed in the dedicated-account M9 acceptance environment; CI's current `terraform`
+    job runs Checkov but not TFLint. The historical pre-acceptance note is retired.
+19. **Resolved by M9 acceptance.** Terraform apply/destroy, repeated no-op operations, and
+    service-specific exact cleanup were exercised in the dedicated account; no LocalStack claim
+    is made.
 20. ~~`test_import_boundaries.py`'s planted-violation teardown called `planted.unlink()`
     unconditionally.~~ **Resolved by S1 (2026-08-09).** On a filesystem where the removal is
     denied, the bare `unlink()` raised from the `finally` block, failing the test for the wrong
@@ -2448,33 +2434,14 @@ at M17.
     scenario-declared "extra grant"/infrastructure-profile injection mechanism, or explicitly
     documenting these three as AWS/M17-only; a follow-up task was spawned for this rather than
     fixed inline, since it is a different, larger scope than M15's own file list.
-22. **`StaleAuthorityMeasurement.stale_window_seconds` is never populated.** `analysis/stale.py`
-    has no mutation-timing (`t_M`) input reaching it, so the field stays `None` for every
-    measurement it builds — `deferral_seconds` (wall_start minus credential.issued_at) exists
-    instead, but that is a different instant, not a substitute. `scoring/categories.py`'s
-    Authority Freshness evaluator omits the `stale_window_seconds` `Measurement` entirely rather
-    than approximating it from `deferral_seconds`. SCORING_MODEL.md section 2.4 names
-    `stale_window_seconds` as the category's primary timing measurement; until `analysis/stale.py`
-    is threaded a mutation-sent timestamp (the same `t_M` `analysis/timing.py::compute_revocation_window`
-    already reads for the revocation family), this measurement stays structurally absent rather
-    than reported.
-23. **`Manifest.provenance` carries no `region` field.** `cli/run.py` (M10) never added one to
-    the `provenance={...}` dict it builds, so `reporting/format.py::format_timing_result` — which
-    EXPERIMENT_PROTOCOL §7 requires to name a region on every timing result — renders
-    `region=REGION_NOT_CAPTURED`, a documented placeholder, rather than a real value, for every
-    report M16 can currently produce. Surfaced while building M16's own required rendering
-    surface, not an M16 defect: fixing it means adding a `region` key to `cli/run.py`'s
-    provenance dict (and, for AWS runs, to whatever M17 builds), out of M16's own file list.
-24. **`Provenance.git_dirty`/`git_commit` are declared but never populated.** Both fields exist
-    on `core/models.py::Provenance` and `evidence/index.py` already reads them expecting they
-    might be present, but `cli/run.py` has never actually computed a `git status --porcelain`/
-    `git rev-parse HEAD` and included them in the `provenance={...}` dict it hands
-    `BundleWriter` — so every real bundle's `git_dirty` renders `false` today regardless of the
-    working tree's actual state. M16's F7 requirement ("`git_dirty: true` renders prominently")
-    is implemented correctly in `reporting/terminal.py`/`markdown.py`/`html.py` and proven so by
-    `tests/unit/test_report_terminal.py` constructing a `ReportData` with `git_dirty=True`
-    directly — the rendering is real, only the upstream population is missing. Fix belongs in
-    `cli/run.py`, out of M16's own file list.
+22. **Resolved by the current analysis wiring.** `analysis/stale.py` receives the mutation send
+    instant and populates `StaleAuthorityMeasurement.stale_window_seconds`; the Authority
+    Freshness evaluator consumes it rather than approximating from `deferral_seconds`.
+23. **Resolved by the current run path.** `cli/run.py` records the environment region in
+    `Manifest.provenance`, so timing reports no longer use `REGION_NOT_CAPTURED` for a run that
+    provides the value.
+24. **Resolved by the current run path.** `cli/run.py` records `git_commit` and `git_dirty`; the
+    reporting layer renders those provenance fields as designed.
 
 ---
 
@@ -2513,50 +2480,43 @@ Recorded now so it is deliberate rather than discovered later.
 
 | Resource | Needed from | Notes |
 |---|---|---|
-| A **dedicated** AWS account, no production workloads | M8 | Hard requirement; the allowlist admits no wildcard |
-| An IAM identity able to assume the bootstrap and principal roles | M8 | SSO or OIDC preferred; never a static key |
-| Terraform 1.7+ | M9 | A 1.9.8 binary and a mirrored AWS provider plugin exist locally in this development environment (not committed) — sufficient for `fmt`/`validate`; `apply` still needs the account row above |
+| A **dedicated** AWS account, no production workloads | M17/M18 real-AWS exercise | M8/M9 dedicated-account acceptance is complete; the allowlist admits no wildcard |
+| An IAM identity able to assume the bootstrap and principal roles | M17/M18 real-AWS exercise | M8/M9 acceptance passed with SSO/OIDC-style fixed-role setup; never use a static key |
+| Terraform 1.7+ | M17/M18 real-AWS exercise | A 1.9.8 binary and mirrored provider plugin exist locally (not committed); `fmt`/`validate` and M9 apply/destroy acceptance passed |
 | `tflint` | M9 | Dedicated-account acceptance run passed; retain the tool in the verification environment for repeatability |
 | AWS spend | M8 | Under $1 for the full suite; Budgets alarm at $5 |
 | A GitHub environment `aws-benchmark` with required reviewers | M17 | For the manually-dispatched experiment workflow |
 | At least three separate time windows | M17 | Control C-7: timing trials must be distributed across blocks |
 
-M0–M7 were entirely offline. M8's adapter code was written and verified offline (against moto
-and pure logic); its own remaining acceptance criteria, and M9's `terraform apply`/`destroy`,
-both need the account and identity above before they can run for real. M10–M16 are offline
-again once M8/M9 are settled.
+M0–M7 were entirely offline. M8's adapter code and M9's Terraform sandbox were verified offline
+and then passed dedicated-account acceptance. M10–M16 are complete offline; only the future
+real-AWS M17 block and the real-AWS half of M18 still require the account and identity above.
 
 ---
 
 ## Current next action
 
-**M9's dedicated-account acceptance is complete. M8's live semantics, fixture, and call-log
-evidence are complete; its literal unmodified-contract criterion remains open because of the
-fixed-role identity-model mismatch. M17 has not started. M10 through M16 are all done (see
-their entries above). M10–M14 run every one of the five
-benchmark families end to end against the fake provider; M15 turns that evidence into six
-independent category results, with no composite score anywhere (ADR-010); M16 renders that
-evidence into terminal, Markdown and self-contained HTML reports, with the reporting-language
-rules enforced at render time. The next action is to resolve the four adapter failures and
-complete the scrubbed M8/M17 evidence package; M18's independent offline work can continue in
-parallel.**
+**M0–M16 are complete, including dedicated-account acceptance for M8 and M9. M17 has only
+invalid/incomplete apparatus attempts, with zero valid/publishable blocks and no measurement.
+M18's offline portion is complete; its real-AWS comparison/archive/migration exercise remains
+pending. M19 has not started.**
 
-M17's dedicated-account experiment has not occurred; it remains gated on the M8 contract
-decision and explicit schedule approval. There is no more
-fully-unblocked, fully-specified fake-provider-only milestone left to hand to a session the way
-S1–S8 were — the next piece of work is either the AWS account becoming available, or a scoped
-decision about which M18 pieces to pull forward now.
+The next action is a future, explicitly approved M17 run that satisfies the complete family,
+negative-control, block, timing, and cleanup gates. No result may be inferred from the historical
+invalid attempts.
 
-Verification commands for the full fake-provider-only surface (M0 through M16), run for real
-this session:
+Verification commands for the full offline surface (M0 through M16 plus the current offline
+M18 tooling), run for real this session. The pre-pass baseline was 1,772 passed; the current
+worktree, including pre-existing source/test changes, produced 1,808 passed:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
-ruff check . && ruff format --check .              # clean
-mypy                                                # clean, 119 source files
+ruff check . && ruff format --check .              # All checks passed! / 315 files already formatted
+mypy                                                # Success: no issues found in 122 source files
 lint-imports                                        # 6 contracts kept
 bandit -r src/ -q                                   # clean
-pytest -m "unit or integration" -q                  # 1744 passed, 9 skipped, 23 deselected
+pytest -m "unit or integration" --cov=chainbreak --cov-report=term-missing -q
+                                                      # 1,808 passed, 9 skipped, 28 deselected
 pytest -m unit tests/unit/test_redaction.py \
   --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # 100%
 pytest --cov=chainbreak.reporting --cov-report=term-missing -q \
@@ -2567,9 +2527,24 @@ chainbreak --help                                   # ~360ms, under the 500ms bu
 chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729
 chainbreak analyze <run-id>
 chainbreak report <run-id> --format terminal        # renders; stamped FAKE-PROVIDER APPARATUS CHECK
-chainbreak report <run-id> --format html -o /tmp/r.html   # 20K, well under 2MB
-grep -rn '|safe' src/chainbreak/reporting/templates/ && echo FAIL || echo "no unsafe filters"
+ chainbreak report <run-id> --format html -o /tmp/r.html   # 20K, well under 2MB
+ grep -rn '|safe' src/chainbreak/reporting/templates/ && echo FAIL || echo "no unsafe filters"
 ```
+
+Exact current gate summaries:
+
+```text
+408 passed, 9 skipped in 1.70s
+16 passed in 0.93s
+52 passed in 1.72s
+22 skipped, 1823 deselected in 2.10s
+Terraform wildcard-resource check: PASS (28 Terraform files checked)
+Passed checks: 138, Failed checks: 0, Skipped checks: 30
+```
+
+`pip-audit --skip-editable` is the only non-green gate in this environment: it reports 15
+known vulnerabilities in installed `aiohttp 3.13.5` and `ecdsa 0.19.2`; no dependency or source
+behavior was changed in this documentation pass.
 
 ---
 

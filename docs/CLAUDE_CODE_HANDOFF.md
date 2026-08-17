@@ -591,8 +591,9 @@ Non-negotiable requirements:
 
 - benchmark-account must fail at PLAN time on an account mismatch, not apply time. An
   operator pointed at the wrong account should never reach a diff that looks appliable.
-- No Resource: "*" except a statement whose only action is sts:GetCallerIdentity. Add the
-  tflint/checkov rule that enforces this.
+- No Resource: "*" except a statement whose only action is sts:GetCallerIdentity. Current CI
+  enforces this with the repository wildcard guard plus Checkov; TFLint was used for dedicated-
+  account acceptance, not as a current CI job.
 - Bootstrap must not be able to mutate itself or the principal. Verify with
   iam:SimulatePrincipalPolicy in a test, not by reading the policy.
 - default_tags at the provider level, with service-specific fail-closed enumerators (including

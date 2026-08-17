@@ -19,16 +19,19 @@
 # to avoid introducing anything environment-dependent (locale, timezone,
 # hash randomization) on top of that.
 
-FROM python:3.12-slim AS build
+FROM python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65 AS build
 
 WORKDIR /build
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md requirements-build.lock ./
 COPY src/ ./src/
+COPY schemas/ ./schemas/
+COPY scenarios/ ./scenarios/
 
-RUN pip install --no-cache-dir --root-user-action=ignore build==1.* && \
+RUN pip install --no-cache-dir --require-hashes --root-user-action=ignore \
+        -r requirements-build.lock && \
     python -m build --wheel --outdir /build/dist
 
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65
 
 LABEL org.opencontainers.image.title="chainbreak" \
       org.opencontainers.image.description="An empirical benchmark for authorization behavior in delegated and agentic cloud systems -- fake-provider runner" \
@@ -48,21 +51,19 @@ ENV PYTHONHASHSEED=0 \
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin chainbreak
 
 COPY --from=build /build/dist/*.whl /tmp/wheels/
-# report extra (jinja2, plotly) so `analyze`/`report` work offline too, per
-# REPRODUCIBILITY.md section 7's full run -> analyze -> report walkthrough.
-# aws/dev/analysis extras are deliberately excluded (S2; and boto3/pyarrow
-# would otherwise be most of this image's weight for a provider this image
-# can never actually use). The wheel's real, PEP 427 filename (including its
-# version and tags) must be preserved -- pip rejects a renamed .whl -- so the
-# extras suffix is appended via a shell-expanded variable instead of a fixed
-# COPY destination name.
-RUN whl="$(ls /tmp/wheels/*.whl)" && \
-    pip install --no-cache-dir --root-user-action=ignore "${whl}[report]" && \
+COPY requirements-runtime.lock /tmp/requirements-runtime.lock
+# Install the exact, hash-verified runtime/report closure first, then install
+# the wheel without dependency resolution. This keeps the image offline after
+# the build context is prepared and prevents a live extras re-resolution.
+RUN pip install --no-cache-dir --require-hashes --root-user-action=ignore \
+        -r /tmp/requirements-runtime.lock && \
+    whl="$(ls /tmp/wheels/*.whl)" && \
+    pip install --no-cache-dir --no-deps --root-user-action=ignore "${whl}" && \
+    rm -f /tmp/requirements-runtime.lock && \
     rm -rf /tmp/wheels
 
 USER chainbreak
 WORKDIR /home/chainbreak
-COPY --chown=chainbreak:chainbreak scenarios/ ./scenarios/
 
 ENTRYPOINT ["chainbreak"]
 CMD ["--help"]

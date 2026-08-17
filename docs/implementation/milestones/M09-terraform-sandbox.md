@@ -1,5 +1,13 @@
 # M9 — Terraform AWS sandbox
 
+## Current status
+
+Complete. Dedicated-account acceptance passed on 2026-08-15: Terraform apply, no-op re-apply,
+preflight, zero-manual-step destroy, repeated destroy, service-specific enumeration, and exact
+`verify-clean` all passed. The recorded Checkov result was `138 passed, 0 failed, 30 documented
+skips`; TFLint also passed in that acceptance environment. M17 remains a separate experiment
+milestone and has zero valid/publishable blocks.
+
 ## Purpose
 Implement the five Terraform modules and two environments to their contracts, and wire the
 `chainbreak infra` commands.
@@ -41,7 +49,8 @@ Apply under 3 minutes; destroy under 2. Cost per suite under $0.10.
 
 ## Security requirements
 - S1 No `Resource: "*"` except a statement whose only action is `sts:GetCallerIdentity`,
-  enforced by a `checkov`/`tflint` custom rule in CI.
+  enforced in current CI by the repository's wildcard guard plus Checkov; TFLint was part of
+  dedicated-account acceptance but is not a current CI job.
 - S2 Bootstrap cannot mutate itself or the principal — verified with
   `iam:SimulatePrincipalPolicy` in a test.
 - S3 No provisioners, no `local-exec`, no command-executing data sources.

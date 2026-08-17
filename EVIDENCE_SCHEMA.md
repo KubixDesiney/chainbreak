@@ -182,7 +182,7 @@ Design notes worth defending:
   When a classification is later found to be wrong, every affected observation is findable
   by path, and re-analysis can correct historical bundles.
 - **`clock_offset_ms`** is the measured local-vs-provider clock offset at the time of the
-  probe (see [§7](#7-clock-calibration)). Timing findings that depend on wall-clock
+  probe (see [§7](#7-clock-calibration--environmentjson)). Timing findings that depend on wall-clock
   correlation carry this forward into their uncertainty.
 - **No raw ARNs anywhere.** `identity_ref_hash` and `target_ref_hash` are salted with a
   per-run salt derived from `run_id`, so within a bundle you can tell "same target" without

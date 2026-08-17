@@ -46,8 +46,10 @@ provider "aws" {
 `default_tags` is how the service-specific, fail-closed cleanup enumerators find orphans,
 so it is not optional and must not be overridden per-resource.
 
-Pin `required_version = "~> 1.7"` and `hashicorp/aws ~> 5.0` in `versions.tf`, and commit
-`.terraform.lock.hcl` (the *lock* file is committed; `.terraform/` and state are not).
+Pin `required_version = "~> 1.9"`, `hashicorp/aws ~> 5.0`, and `hashicorp/archive ~> 2.4`
+in `versions.tf`. The committed `.terraform.lock.hcl` is the provider supply-chain lock for
+this root module; `.terraform/`, state, plans, tfvars, crash logs, and captured outputs are
+never committed.
 
 ## Destroy contract
 

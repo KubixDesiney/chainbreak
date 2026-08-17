@@ -1,5 +1,13 @@
 # M8 — AWS provider adapter
 
+## Current status
+
+Complete. Dedicated-account acceptance passed on 2026-08-15: all 21 AWS-marked adapter tests,
+the wrong-account call-log gate, the fixed-role contract setup, and the documented response-shape
+fixture suite passed. The response fixtures are transcriptions of AWS shapes, not live captures;
+their provenance files document that boundary. M17 remains a separate experiment milestone and
+has zero valid/publishable blocks.
+
 ## Purpose
 Implement the AWS adapter: preflight, STS delegation, probes with response disambiguation,
 controlled mutations, and policy snapshots. The first milestone that touches a cloud.

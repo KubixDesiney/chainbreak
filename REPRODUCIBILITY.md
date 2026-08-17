@@ -162,10 +162,10 @@ once the schema evolves. `--archive` implies `--public` scrubbing unconditionall
 (`evidence/archive.py`) -- there is no flag combination that produces an unscrubbed archive.
 
 `--archive` refuses to run rather than silently mislabeling the environment if the
-`catalog.yaml` on disk does not match the run's recorded
-`capability_catalog_version` or `capability_catalog_fingerprint`, and refuses if no
-`schemas/` directory is present (archiving currently requires a repository checkout --
-CHAINBREAK does not yet ship `schemas/` as installed package data).
+packaged `catalog.yaml` does not match the run's recorded `capability_catalog_version` or
+`capability_catalog_fingerprint`, and refuses if the installed distribution does not carry
+its packaged JSON Schemas. It loads both through `importlib.resources`, so an archive does
+not require a repository checkout.
 
 Bundles are gitignored by default. Publishing one is a deliberate, reviewed action.
 

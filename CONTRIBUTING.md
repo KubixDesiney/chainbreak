@@ -16,6 +16,11 @@ pre-commit install
 pytest -m "unit or integration"
 ```
 
+The verification path must not install Checkov into this environment: Terraform CI invokes the
+SHA-pinned Checkov action. For a release check, use `python -m build --wheel` followed by
+`python scripts/smoke_installed_wheel.py dist/chainbreak-*.whl`; that smoke test creates a
+temporary environment and runs from outside the checkout.
+
 No AWS account is needed to develop, test, or run scenarios — use `--provider fake`.
 
 ---
