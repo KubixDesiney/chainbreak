@@ -127,6 +127,19 @@ def _enumerate_sqs(client: Any, namespace: str, resources: list[str], unsafe: li
         _classify("sqs", arn, tags, namespace, resources, unsafe)
 
 
+def _enumerate_sns(client: Any, namespace: str, resources: list[str], unsafe: list[str]) -> None:
+    for topic in client.list_topics().get("Topics", []):
+        arn = str(topic["TopicArn"])
+        _classify(
+            "sns",
+            arn,
+            _get_tags(client, "list_tags_for_resource", {"ResourceArn": arn}),
+            namespace,
+            resources,
+            unsafe,
+        )
+
+
 def _enumerate_logs(client: Any, namespace: str, resources: list[str], unsafe: list[str]) -> None:
     for page in client.get_paginator("describe_log_groups").paginate():
         for group in page.get("logGroups", []):
@@ -193,6 +206,7 @@ _SERVICE_ENUMERATORS: tuple[tuple[str, Callable[..., None]], ...] = (
     ("dynamodb", _enumerate_dynamodb),
     ("lambda", _enumerate_lambda),
     ("sqs", _enumerate_sqs),
+    ("sns", _enumerate_sns),
     ("logs", _enumerate_logs),
     ("cloudtrail", _enumerate_cloudtrail),
     ("budgets", _enumerate_budgets),
@@ -220,6 +234,7 @@ def list_tagged_resources(*, region: str | None = None, namespace: str) -> tuple
             "dynamodb": boto3.client("dynamodb", region_name=region),
             "lambda": boto3.client("lambda", region_name=region),
             "sqs": boto3.client("sqs", region_name=region),
+            "sns": boto3.client("sns", region_name=region),
             "logs": boto3.client("logs", region_name=region),
             "cloudtrail": boto3.client("cloudtrail", region_name=region),
             "budgets": boto3.client("budgets", region_name=region),

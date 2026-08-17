@@ -60,7 +60,17 @@ def test_iam_role_leftover_prevents_clean_result(monkeypatch: pytest.MonkeyPatch
         "_SERVICE_ENUMERATORS",
         tuple(
             (name, cleanup._enumerate_iam if name == "iam" else _noop)
-            for name in ("s3", "dynamodb", "lambda", "sqs", "logs", "cloudtrail", "budgets", "iam")
+            for name in (
+                "s3",
+                "dynamodb",
+                "lambda",
+                "sqs",
+                "sns",
+                "logs",
+                "cloudtrail",
+                "budgets",
+                "iam",
+            )
         ),
     )
 
