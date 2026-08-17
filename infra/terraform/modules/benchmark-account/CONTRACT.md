@@ -36,7 +36,7 @@ probing is safe.
   `data.aws_caller_identity.current.account_id == var.expected_account_id`. **This must fail
   at plan time, not apply time** — an operator pointed at the wrong account should never
   reach a diff that looks appliable.
-- `aws_budgets_budget` with a monthly limit and an 80% forecast alarm.
+- `aws_budgets_budget` with a monthly limit and an 80% actual-cost alarm.
 - A namespace-tagged SNS topic and topic policy that permit the Budgets service
   to publish a live alarm even when an email recipient has not yet confirmed
   its subscription.

@@ -89,10 +89,13 @@ resource "aws_budgets_budget" "guardrail" {
   dynamic "notification" {
     for_each = var.budget_notification_email != "" ? [var.budget_notification_email] : []
     content {
-      comparison_operator        = "GREATER_THAN"
-      threshold                  = 80
-      threshold_type             = "PERCENTAGE"
-      notification_type          = "FORECASTED"
+      comparison_operator = "GREATER_THAN"
+      threshold           = 80
+      threshold_type      = "PERCENTAGE"
+      # Forecast notifications need historical usage before AWS can evaluate
+      # them. The live safety gate needs an immediately inspectable alarm, so
+      # use the actual monthly cost signal instead.
+      notification_type          = "ACTUAL"
       subscriber_email_addresses = [notification.value]
       subscriber_sns_topic_arns  = [aws_sns_topic.budget_alerts[0].arn]
     }
