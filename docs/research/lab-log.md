@@ -347,6 +347,9 @@ observation: none publishable; no timing or family score is inferred.
 anomalies: explained budget-guard apparatus failure; this block provides no evidence
 for or against an AWS provider defect. Public archive and scrub diff were not produced
 because no run was sealed.
+repair: validator corrected in commit `4c28743` to accept a subscribed budget
+notification in the AWS-documented healthy `OK` state as well as `ALARM`; focused
+protocol tests passed (`12 passed`).
 cleanup: destroy approval was recorded under the blanket operator approval; first
 destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
 no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
