@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -44,6 +45,9 @@ from chainbreak.core.models import IdentityRef, ProbeOutcome
 from chainbreak.providers.aws import disambiguation
 from chainbreak.providers.aws.preflight import TerraformOutputs
 from chainbreak.providers.aws.retry import error_code, http_status
+
+
+_LOGGER = logging.getLogger(__name__)
 
 _AWS_ARN_RE = re.compile(r"arn:aws[a-zA-Z0-9-]*:[^\s]+")
 _ACCOUNT_ID_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
@@ -290,7 +294,12 @@ def probe_identity_delegate(
 def _object_marker_present(s3_client: Any, outputs: TerraformOutputs) -> bool:
     try:
         s3_client.head_object(Bucket=outputs.objectstore_bucket, Key=outputs.objectstore_marker_key)
-    except ClientError:
+    except ClientError as exc:
+        _LOGGER.warning(
+            "AWS marker precondition failed: objectstore.marker_present code=%s status=%s",
+            error_code(exc),
+            http_status(exc),
+        )
         return False
     return True
 
@@ -302,7 +311,12 @@ def _keyvalue_marker_present(dynamodb_client: Any, outputs: TerraformOutputs) ->
             Key={"pk": {"S": outputs.keyvalue_marker_pk}},
             ConsistentRead=True,
         )
-    except ClientError:
+    except ClientError as exc:
+        _LOGGER.warning(
+            "AWS marker precondition failed: keyvalue.marker_present code=%s status=%s",
+            error_code(exc),
+            http_status(exc),
+        )
         return False
     return "Item" in response
 
@@ -310,7 +324,12 @@ def _keyvalue_marker_present(dynamodb_client: Any, outputs: TerraformOutputs) ->
 def _function_alive(lambda_client: Any, outputs: TerraformOutputs) -> bool:
     try:
         lambda_client.get_function(FunctionName=outputs.function_name)
-    except ClientError:
+    except ClientError as exc:
+        _LOGGER.warning(
+            "AWS marker precondition failed: queue.present code=%s status=%s",
+            error_code(exc),
+            http_status(exc),
+        )
         return False
     return True
 
