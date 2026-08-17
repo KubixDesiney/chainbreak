@@ -8,8 +8,11 @@
   figure caption are stamped `FAKE-PROVIDER APPARATUS CHECK` — this demonstrates the report
   structure, the finding layout and the figures, and says nothing about AWS.
 - `reports/apparatus-check-fake-scope-attenuation.html` and its `.tar.gz` archive — a second
-  scrubbed apparatus check used for the offline M18 compare/archive exercise. It is excluded
-  from AWS evidence. No real-AWS sample is present because M17 has no valid block.
+  scrubbed apparatus check used for the offline M18 compare/archive exercise. It is labelled
+  fake-provider apparatus and excluded from AWS evidence.
+- `reports/aws-m17-block04-excluded-scrubbed-report.md` and its sample archive — scrubbed
+  outputs from an excluded AWS apparatus block. They are labelled excluded and are not AWS
+  evidence.
 - `bundles/` — not yet populated; will hold a small exported evidence bundle demonstrating the
   format.
 
