@@ -43,6 +43,34 @@ locals {
   }))}"
 }
 
+resource "aws_sns_topic" "budget_alerts" {
+  count = var.enable_budget_alarm ? 1 : 0
+
+  name = "${local.namespace}-budget-alerts"
+
+  tags = {
+    Project   = "CHAINBREAK"
+    Namespace = local.namespace
+  }
+}
+
+resource "aws_sns_topic_policy" "budget_alerts" {
+  count = var.enable_budget_alarm ? 1 : 0
+
+  arn = aws_sns_topic.budget_alerts[0].arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowBudgetsPublish"
+      Effect    = "Allow"
+      Principal = { Service = "budgets.amazonaws.com" }
+      Action    = "sns:Publish"
+      Resource  = aws_sns_topic.budget_alerts[0].arn
+    }]
+  })
+}
+
 resource "aws_budgets_budget" "guardrail" {
   count = var.enable_budget_alarm ? 1 : 0
 
@@ -66,6 +94,7 @@ resource "aws_budgets_budget" "guardrail" {
       threshold_type             = "PERCENTAGE"
       notification_type          = "FORECASTED"
       subscriber_email_addresses = [notification.value]
+      subscriber_sns_topic_arns  = [aws_sns_topic.budget_alerts[0].arn]
     }
   }
 }

@@ -37,6 +37,9 @@ probing is safe.
   at plan time, not apply time** — an operator pointed at the wrong account should never
   reach a diff that looks appliable.
 - `aws_budgets_budget` with a monthly limit and an 80% forecast alarm.
+- A namespace-tagged SNS topic and topic policy that permit the Budgets service
+  to publish a live alarm even when an email recipient has not yet confirmed
+  its subscription.
 
 ## Behavioral requirements
 

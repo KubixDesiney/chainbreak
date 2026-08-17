@@ -389,6 +389,45 @@ destroy completed with `44 destroyed`; second destroy completed with `0 destroye
 no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
+## 2026-08-17 M17-20260817-W11 — applied, stabilized marker gate then budget-gate invalid, cleaned
+
+workflow: GitHub Actions run `32029794769`; block ID `M17-20260817-W11`; window
+2026-08-17 12:25-12:33 UTC.
+checklist: preflight contract passed; clean tree and full unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; blanket operator approval for W11
+apply and subsequent M17 apply/destroy gates was recorded; fresh post-apply status and
+Terraform outputs were captured before each live-gate attempt.
+infrastructure: applied at 12:29:38 UTC, 44 resources added, 0 changed, 0 destroyed;
+fresh fingerprint `sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`,
+exact namespace captured before teardown as `cb-3cee2aea`, region `eu-west-3`.
+adapter/catalog: repository commit `50f1211c581c77bde22178f55745d8898a19469d`;
+provider `aws`; negative controls enabled. The six-attempt stabilization loop was
+active for this block.
+scenarios: suite requested; all five positive benchmark families were not run because
+the post-apply live gate failed; all six negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded. Live-gate attempt 1 failed marker checks
+`objectstore.marker_present`, `keyvalue.marker_present`, and `function.alive`; fresh
+diagnostics were S3 `403`, DynamoDB `AccessDeniedException` with HTTP `400`, and
+Lambda `AccessDeniedException` with HTTP `403`; `queue.present` passed. Attempts 2-6
+reached P1-P11 successfully but failed the budget check with the exact detail
+`budget missing a positive monthly COST limit or active subscribed alarm`. No benchmark
+or control measurement is inferred.
+observation: none publishable; no timing or family score is inferred.
+anomalies: the stabilization loop resolved the marker gate, isolating the remaining
+apparatus issue to the email-only budget notification subscription. AWS documentation
+supports adding an SNS budget subscriber; no unexplained provider defect is declared.
+Public archive and scrub diff were not produced because no run was sealed.
+cleanup: destroy approval was recorded under the blanket operator approval; first
+destroy completed with `44 destroyed`; second destroy completed with `0 destroyed` and
+no changes; exact namespace `cb-3cee2aea` verify-clean passed with `nothing remaining`.
+repair: committed after this block in the working tree as the next change: add a
+namespace-tagged SNS budget notification topic and Budgets publish policy, retain the
+supplied email recipient, and enumerate SNS during cleanup.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
 ---
 
 ## Template
