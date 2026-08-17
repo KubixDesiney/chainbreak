@@ -460,6 +460,46 @@ the next commit, so the next apply uses a completed S3 data-plane operation befo
 calling the lifecycle endpoint.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
+## 2026-08-17 M17-20260817-W13 — live budget gate failure, cleaned
+
+workflow: GitHub Actions run `32031460306`; block ID `M17-20260817-W13`; window
+2026-08-17 12:45-12:53 UTC; repository commit `1d13b5de80453c970477d05f7372603af70585c0`.
+checklist: preflight contract passed; clean tree and full unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; blanket operator approval for W13
+apply and destroy was recorded. The apply completed, so the fresh post-apply live gate
+ran six bounded attempts and was recorded before cleanup.
+infrastructure: apply complete with 46 resources; exact namespace `cb-3cee2aea`;
+region `eu-west-3`; fresh infrastructure fingerprint
+`sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`.
+adapter/catalog: provider `aws`; capability catalog `v1.0.0`; 24 scenarios structurally
+valid; negative controls enabled.
+post-apply live gate: attempt 1 failed fresh marker checks with exact diagnostics
+`objectstore.marker_present code=403 status=403`,
+`keyvalue.marker_present code=AccessDeniedException status=400`,
+`function.alive code=AccessDeniedException status=403`, and
+`queue.present code=AccessDenied status=403`. Attempt 2 passed the marker checks and
+then failed the budget check. Attempts 3, 4, 5, and 6 repeated the budget failure with
+the exact detail `budget missing a positive monthly COST limit or active subscribed
+alarm`. The live table reported `AWS live validation (P1-P11) + budget FAIL`; no provider
+defect is inferred.
+scenarios: suite requested; all five positive benchmark families were not run; all six
+negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+exclusions: whole block excluded because the required post-apply live gate failed;
+the suite and analysis steps were skipped. No timing, family score, or control result
+is inferred from this block.
+archives: no public scrubbed archive or scrub diff was produced because no run was sealed.
+cleanup: destroy approval was recorded under the blanket operator approval. First destroy
+removed 46 resources; second destroy removed 0; exact namespace verification reported
+`chainbreak infra verify-clean: nothing remaining`. Cleanup succeeded.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
+repair after W13: the budget notification is changed from `FORECASTED` to `ACTUAL` so
+the guard does not depend on AWS forecast-history availability; the live validator now
+records redacted budget shape, notification-state, and subscriber-count diagnostics on
+failure. This repair requires a fresh pre-apply gate and a new block.
+
 ---
 
 ## Template

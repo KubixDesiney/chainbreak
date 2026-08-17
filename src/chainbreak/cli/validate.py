@@ -199,12 +199,28 @@ def _check_live_budget(adapter: object) -> CheckResult:
             budget.get("BudgetType") == "COST" and budget.get("TimeUnit") == "MONTHLY" and limit > 0
         )
         passed = valid_shape and bool(active_notifications)
-        detail = (
-            f"{outputs.namespace}-budget active; ${limit:.2f} monthly; "
-            f"{len(active_notifications)} alarm notification(s)"
-            if passed
-            else "budget missing a positive monthly COST limit or active subscribed alarm"
-        )
+        if not passed:
+            notification_states = [
+                item.get("Notification", {}).get("NotificationState")
+                for item in notifications
+                if isinstance(item, dict)
+            ]
+            subscriber_counts = [
+                len(item.get("Subscribers", []))
+                for item in notifications
+                if isinstance(item, dict) and isinstance(item.get("Subscribers", []), list)
+            ]
+            detail = (
+                "budget missing a positive monthly COST limit or active subscribed alarm; "
+                f"type={budget.get('BudgetType')!r}; time_unit={budget.get('TimeUnit')!r}; "
+                f"limit={limit:.2f}; notifications={len(notifications)}; "
+                f"states={notification_states!r}; subscriber_counts={subscriber_counts!r}"
+            )
+        else:
+            detail = (
+                f"{outputs.namespace}-budget active; ${limit:.2f} monthly; "
+                f"{len(active_notifications)} alarm notification(s)"
+            )
         return CheckResult("live budget/alarm", passed, detail)
     except Exception as exc:
         return CheckResult("live budget/alarm", False, f"unable to verify live budget: {exc}")
