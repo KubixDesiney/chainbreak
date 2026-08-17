@@ -18,7 +18,8 @@ Two mutation kinds cannot be programmatically reverted, and the log says so
 rather than pretending otherwise:
 
 - ``REVOKE_OLDER_SESSIONS`` revokes credentials outright; a revoked session
-  cannot be un-revoked, only replaced by delegating a fresh one.
+  cannot be un-revoked, but the transient revocation policy is still removed
+  so the Terraform-declared infrastructure state is restored.
 - ``UPDATE_TRUST_POLICY`` and ``DELETE_SESSION_POLICY_SCOPE`` never touch a
   live session's authority in the first place (both are built-in negative
   controls, AWS_PROVIDER_SPEC section 4) -- there is nothing to revert.
@@ -77,10 +78,11 @@ def build_revert_plan(
             target_identity=target_identity,
             mutation_kind=mutation_kind,
             declared_capabilities=declared,
-            actionable=False,
+            actionable=True,
             action=(
-                f"cannot be reverted: sessions revoked for {target_identity!r} cannot be "
-                "un-revoked -- delegate a fresh credential to restore access"
+                f"remove the transient revocation policy on {target_identity!r}: sessions "
+                "already revoked cannot be un-revoked, but the Terraform-declared "
+                "infrastructure state is restored"
             ),
         )
     if mutation_kind is MutationKind.UPDATE_TRUST_POLICY:

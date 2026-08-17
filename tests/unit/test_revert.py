@@ -42,10 +42,10 @@ class TestBuildRevertPlan:
         assert "objectstore.read" in plan.declared_capabilities
         assert "REPLACE_INLINE_POLICY" in plan.action
 
-    def test_revoke_older_sessions_is_not_actionable(self, graph):
+    def test_revoke_older_sessions_removes_transient_policy(self, graph):
         plan = build_revert_plan(graph, "agent-b", MutationKind.REVOKE_OLDER_SESSIONS)
-        assert plan.actionable is False
-        assert "cannot be un-revoked" in plan.action
+        assert plan.actionable is True
+        assert "transient revocation policy" in plan.action
 
     @pytest.mark.parametrize(
         "kind", [MutationKind.DELETE_SESSION_POLICY_SCOPE]
@@ -91,10 +91,10 @@ class TestRevertMutation:
         assert event["receipt"]["confirmed"] is True
         assert "objectstore.read" in adapter.engine.identity_allow("agent-b")
 
-    def test_non_actionable_plan_returns_none_and_calls_nothing(self, graph):
+    def test_revoke_older_plan_returns_reversion_event(self, graph):
         adapter = FakeProviderAdapter(seed=1)
         plan = build_revert_plan(graph, "agent-b", MutationKind.REVOKE_OLDER_SESSIONS)
         event = revert_mutation(adapter, plan, sequence=9)
-        assert event is None
-        # No mutation was ever issued: agent-b was never even registered.
-        assert not adapter.engine.is_registered("agent-b")
+        assert event is not None
+        assert event["kind"] == "MUTATION_REVERTED"
+        assert event["receipt"]["confirmed"] is True

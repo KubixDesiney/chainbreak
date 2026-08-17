@@ -185,7 +185,7 @@ class TestRevertRestoresDeclaredAuthority:
         # directly -- objectstore.read was denied mid-run and must be back.
         assert "objectstore.read" in adapter.engine.identity_allow("agent-b")
 
-    def test_revoke_older_sessions_is_not_actionable(
+    def test_revoke_older_sessions_removes_transient_policy(
         self, tmp_path: Path, synthetic_aws_registry: BindingRegistry
     ) -> None:
         adapter = FakeProviderAdapter(seed=5)
@@ -198,10 +198,10 @@ class TestRevertRestoresDeclaredAuthority:
         )
         assert result.status is RunStatus.COMPLETED
         events = _events(run_dir)
-        assert not [e for e in events if e.get("kind") == "MUTATION_REVERTED"]
+        assert [e for e in events if e.get("kind") == "MUTATION_REVERTED"]
         revert_log = next(e for e in events if e.get("kind") == "REVERT_LOG_WRITTEN")
-        assert revert_log["actionable"] is False
-        assert "cannot be un-revoked" in revert_log["action"]
+        assert revert_log["actionable"] is True
+        assert "transient revocation policy" in revert_log["action"]
 
 
 class TestNegativeControls:
