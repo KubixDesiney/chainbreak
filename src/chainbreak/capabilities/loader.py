@@ -7,6 +7,7 @@ families), and SI-9 (dangerous capabilities require a double opt-in).
 
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 from typing import Any, Final
 
@@ -28,6 +29,11 @@ from chainbreak.core.models import (
 DEFAULT_CATALOG_PATH: Final = Path(__file__).parent / "catalog.yaml"
 
 
+def catalog_bytes() -> bytes:
+    """Return the packaged catalog without assuming a repository checkout."""
+    return resources.files(__package__).joinpath("catalog.yaml").read_bytes()
+
+
 class _StrictLoader(yaml.SafeLoader):
     """SafeLoader that additionally rejects unknown tags outright (SI-11)."""
 
@@ -36,18 +42,18 @@ def _reject_unknown(loader: _StrictLoader, suffix: str, node: yaml.Node) -> Any:
     raise BindingValidationError(f"unsupported YAML tag in catalog: !{suffix}")
 
 
-_StrictLoader.add_multi_constructor("!", _reject_unknown)  # type: ignore[no-untyped-call]
-_StrictLoader.add_multi_constructor("tag:", _reject_unknown)  # type: ignore[no-untyped-call]
+_StrictLoader.add_multi_constructor("!", _reject_unknown)
+_StrictLoader.add_multi_constructor("tag:", _reject_unknown)
 
 
 def load_catalog(path: Path | None = None) -> CapabilityCatalog:
     """Load and validate the capability catalog."""
-    catalog_path = path or DEFAULT_CATALOG_PATH
-    text = catalog_path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8") if path is not None else catalog_bytes().decode("utf-8")
     # _StrictLoader is a hardened SafeLoader subclass; see class docstring above.
     raw = yaml.load(text, Loader=_StrictLoader)  # noqa: S506 # nosec B506
     if not isinstance(raw, dict):
-        raise BindingValidationError(f"catalog {catalog_path} is not a mapping")
+        location = path if path is not None else "packaged capability catalog"
+        raise BindingValidationError(f"catalog {location} is not a mapping")
     return CapabilityCatalog(
         version=raw["version"],
         capabilities=tuple(Capability(**entry) for entry in raw["capabilities"]),

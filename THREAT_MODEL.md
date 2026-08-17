@@ -59,8 +59,9 @@ the P9 warning fires.
 **Vector:** A Terraform policy written with `Resource: "*"` for convenience; a session
 policy synthesized too broadly.
 **Mitigation:** All identity policies are `Condition`-scoped on `aws:ResourceTag/Namespace`
-or explicit namespaced ARNs. `tflint`/`checkov` in CI with a custom rule failing any
-`Resource: "*"` outside a documented allowlist (`sts:GetCallerIdentity` only). Session
+or explicit namespaced ARNs. Current CI uses the repository wildcard guard plus Checkov to fail
+any `Resource: "*"` outside a documented allowlist (`sts:GetCallerIdentity` only); TFLint was
+used for dedicated-account acceptance, not as a current CI job. Session
 policies are *generated* from bindings, never hand-written, so breadth is a code bug with a
 test rather than a copy-paste error.
 **Validation:** `tests/unit/test_policy_synthesis.py` asserts generated policies contain no

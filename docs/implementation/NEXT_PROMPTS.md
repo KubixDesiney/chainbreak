@@ -1,88 +1,61 @@
 # Ready-to-run Claude Code prompts — final phase
 
-**State verified 2026-08-11.** M0–M16 complete. M8 and M9 are code-complete with only their
-real-account acceptance criteria outstanding. 1,693 tests passing (1,454 unit, 239 integration),
-119 source files clean under `ruff` and `mypy --strict`, 6/6 import-linter contracts kept,
-21 `aws`-marked tests written and waiting.
+**State verified 2026-08-16.** M0–M16 are complete, including dedicated-account acceptance for
+M8 and M9. The offline baseline before the documentation pass was 1,772 passed tests. M17 has
+only invalid/incomplete apparatus attempts recorded: zero valid/publishable blocks and no M17
+measurement. M18's offline portion is complete; its real-AWS exercise is pending. M19 has not
+started.
 
 **The AWS account state is not recorded here.** The real-account acceptance work requires an
 operator-provisioned dedicated account; its identifier, region, namespace, and live resource
 state must be supplied at execution time and must not be committed to documentation.
 
-S1–S8 from the previous edition are all done. This edition covers what remains: two offline
-sessions, two AWS sessions, and the release.
+S1–S8 from the previous edition are all done. The remaining work is a valid M17 suite, the
+real-AWS portion of M18, and the M19 release.
 
 ---
 
 ## Ordering
 
 ```
-P1 (offline, now)  ─┐
-P2 (offline, now)  ─┼─→  P3 (AWS, needs outputs.json)  →  P4 (AWS, needs ≥3 blocks)  →  P5 (release)
-                    ┘
+P1 (offline, completed) → P2 (AWS: valid M17 block) → P3 (AWS: M18 exercise) → P4 (release)
 ```
 
-P1 and P2 need nothing from you and can run today, in either order, in parallel.
-P3 needs one command from you first. P4 needs P3 green and a day of elapsed time.
+P1 is complete. P2 must produce valid/publishable M17 blocks before P3 can exercise real-AWS
+reproducibility. P4 remains gated on both.
 
 ---
 
-## P1 — Documentation truth pass (offline, ~30 min)
+## P1 — Documentation truth pass (offline) — completed 2026-08-16
 
-Small, and it removes the one thing a reviewer would catch immediately.
-
-```
-Documentation consistency session for CHAINBREAK. No new features, no behaviour changes.
-
-Read docs/CLAUDE_CODE_HANDOFF.md Part 2 first. Run `pytest -m "unit or integration" -q` and
-record the baseline — it must be identical at the end.
-
-1. ARCHITECTURE.md section 2 shows `delegation/` and `observation/` as layers in the mermaid
-   diagram (lines ~53 and ~62) and describes them in sections 3.7 and 3.12. Both packages are
-   empty on disk: delegation planning landed in execution/delegation.py and outcome
-   classification in execution/matrix.py and execution/_records.py. The consolidation was the
-   right call — do NOT reverse it by creating those packages. Fix the documentation instead:
-   update the diagram, rewrite 3.7 and 3.12 to describe where the responsibility actually
-   lives, and add a one-line note in docs/DECISIONS.md under "Smaller decisions" recording
-   that the two layers folded into execution/ and why. Then delete the two empty package
-   directories so the tree matches the docs.
-
-2. Audit every root document for claims that no longer match the code. Specifically check:
-   the CLI command list in ARCHITECTURE.md 3.1 against `chainbreak --help`; the module list in
-   TESTING.md against what exists; the file layout in README.md; and any "not implemented"
-   or "pending" marker that is now stale. Report what you found before changing it.
-
-3. Verify every internal markdown link still resolves. There should be zero broken links.
-
-4. Confirm PROJECT_STATUS.md's milestone table matches reality: M0-M16 complete, M8/M9
-   real-account criteria outstanding, M17-M19 remaining.
-
-Do not touch src/ except to delete the two empty package directories. The test count must be
-unchanged at the end — if it moved, something was not a documentation change.
-
-Paste real output for the link check and the test run. Update PROJECT_STATUS.md. Stop when
-docs and code agree.
-```
+This pass made documentation-only changes. It reconciled the status documents with current
+source and command definitions, retained every invalid M17 attempt as superseded/excluded
+apparatus evidence, retired resolved implementation issues, corrected CI and fixture claims,
+replaced the historical live namespace with `NAMESPACE_SCRUBBED`, and verified internal links
+and safe README commands. No AWS call, source behavior change, history rewrite, push, tag, or
+publication is part of the pass. The full offline-gate output is recorded in the task handoff.
 
 ---
 
-## P2 — M18 offline portion (offline, ~half a day)
+## P2 — M18 offline portion — complete
 
-Everything in M18 except the parts that need real runs to compare.
+The offline M18 deliverables are implemented and verified. The real-AWS comparison/archive/
+migration exercise remains pending because M17 has zero valid or publishable blocks.
 
 ```
 Implement the offline portion of milestone M18 for CHAINBREAK — reproducibility tooling.
 
 Read docs/CLAUDE_CODE_HANDOFF.md, docs/implementation/milestones/M18-reproducibility-hardening.md,
-and REPRODUCIBILITY.md in full. Run the suite and confirm 1,693 tests pass.
+and REPRODUCIBILITY.md in full. The current offline baseline is 1,772 passed tests before the
+documentation pass.
 
 Note the scope boundary: `chainbreak compare` and `chainbreak evidence export` already exist as
-CLI commands, but analysis/compare.py, evidence/archive.py and evidence/migrate.py do not exist
-and `export` has no --archive flag. Build those. Do NOT attempt the parts of M18 that require
+CLI commands; analysis/compare.py, evidence/archive.py and evidence/migrate.py, including the
+`--archive` path, now exist. Do NOT attempt the parts of M18 that require
 real AWS runs to compare — Level 3 distributional comparison can be exercised against two
 fake-provider runs with different seeds, which is sufficient to validate the logic.
 
-Implement:
+Historical implementation checklist, already completed:
 
 1. analysis/compare.py implementing the three levels from REPRODUCIBILITY section 1:
    - Level 1 analytical: same bundle re-analyzed, byte-identical findings.
@@ -118,19 +91,20 @@ Implement:
    (threat T-14).
 
 Preserve every invariant in handoff Part 2 — especially that --archive cannot bypass scrubbing.
-Run the verification commands, paste real output including the two-seed comparison and the
-container determinism check. Update PROJECT_STATUS.md. Stop only when every offline acceptance
-criterion in the milestone file passes.
+The remaining real-AWS exercise must wait for a valid M17 block; no result may be inferred from
+the invalid apparatus entries.
 ```
 
 ---
 
-## P3 — Close M8 and M9 against the real account (AWS, ~1 hour)
+## P3 — Close M8 and M9 against the real account — complete 2026-08-15
 
-**Prerequisite from you:** `outputs.json` must exist. One command, listed in the section below.
+The dedicated-account acceptance is complete and must not be rerun as part of this offline pass.
+The historical procedure below is retained as the acceptance record, with live values omitted.
 
 ```
-Close the real-account acceptance criteria for milestones M8 and M9 of CHAINBREAK.
+Historical procedure: close the real-account acceptance criteria for milestones M8 and M9 of
+CHAINBREAK.
 
 This session spends real money (well under $1) and creates and destroys real IAM roles in the
 operator's dedicated benchmark account. Confirm with the operator before the first billable
@@ -177,8 +151,8 @@ Sequence:
    `chainbreak infra verify-clean` showing zero resources tagged Project=CHAINBREAK remaining.
    Then re-apply, because M17 needs the infrastructure back.
 
-7. If `tflint` is installed, run it to close the remaining half of M9 criterion 2. If it is
-   not, say so plainly rather than marking the criterion met.
+7. Historical acceptance note: TFLint passed in the dedicated-account acceptance environment;
+   the current CI workflow does not run TFLint.
 
 Paste real command output for every step — not a description of it. Update PROJECT_STATUS.md
 marking M8 and M9 genuinely complete, recording the date, the hashed account, the region, and
@@ -187,9 +161,11 @@ which tests actually ran. Never mark a criterion met that you did not observe pa
 
 ---
 
-## P4 — M17, the first real measurements (AWS, ~1 day elapsed)
+## P4 — M17 valid/publishable suite (AWS, pending)
 
-This is the one that produces the actual research result. It is mostly discipline, not code.
+No valid or publishable M17 block exists yet. The lab log's invalid/incomplete attempts are
+historical apparatus evidence and must remain excluded. A future valid run is mostly discipline,
+not code.
 
 ```
 Execute milestone M17 for CHAINBREAK — the full AWS experiment suite. This produces the
@@ -253,13 +229,14 @@ ran unless it ran.
 
 ---
 
-## P5 — M19 release (offline, needs your publication decision)
+## P5 — M19 release (offline, pending a valid M17 result and M18 real-AWS exercise)
 
 ```
 Execute milestone M19 for CHAINBREAK — the v0.1.0 release.
 
 Read docs/implementation/milestones/M19-portfolio-release.md, docs/PORTFOLIO_STORY.md and
-PROJECT_STATUS.md. Confirm M17 produced real results and M18 is complete. Run the full suite.
+PROJECT_STATUS.md. Confirm M17 produced valid real results and the real-AWS portion of M18 is
+complete. Run the full suite.
 
 1. Full consistency review across: scenario schema, domain models, authorization graph,
    provider abstraction, capability model, AWS adapter, Terraform contracts, testing strategy,

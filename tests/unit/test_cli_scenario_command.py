@@ -13,24 +13,43 @@ import pytest
 from typer.testing import CliRunner
 
 from chainbreak.cli.main import app
-from chainbreak.scenarios.loader import EXIT_BINDING, EXIT_VALID
+from chainbreak.scenarios.loader import EXIT_VALID
 
 pytestmark = pytest.mark.unit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_SCENARIOS_DIR = REPO_ROOT / "scenarios"
 FOUR_HOP = REPO_SCENARIOS_DIR / "delegation-drift" / "four-hop.yaml"
+SCENARIO_FILES = sorted(REPO_SCENARIOS_DIR.rglob("*.yaml"))
 
 
 class TestScenarioValidateCommand:
-    def test_valid_scenario_exits_binding_since_no_provider_registered(self):
-        # Stage 4 (provider binding) always resolves against an empty
-        # registry today (cli/scenario.py's own documented limitation); a
-        # structurally valid scenario therefore currently exits EXIT_BINDING,
-        # not EXIT_VALID, until a provider package registers real bindings.
+    def test_valid_scenario_exits_zero(self):
         runner = CliRunner()
         result = runner.invoke(app, ["scenario", "validate", str(FOUR_HOP)])
-        assert result.exit_code in (EXIT_VALID, EXIT_BINDING)
+        assert result.exit_code == EXIT_VALID, result.output
+
+    @pytest.mark.parametrize("path", SCENARIO_FILES, ids=lambda path: path.stem)
+    def test_every_shipped_scenario_validates_through_the_cli(self, path: Path):
+        runner = CliRunner()
+        result = runner.invoke(app, ["scenario", "validate", str(path)])
+        assert result.exit_code == EXIT_VALID, result.output
+
+    def test_validation_makes_no_aws_call(self, monkeypatch: pytest.MonkeyPatch):
+        import boto3
+        import botocore.session
+
+        def fail_if_called(*args: object, **kwargs: object) -> None:
+            raise AssertionError(f"scenario validation made an AWS call: {args!r} {kwargs!r}")
+
+        monkeypatch.setattr(boto3, "client", fail_if_called)
+        monkeypatch.setattr(boto3.session.Session, "client", fail_if_called)
+        monkeypatch.setattr(botocore.session.Session, "create_client", fail_if_called)
+
+        runner = CliRunner()
+        for path in SCENARIO_FILES:
+            result = runner.invoke(app, ["scenario", "validate", str(path)])
+            assert result.exit_code == EXIT_VALID, result.output
 
     def test_nonexistent_scenario_fails(self, tmp_path: Path):
         runner = CliRunner()

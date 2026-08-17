@@ -13,7 +13,9 @@ stays meaningful even if local state were ever lost or corrupted --
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import shutil
 import subprocess  # nosec B404 -- shells out to terraform only, args are fixed literals
 import tempfile
@@ -24,6 +26,17 @@ import typer
 app = typer.Typer(help="Manage benchmark infrastructure.")
 
 _DEFAULT_ENVIRONMENTS_ROOT = Path("infra/terraform/environments")
+
+
+def _assert_aws_context(provider: str | None, block_id: str | None, command: str) -> None:
+    if provider is not None and provider != "aws":
+        typer.echo(f"chainbreak infra {command}: only --provider aws is valid", err=True)
+        raise typer.Exit(code=2)
+    if provider == "aws" and not block_id:
+        typer.echo(
+            f"chainbreak infra {command}: --block-id is required with --provider aws", err=True
+        )
+        raise typer.Exit(code=2)
 
 
 def _environment_dir(environment: str) -> Path:
@@ -57,24 +70,24 @@ def _run_terraform(args: list[str], *, cwd: Path, scrub_apply_summary: bool = Fa
     module's own fixed subcommand literals, never operator-controlled
     strings passed straight to a shell."""
     if not scrub_apply_summary:
-        result = subprocess.run(  # noqa: S603  # nosec B603 -- binary resolved via shutil.which, args are fixed literals
+        streamed_result = subprocess.run(  # noqa: S603  # nosec B603 -- binary resolved via shutil.which, args are fixed literals
             [_terraform_binary(), *args], cwd=cwd, check=False
         )
-        return result.returncode
+        return streamed_result.returncode
 
-    result = subprocess.run(  # noqa: S603  # nosec B603 -- binary resolved via shutil.which, args are fixed literals
+    captured_result = subprocess.run(  # noqa: S603  # nosec B603 -- binary resolved via shutil.which, args are fixed literals
         [_terraform_binary(), *args], cwd=cwd, capture_output=True, text=True, check=False
     )
-    if result.returncode != 0:
-        if result.stderr:
-            typer.echo(result.stderr, err=True)
-        return result.returncode
-    for line in (result.stdout or "").splitlines():
+    if captured_result.returncode != 0:
+        if captured_result.stderr:
+            typer.echo(captured_result.stderr, err=True)
+        return captured_result.returncode
+    for line in (captured_result.stdout or "").splitlines():
         if line.startswith("Apply complete!"):
             typer.echo(line.strip())
             if "Resources: 0 added, 0 changed, 0 destroyed." in line:
                 typer.echo("0 to add, 0 to change, 0 to destroy")
-    return result.returncode
+    return captured_result.returncode
 
 
 def _init(env_dir: Path) -> None:
@@ -94,7 +107,10 @@ def plan(environment: str = typer.Argument("aws-sandbox")) -> None:
 def apply(
     environment: str = typer.Argument("aws-sandbox"),
     auto_approve: bool = typer.Option(False, "--auto-approve"),
+    provider: str | None = typer.Option(None, "--provider"),
+    block_id: str | None = typer.Option(None, "--block-id"),
 ) -> None:
+    _assert_aws_context(provider, block_id, "apply")
     env_dir = _environment_dir(environment)
     # A failed apply, including a failure during init, makes any prior capture
     # untrustworthy. Remove it before Terraform can fail so status can never
@@ -181,7 +197,10 @@ def _terraform_output_json(env_dir: Path) -> str:
 def destroy(
     environment: str = typer.Argument("aws-sandbox"),
     auto_approve: bool = typer.Option(False, "--auto-approve"),
+    provider: str | None = typer.Option(None, "--provider"),
+    block_id: str | None = typer.Option(None, "--block-id"),
 ) -> None:
+    _assert_aws_context(provider, block_id, "destroy")
     env_dir = _environment_dir(environment)
     args = ["destroy"]
     if auto_approve:
@@ -193,7 +212,17 @@ def destroy(
 
 
 @app.command()
-def status(environment: str = typer.Argument("aws-sandbox")) -> None:
+def status(
+    environment: str = typer.Argument("aws-sandbox"),
+    provider: str | None = typer.Option(None, "--provider"),
+    block_id: str | None = typer.Option(None, "--block-id"),
+    capture_namespace: Path | None = typer.Option(
+        None,
+        "--capture-namespace",
+        help="Write the verified current namespace to this file before teardown.",
+    ),
+) -> None:
+    _assert_aws_context(provider, block_id, "status")
     env_dir = _environment_dir(environment)
     outputs_path = env_dir / "outputs.json"
     if not outputs_path.is_file():
@@ -233,6 +262,14 @@ def status(environment: str = typer.Argument("aws-sandbox")) -> None:
     typer.echo(f"namespace: {outputs.namespace}")
     typer.echo(f"region: {outputs.region}")
     typer.echo(f"infrastructure_fingerprint: {outputs.infrastructure_fingerprint}")
+    if capture_namespace is not None:
+        try:
+            capture_namespace.parent.mkdir(parents=True, exist_ok=True)
+            capture_namespace.write_text(f"{outputs.namespace}\n", encoding="utf-8")
+        except OSError as exc:
+            typer.echo(f"chainbreak infra status: could not capture namespace: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(f"namespace captured to {capture_namespace}")
 
 
 @app.command("verify-clean")
@@ -244,8 +281,11 @@ def verify_clean(
     namespace: str | None = typer.Option(
         None, "--namespace", help="Exact Terraform namespace when outputs.json is unavailable."
     ),
+    provider: str | None = typer.Option(None, "--provider"),
+    block_id: str | None = typer.Option(None, "--block-id"),
 ) -> None:
     """Verify every provisioned service is clean using exact Project/Namespace tags."""
+    _assert_aws_context(provider, block_id, "verify-clean")
     from chainbreak.core.errors import ConfigurationError
     from chainbreak.providers.aws.cleanup import list_tagged_resources
 
@@ -317,3 +357,36 @@ def _namespace_hint(environment: str) -> str | None:
         return load_terraform_outputs(outputs_path).namespace
     except ConfigurationError:
         return None
+
+
+@app.command("namespace")
+def namespace(
+    environment: str = typer.Argument("aws-sandbox"),
+    provider: str = typer.Option("aws", "--provider"),
+    block_id: str = typer.Option(..., "--block-id"),
+    workspace: str = typer.Option(
+        "default", "--workspace", help="Terraform workspace used in the namespace formula."
+    ),
+) -> None:
+    """Derive the exact AWS sandbox namespace from the apply contract, offline.
+
+    This is used before a fresh-checkout apply so cleanup can target the exact
+    prior namespace even when Terraform outputs/state are absent locally.
+    """
+    _assert_aws_context(provider, block_id, "namespace")
+    if environment != "aws-sandbox":
+        typer.echo("chainbreak infra namespace: only aws-sandbox is supported", err=True)
+        raise typer.Exit(code=2)
+    account_id = os.environ.get("TF_VAR_expected_account_id", "").strip()  # noqa: SIM112
+    salt = os.environ.get("TF_VAR_namespace_salt", "")  # noqa: SIM112
+    if not account_id or not salt:
+        typer.echo(
+            "chainbreak infra namespace: TF_VAR_expected_account_id and "
+            "TF_VAR_namespace_salt are required",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    digest = hashlib.sha1(  # noqa: S324  # nosec B324 -- deterministic namespace hint, not cryptographic security
+        f"{account_id}{workspace}{salt}".encode()
+    ).hexdigest()
+    typer.echo(f"cb-{digest[:8]}")

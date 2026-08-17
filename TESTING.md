@@ -192,9 +192,15 @@ jobs:
   test:      pytest -m "unit or integration" --cov --cov-fail-under-per-module
   schemas:   validate every scenario + every JSON Schema is itself valid
   scenarios: chainbreak scenario validate on every file in scenarios/ (offline mode)
-  terraform: terraform fmt -check ; terraform validate ; tflint ; checkov
-  docs:      link checker ; mermaid syntax check ; forbidden-language lint on templates
+  terraform: terraform fmt -check ; terraform validate ; custom wildcard rule ; Checkov
+  wheel:     build a wheel and run the installed-distribution smoke test outside the checkout
 ```
+
+Checkov runs through its SHA-pinned GitHub Action; it is deliberately not installed into the
+Python development environment because it is not a CHAINBREAK dependency. TFLint is a separate
+local Terraform check and is run over every Terraform root when available. Markdown links and
+offline README commands are validated separately in the documentation truth pass; they are not
+represented as CI jobs.
 
 Separate, manually dispatched workflow `aws-experiment.yml`: `workflow_dispatch` only,
 environment `aws-benchmark` with required reviewers, OIDC role assumption (no static keys),
@@ -208,10 +214,10 @@ experiment with `infra apply` → `run` → `analyze` → `verify-clean` → `de
 
 `tests/fixtures/` holds:
 
-- `provider_responses/` — recorded, redacted real AWS responses (success, explicit deny,
-  implicit deny, throttle, 403-on-missing-key, Lambda FunctionError). These are the ground
-  truth for `test_outcome_classification.py`. Each is accompanied by a `.provenance.json`
-  recording when and how it was captured, so a maintainer can tell whether it is stale.
+- `provider_responses/` — documented, redacted transcriptions of AWS response shapes (success,
+  explicit deny, implicit deny, throttle, 403-on-missing-key, Lambda FunctionError). They are
+  fixtures for `test_outcome_classification.py`, not live account captures. Each is accompanied
+  by a `.provenance.json` file describing the documented source and scrub status.
 - `scenarios/` — valid, and deliberately invalid, scenario documents (one per validation
   failure mode).
 - `bundles/` — golden evidence bundles for analysis regression, plus a tampered bundle and
@@ -232,7 +238,8 @@ experiment with `infra apply` → `run` → `analyze` → `verify-clean` → `de
 ## 9. Definition of a passing build
 
 `ruff` clean · `mypy --strict` clean · import boundaries clean · `bandit` and `pip-audit`
-clean · `pytest -m "unit or integration"` green · per-module coverage thresholds met ·
+clean · `pip check` clean in a declared-dependency environment · `pytest -m "unit or integration"`
+green · per-module coverage thresholds met ·
 100% coverage on `redaction.py` and `safety.py` · every scenario validates · every JSON
 Schema valid · Terraform formatted, valid, and policy-scanned · docs links resolve ·
 forbidden-language lint clean.

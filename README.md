@@ -5,27 +5,12 @@
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
 and the authority a delegated workload *actually* holds when it executes.
 
-> **Status: 0.1.0a0 — M0 (repository foundation), M1 (domain model + authorization graph),
-> M2 (capability model + catalog), M3 (scenario language + compiler), M4 (CLI, configuration
-> and the SafetyGate), M5 (provider Protocol + deterministic fake laboratory), M6 (evidence
-> pipeline, redaction and sealing) and M7 (analysis, findings and the confidence gate)
-> complete. M8 (AWS provider adapter)'s offline portion and M9 (Terraform AWS sandbox)'s
-> local portion are both complete; both milestones' real-account acceptance criteria are
-> blocked pending an operator-provisioned AWS account. M10 (the scope-attenuation benchmark),
-> M11 (the delegation-drift benchmark), M12 (the revocation-propagation benchmark), M13 (the
-> stale-authority benchmark) and M14 (the silent-narrowing benchmark) are all complete against
-> the fake provider — every one of the five benchmark families runs end to end, including
-> multi-hop chains to depth 6, all five revocation mechanisms with a pre-mutation revert log,
-> paired pinned/fresh-credential deferred-execution probes, and four deterministic task workers
-> with independent side-effect verification. M15 (per-category scoring) turns that evidence into
-> six independent category results with no composite score anywhere (ADR-010), and M16
-> (reporting and visualisation) renders it into terminal, Markdown and self-contained HTML
-> reports, with the reporting-language rules enforced by lint at render time rather than left to
-> operator discipline — see `examples/reports/` for a sample.**
-> M18's offline reproducibility tooling is also complete: three-level `chainbreak compare`,
-> scrubbed self-contained archives, evidence migration support, and hash-locked dependencies.
-> M17 and the real-account portions of M8/M9 remain blocked on the dedicated AWS account; M19
-> has not started.
+> **Status: 0.1.0a0 — M0–M16 are complete, including dedicated-account acceptance for M8
+> (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 has had invalid/incomplete
+> apparatus attempts only: zero valid or publishable blocks and no M17 measurement. M18's
+> offline reproducibility portion is complete; its real-AWS exercise remains pending. M19
+> has not started. The offline baseline before this documentation pass was 1,772 passed
+> tests.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -67,17 +52,17 @@ and the authority a delegated workload *actually* holds when it executes.
 > anywhere) and the terminal/Markdown/HTML reporting layer (`reporting/`: hand-built
 > evidence-derived SVG figures, Jinja2 with autoescape on and no `|safe` anywhere, a `provider:
 > fake` run stamped in the header and every figure caption)
-> (1744 passing tests;
+> (1,772 passing tests before this documentation pass;
 > `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
 > `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
 > `providers/fake/` ~99.7%, `analysis/` 98%, `execution/` ~99% (every M13/M14-proper module at
 > exactly 100%), `reporting/` 99%, `providers/aws/` ~97% **against
 > moto and pure logic only**, Terraform modules `fmt`/`validate`-clean against a real Terraform
-> binary but never applied — no real AWS account exists, so no IAM behavior in `providers/aws/`
-> and no provisioning behavior in `infra/terraform/` has been confirmed against real AWS), and CI
-> enforces lint, types, import boundaries, and security scans on every push. **The benchmark
-> has been executed against the deterministic fake provider only; no AWS experiment has been
-> run**, so no number anywhere in this repository is a measurement against real infrastructure.
+> binary and dedicated-account acceptance passed for M8/M9; no valid M17 block has produced a
+> benchmark measurement. CI enforces lint, types, import boundaries, security scans,
+> schema/scenario/Terraform checks, and offline tests on every push. **No valid or publishable
+> M17 block exists**, so no number anywhere in this repository is a measurement from a valid
+> M17 benchmark block.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.
 
 ---
@@ -150,20 +135,24 @@ against abstract *capabilities* (`objectstore.read`), which a provider adapter m
 provider actions (`s3:GetObject`) and probe implementations. That indirection is what makes
 the v0.2+ roadmap (OIDC, SPIFFE, Azure, GCP) possible without rewriting v0.1.
 
-## Intended workflow (v0.1 target)
+## Offline quickstart
 
 ```bash
-chainbreak validate                                       # environment + account identity check
 chainbreak scenario validate scenarios/scope-attenuation/basic.yaml
-chainbreak infra plan   aws-sandbox
-chainbreak infra apply  aws-sandbox
-chainbreak run scenarios/scope-attenuation/basic.yaml     # writes an evidence bundle
-chainbreak analyze  <run-id>
-chainbreak report   <run-id> --format html
-namespace=$(terraform -chdir=infra/terraform/environments/aws-sandbox output -raw namespace)
-chainbreak infra destroy aws-sandbox
-chainbreak infra verify-clean aws-sandbox --namespace "$namespace"
+chainbreak run scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729
+chainbreak analyze <run-id>
+chainbreak report <run-id> --format html
 ```
+
+The wheel ships the complete 24-scenario corpus, the capability catalog, and the runtime JSON
+Schemas. `chainbreak scenario list` and `chainbreak validate` use that packaged corpus by
+default, so validation, fake runs, analysis, reporting, and `evidence export --archive` work
+from an empty directory after installation. Repository paths such as
+`scenarios/scope-attenuation/basic.yaml` remain convenient authoring paths when working from a
+checkout.
+
+The `infra` and `--provider aws` workflows are real-account operations documented in
+[EXPERIMENT_PROTOCOL.md](EXPERIMENT_PROTOCOL.md); they are not part of this offline quickstart.
 
 ## Documentation map
 
@@ -197,9 +186,13 @@ chainbreak infra verify-clean aws-sandbox --namespace "$namespace"
 ## Requirements
 
 - Python 3.12+
-- Terraform 1.7+
+- Terraform 1.9+
 - An AWS account **created for this benchmark** with no production workloads
-- Estimated cost per full experiment suite: **under USD 1.00** (see [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md#cost-model))
+- Estimated cost per full experiment suite: **under USD 1.00** (see [AWS_PROVIDER_SPEC.md](AWS_PROVIDER_SPEC.md#9-cost-model))
+
+For an installed offline distribution, build or download a wheel and run `pip install
+chainbreak-*.whl`. The wheel carries the complete 24-scenario corpus, runtime schemas, and
+capability catalog; no checkout is needed for the fake-provider workflow or archives.
 
 CI does **not** require AWS credentials. Unit and integration layers run entirely against a
 deterministic fake provider.

@@ -66,6 +66,10 @@ Issues = "https://github.com/KubixDesiney/chainbreak/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/chainbreak"]
 
+[tool.hatch.build.targets.wheel.force-include]
+schemas = "chainbreak/_packaged_data/schemas"
+scenarios = "chainbreak/_packaged_data/scenarios"
+
 # ---------------------------------------------------------------------------
 # pytest
 # ---------------------------------------------------------------------------

@@ -1,5 +1,11 @@
 # CHAINBREAK Lab Log
 
+**Status as of 2026-08-16:** historical apparatus evidence only. Every M17 entry below is
+invalid, incomplete, or a pre-block guard failure; all are superseded/excluded and none yields a
+valid or publishable block. Intermediate values in these entries are apparatus observations, not
+measurements, and must not be used as results. The live namespace is represented everywhere in
+this tracked log by the stable label `NAMESPACE_SCRUBBED`.
+
 The human-readable counterpart to the evidence bundles. Every experiment block appends an
 entry. Exclusions are recorded **with reasons** — that is the single most important honesty
 mechanism in the protocol, and a suite whose exclusions are undocumented is not publishable.
@@ -25,8 +31,8 @@ entries below are.
 
 ## 2026-08-16 block-01 — checklist recorded before execution
 
-checklist: 0.1 pass (clean commit `1c934ea`); 0.2 pass (`1767 passed, 9 skipped, 28 deselected`); 0.3 pass (live P1–P11); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate; CLI did not emit a numeric offset); 0.7 pass (pre-apply verify-clean: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 09:37 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 09:37 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, local commit `1c934ea` (clean before execution)
 scenarios: pending execution; all five families and six negative controls required in this block
 runs: pending
@@ -41,8 +47,8 @@ exclusions: run `01M04VMT6DFQ98E8NCABXEFVK9` excluded, reason `SecretLeakError` 
 
 ## 2026-08-16 block-01R — checklist recorded before retry
 
-checklist: 0.1 pass (clean commit `cc656e8`); 0.2 pass (offline gate previously `1767 passed, 9 skipped, 28 deselected`, redaction regression `25 passed`); 0.3 pass (live P1–P11); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate; CLI did not emit a numeric offset); 0.7 pass (pre-apply verify-clean: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 09:44 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 09:44 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, local commit `cc656e8` (clean before execution)
 scenarios: pending execution; all five families and six negative controls required in this retry block
 runs: pending
@@ -57,8 +63,8 @@ exclusions: run `01M04WD549F85R9CAH00BRGA72` excluded, reason `AccessDenied` dur
 
 ## 2026-08-16 block-01R2 — checklist recorded before clean restart
 
-checklist: 0.1 pass (clean commit `2fe0755`); 0.2 pass (`1767 passed, 9 skipped, 28 deselected`, plus scenario/compiler validation `60 passed`); 0.3 pass (live P1–P11); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate; CLI did not emit a numeric offset); 0.7 pass (pre-apply verify-clean: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 09:57 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`; destroyed after invalidation, exact verify-clean passed twice
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 09:57 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`; destroyed after invalidation, exact verify-clean passed twice
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, local commit `2fe0755` (clean before execution)
 scenarios: positive set-valued runs began, but the matrix stopped during revocation before all five families and six negative controls were executed
 runs: completed before invalidation — `01M04WRQYD99W3WSJSKM151D3A`, `01M04WSQ9Q89MJQ8CY2NKCJFSN`, `01M04WV9YWF657F34N0MBEA3M4`, `01M04WWSGFE4KGHX4FPX3F3VHV`, `01M04WYC8Y4Q37RHKKPGG26NGB`, `01M04X065H1XRT7QQFHYYJA4M5`, `01M04X1D7P2V0RY83T0ZXENJ7P`, `01M04X2DVYECV8KA3TCN7723H4`, `01M04X2Z138XTKMM404GT12QHG`, `01M04X3Z265K5X4STT809NC2E9`; partial runs `01M04X5S8346NGHFDXBPYQKGJR`, `01M04XDE1D9CA00AHPQ56QV2KZ`
@@ -70,8 +76,8 @@ notes: block invalidated and sandbox destroyed; the next execution requires a ne
 
 ## 2026-08-16 block-01R3 — checklist recorded before clean execution
 
-checklist: 0.1 pass (clean commit `be27feb`; full offline gate `1773 passed, 33 skipped`); 0.2 pass (focused AWS mutation regression `73 passed`, Ruff clean); 0.3 pass (live P1–P11 at 10:19 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 10:14 UTC: nothing remaining; the post-apply diagnostic is expected to report applied resources); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 10:18 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 10:18 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `be27feb` (clean before execution)
 sampling plan: set-valued families n=3 per scenario; timing families use two independent runs in this block, two in block-02, and one in block-03, with all timing runs recorded by block ID (aggregate n=5 across three windows)
 scenarios: all five families and six negative controls required in this block; positive runs pending
@@ -93,8 +99,8 @@ notes: next attempt must use the separately scheduled block-02 window.
 
 ## 2026-08-16 block-02-now — checklist recorded before clean execution
 
-checklist: 0.1 pass (clean commit `6adb4f4`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (adapter regression `73 passed`, Ruff clean); 0.3 pass (live P1–P11 at 12:55 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 12:51 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 12:54 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 12:54 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `6adb4f4` (clean before execution)
 sampling plan: set-valued families n=3 per scenario; timing families use two independent runs in this window, two in block-03, and one in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
 scenarios: all five families and six negative controls required in this block; positive runs pending
@@ -117,8 +123,8 @@ notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, se
 
 ## 2026-08-16 block-02R — checklist recorded before clean replacement execution
 
-checklist: 0.1 pass (clean commit `d96f4de`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (trust-policy regression `73 passed`, Ruff clean); 0.3 pass (live P1–P11 at 13:15 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 13:11 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 13:14 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 13:14 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `d96f4de` (clean before execution)
 sampling plan: set-valued families n=3 per scenario; timing families use one independent run in this window, two in block-03, and two in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
 scenarios: all five families and six negative controls required in this block; positive runs pending
@@ -141,8 +147,8 @@ notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, se
 
 ## 2026-08-16 block-02R2 — checklist recorded before reordered clean execution
 
-checklist: 0.1 pass (clean commit `72a7b88`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (adapter regression `73 passed`, Ruff clean); 0.3 pass (live P1–P11 at 13:35 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 13:33 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 13:34 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 13:34 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `72a7b88` (clean before execution)
 sampling plan: set-valued families n=3 per scenario; timing families use one independent run in this window, two in block-03, and two in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
 execution order: set-valued families, stale-authority timing, revocation timing with trust-policy last, then all six negative controls
@@ -165,8 +171,8 @@ notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, se
 
 ## 2026-08-16 block-02R3 — checklist recorded before timestamp-fixed execution
 
-checklist: 0.1 pass (clean commit `63841bb`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (fresh-leg timestamp regression `5 passed`, Ruff clean); 0.3 pass (live P1–P11 at 13:54 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 13:51 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 13:53 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 13:53 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `63841bb` (clean before execution)
 sampling plan: set-valued families n=3 per scenario; timing families use one independent run in this window, two in block-03, and two in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
 execution order: set-valued families, stale-authority timing, revocation timing with trust-policy last, then all six negative controls
@@ -190,8 +196,8 @@ notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, se
 
 ## 2026-08-16 block-02R4 — checklist recorded before mapped-phase execution
 
-checklist: 0.1 pass (clean commit `309d153`; prior full offline gate `1773 passed, 33 skipped`); 0.2 pass (phase-mapping regression `15 passed`, Ruff clean); 0.3 pass (live P1–P11 at 14:12 UTC); 0.4 pass (`infra status` current); 0.5 pass (live preconditions); 0.6 pass (live validation gate); 0.7 pass (pre-apply exact verify-clean at 14:09 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (budget guardrail resource active; CLI exposes no `--check-budget` option)
-infrastructure: applied 14:11 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `cb-ec11b3c2`, region `eu-west-3`
+checklist: legacy pre-repair record; live budget gate was not yet implemented; no valid M17 result inferred.
+infrastructure: applied 14:11 UTC, 44 resources, fingerprint `sha256:e09c7cda85ffceb170041addaf9684dc8cc6aea3482d5c0ad6da703836b2c97f`, namespace `NAMESPACE_SCRUBBED`, region `eu-west-3`
 adapter/catalog: adapter `0.1.0`, catalog `1.0.0`, chainbreak `0.1.0a0`, local commit `309d153` (clean before execution)
 sampling plan: set-valued families n=3 per scenario; timing families use one independent run in this window, two in block-03, and two in block-04, with all timing runs recorded by block ID (aggregate n=5 across three valid windows)
 execution order: set-valued families, stale-authority timing, revocation timing with trust-policy last, then all six negative controls
@@ -220,7 +226,7 @@ notes: sandbox destroy completed (`44 destroyed`), exact verify-clean passed, se
 
 ## 2026-08-16 block-02R5 pre-block guard — not started
 
-checklist: 0.1 pass (clean commit `71e4bcd`); 0.2 pass (focused regression suite `104 passed`, Ruff clean); 0.3 partial (config/account allowlist passed; live P1–P11 passed at 14:59 UTC before residual teardown, but the post-clean recheck could not load outputs because destroy removes `outputs.json`); 0.4 fail (no captured Terraform outputs/current infrastructure after verified teardown); 0.5 not evidenced after teardown; 0.6 not evidenced after teardown; 0.7 pass (exact verify-clean at 16:03 UTC: nothing remaining); 0.8 pass (namespace lock available); 0.9 recorded (CLI exposes no `--check-budget` option)
+checklist: legacy pre-repair record; post-clean live validation correctly failed because destroy removed outputs; no valid M17 result inferred.
 infrastructure: none applied for this attempted block; no run started
 runs: none
 negative controls: none
@@ -241,7 +247,8 @@ requirements before any result is published.
 
 ```
 ## YYYY-MM-DD block-NN
-checklist:            0.1-0.9 pass | note any that failed and what was done
+stage A:              pass | record clean tree, tests, config/budget guard, exact namespace cleanup, and lock
+stage B:              pass | record fresh outputs/fingerprint, live P1-P11, markers, preconditions, budget, and clock
 infrastructure:       applied HH:MM UTC, fingerprint sha256:…, negative controls enabled
 adapter/catalog:      adapter 0.1.0, catalog 1.0.0, chainbreak 0.1.0, commit abc1234 (clean)
 scenarios:            <path> v<version>, …

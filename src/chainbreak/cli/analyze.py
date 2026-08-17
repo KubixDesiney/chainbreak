@@ -71,10 +71,23 @@ def analyze(
         help="Aggregate runs even if compiled_hash/adapter_version/catalog_version differ "
         "(M15 F7). Lowers confidence in the result; no flag ever raises it (S1).",
     ),
+    provider: str = typer.Option(
+        "offline", "--provider", help="Provenance context: offline or aws."
+    ),
+    block_id: str | None = typer.Option(
+        None, "--block-id", help="Required AWS experiment block identifier."
+    ),
 ) -> None:
     """Derive findings and category scores from an evidence bundle, aggregate a depth
     sweep across a scenario family with ``--aggregate --scenario-family <family>``, or
     aggregate category scores across runs with ``--aggregate-scores --scenario-id <id>``."""
+    if provider not in {"offline", "aws"}:
+        typer.echo("chainbreak analyze: --provider must be offline or aws", err=True)
+        raise typer.Exit(code=2)
+    if provider == "aws" and not block_id:
+        typer.echo("chainbreak analyze: --block-id is required with --provider aws", err=True)
+        raise typer.Exit(code=2)
+
     if aggregate:
         _aggregate_depth_sweep(runs_root, scenario_family)
         return

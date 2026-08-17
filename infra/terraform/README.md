@@ -61,8 +61,9 @@ infrastructure proves less ([EXPERIMENT_PROTOCOL §6](../../EXPERIMENT_PROTOCOL.
 
 ## Safety rules for every module
 
-1. **No `Resource: "*"`** except `sts:GetCallerIdentity`. CI enforces this with a custom
-   `checkov`/`tflint` rule; it is not a review convention.
+1. **No `Resource: "*"`** except `sts:GetCallerIdentity`. CI enforces this with the repository
+   wildcard guard plus Checkov; TFLint was used for dedicated-account acceptance, not as a
+   current CI job. It is not a review convention.
 2. **Every policy is namespace-scoped**, by explicit ARN or by a condition on
    `aws:ResourceTag/Namespace`.
 3. **`default_tags` on the provider** applies `Project=CHAINBREAK`, `Environment=benchmark`,

@@ -135,15 +135,26 @@ Full step-by-step protocol per family is in [EXPERIMENT_PROTOCOL.md](EXPERIMENT_
 Structure common to all:
 
 ```
-apply infrastructure  →  verify preconditions  →  baseline probe (principal)
-  →  for trial in 1..n:            (trials distributed across blocks)
+Stage A: clean tree → offline tests → config/account/region + budget guard
+  → exact prior-namespace verify-clean → namespace lock
+  → apply infrastructure
+Stage B: fresh outputs/current fingerprint → live validate (P1-P11, markers,
+  preconditions, live budget/alarm, clock)
+  → baseline probe (principal)
+  → for trial in 1..n:            (trials distributed across blocks)
         delegate chain
         probe matrix (phase: after-delegation)
         [mutate + poll]  |  [wait + deferred execute]  |  [run task]
         probe matrix (phase: final)
         revert runtime mutations
-  →  seal bundle  →  analyze  →  verify-clean  →  destroy
+  → seal bundle → analyze each captured run id → scrubbed archive export
+  → destroy → exact captured-namespace verify-clean
 ```
+
+Stage B is invalid after destroy or whenever `outputs.json` is absent/stale. The M17 workflow
+supplies the account/region/salt, operator principals, budget limit, and notification through
+the reviewed `aws-benchmark` environment contract; sensitive values are environment variables,
+never command-line literals or log output.
 
 Minimum trials: **n = 5** for timing measurements, **n = 3** for set-valued measurements.
 The asymmetry is deliberate: set-valued outcomes are near-deterministic (a policy either

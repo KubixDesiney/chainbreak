@@ -8,6 +8,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-*/
 venv/
 *.egg-info/
 dist/
@@ -22,7 +23,8 @@ htmlcov/
 # --- Terraform: NEVER commit state. State contains resource identifiers and
 # --- may contain sensitive attributes. See THREAT_MODEL.md T-04.
 **/.terraform/
-**/.terraform.lock.hcl
+# Provider dependency locks are reviewed and committed. Terraform state,
+# plans, tfvars and outputs remain ignored below.
 *.tfstate
 *.tfstate.*
 *.tfplan

@@ -5,24 +5,50 @@ this says *exactly what to do, in what order, and what invalidates the result*.
 
 ---
 
-## 0. Pre-experiment checklist
+## 0. Two-stage experiment gates
 
-Run before any experiment block. Every item is a hard gate.
+The old single checklist was contradictory: it required infrastructure to be current and
+clean at the same time. M17 uses two ordered gates. Stage B is never evaluated before a
+successful apply, and a destroyed sandbox cannot pass it because `status` requires fresh
+`outputs.json` and a matching live Terraform output.
 
-| # | Check | Command | Invalidates if failed |
+### Stage A — pre-apply clean gate
+
+Run every item before `chainbreak infra apply`. All are hard gates.
+
+| # | Check | Command/evidence | Invalidates if failed |
 |---|---|---|---|
-| 0.1 | Working tree clean | `git status --porcelain` empty | Yes — provenance unusable |
-| 0.2 | Tests green | `pytest -m "unit or integration"` | Yes |
-| 0.3 | Config resolves; account allowlisted | `chainbreak validate` | Yes |
-| 0.4 | Infrastructure applied and current | `chainbreak infra status aws-sandbox` | Yes |
-| 0.5 | Preconditions satisfied | included in `validate` | Yes |
-| 0.6 | Clock offset within tolerance | included in `validate` | Downgrades timing confidence |
-| 0.7 | No leftover resources from a prior run | `chainbreak infra verify-clean` | Yes |
-| 0.8 | No concurrent run holds the namespace lock | automatic | Yes |
-| 0.9 | Budget alarm active | `chainbreak validate --check-budget` | No, but record |
+| A1 | Working tree clean | `git status --porcelain` empty | Yes — provenance unusable |
+| A2 | Tests green | `pytest -m "unit or integration" -q` | Yes |
+| A3 | Config, account, and region resolve | `chainbreak validate --provider aws --stage pre-apply --check-budget --block-id <block-id>` | Yes |
+| A4 | Exact prior namespace known and clean | `chainbreak infra namespace ...` followed by `chainbreak infra verify-clean ... --namespace <captured>`; if outputs exist, `infra status` must first prove they are current | Yes |
+| A5 | Namespace lock held | GitHub environment concurrency plus `CHAINBREAK_ALLOW_CONCURRENT_RUNS=false` | Yes |
+| A6 | Budget guard is configured | Pre-apply `--check-budget` validates a positive budget, notification, and enabled negative controls; no AWS call is needed because the old budget may have been destroyed | Yes |
 
-Record the checklist result in the lab log (§8). An experiment whose checklist was not run
+The exact namespace is captured before apply and retained through destroy. A stale or missing
+namespace/output capture is never silently substituted. A block whose Stage A was not recorded
 is not a CHAINBREAK experiment.
+
+### Stage B — post-apply live gate
+
+Run only after Stage A and a successful apply. All are hard gates except the documented P11
+timing-confidence downgrade.
+
+| # | Check | Command/evidence | Invalidates if failed |
+|---|---|---|---|
+| B1 | Fresh outputs and current state | `chainbreak infra status aws-sandbox --provider aws --block-id <block-id> --capture-namespace <path>` | Yes |
+| B2 | Current infrastructure fingerprint | `status` compares captured outputs with live `terraform output -json` | Yes |
+| B3 | Live provider gate | `chainbreak validate --provider aws --stage live --check-budget --block-id <block-id>` | Yes |
+| B4 | Markers and preconditions | P8 in the live validation report | Yes |
+| B5 | P1–P11 and clock status | P1–P11 in the live validation report; P11 may downgrade timing confidence | Yes, except P11 warning |
+| B6 | Block metadata and controls | every run uses `--provider aws --block-id <block-id>` and Terraform has `enable_negative_controls=true` | Yes |
+
+`chainbreak validate --provider aws --stage live` refuses missing/stale outputs. It also performs
+the fail-closed live budget/alarm check when `--check-budget` is supplied: the exact namespace
+budget must be a positive monthly COST budget with an active subscribed alarm notification.
+
+Record both gate results in the lab log (§8). An experiment whose two gates were not run in this
+order is not a CHAINBREAK experiment.
 
 ---
 

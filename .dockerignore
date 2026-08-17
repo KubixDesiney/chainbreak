@@ -16,6 +16,11 @@ docs/
 tests/
 infra/
 schemas/
+!schemas/
+!schemas/**
+scenarios/
+!scenarios/
+!scenarios/**
 examples/
 *.md
 !README.md

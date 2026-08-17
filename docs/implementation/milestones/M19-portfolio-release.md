@@ -1,5 +1,10 @@
 # M19 — Portfolio and public release
 
+## Current status
+
+Not started. M19 remains gated on a valid M17 result and the pending real-AWS portion of M18;
+no release, tag, or publication is part of this documentation pass.
+
 ## Purpose
 Ship v0.1.0: a coherent, honest, reviewable open-source artifact.
 

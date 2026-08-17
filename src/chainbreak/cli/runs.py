@@ -119,9 +119,23 @@ def export_evidence(
     runs_root: Path = typer.Option(
         _DEFAULT_RUNS_ROOT, "--runs-root", help="Directory containing run bundles."
     ),
+    provider: str = typer.Option(
+        "offline", "--provider", help="Provenance context: offline or aws."
+    ),
+    block_id: str | None = typer.Option(
+        None, "--block-id", help="Required AWS experiment block identifier."
+    ),
 ) -> None:
     """Export a bundle. ``--public`` produces the scrubbed, shareable copy (F6);
     ``--archive`` additionally packages it into a self-contained tarball (M18 F4)."""
+    if provider not in {"offline", "aws"}:
+        typer.echo("chainbreak evidence export: --provider must be offline or aws", err=True)
+        raise typer.Exit(code=2)
+    if provider == "aws" and not block_id:
+        typer.echo(
+            "chainbreak evidence export: --block-id is required with --provider aws", err=True
+        )
+        raise typer.Exit(code=2)
     if not public and not archive:
         typer.echo("chainbreak evidence export: only --public export is implemented (M6)", err=True)
         raise typer.Exit(code=2)

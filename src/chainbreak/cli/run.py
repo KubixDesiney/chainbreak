@@ -20,7 +20,6 @@ mutation or probe.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess  # nosec B404 -- fixed-argv Git provenance lookup
 from datetime import UTC, datetime
@@ -89,6 +88,11 @@ def run(
         "--i-know-what-i-am-doing",
         help="Acknowledge P9's production-tag warning; never bypasses other checks.",
     ),
+    run_id_file: Path | None = typer.Option(
+        None,
+        "--run-id-file",
+        help="Append the sealed run id to this file for deterministic downstream analysis.",
+    ),
 ) -> None:
     """Execute a compiled scenario against a provider, producing a sealed
     evidence bundle under ``<runs-root>/<run-id>/``."""
@@ -96,6 +100,10 @@ def run(
         typer.echo(
             f"chainbreak run: unknown provider {provider!r} (expected fake or aws)", err=True
         )
+        raise typer.Exit(code=2)
+
+    if provider == "aws" and not block_id:
+        typer.echo("chainbreak run: --block-id is required with --provider aws", err=True)
         raise typer.Exit(code=2)
 
     if not scenario_path.is_file():
@@ -110,12 +118,12 @@ def run(
         )
         raise typer.Exit(code=2)
 
-    from chainbreak.capabilities.loader import load_catalog
+    from chainbreak.capabilities.loader import catalog_bytes, load_catalog
     from chainbreak.config.fingerprint import fingerprint_settings
     from chainbreak.config.settings import resolve_safety_envelope, resolve_settings
     from chainbreak.core.errors import ChainbreakError
     from chainbreak.core.ids import new_run_id
-    from chainbreak.evidence.manifest import hash_file
+    from chainbreak.evidence.manifest import hash_bytes
     from chainbreak.evidence.writer import BundleWriter
     from chainbreak.execution.orchestrator import orchestrate
     from chainbreak.providers.fake.probes import build_fake_preconditions
@@ -190,8 +198,7 @@ def run(
     environment = adapter.describe_environment()
     effective_block_id = block_id
     if provider == "aws":
-        effective_block_id = effective_block_id or os.environ.get("CHAINBREAK_BLOCK_ID")
-        effective_block_id = effective_block_id or datetime.now(UTC).strftime("%Y%m%d-%H")
+        effective_block_id = block_id
     git_commit, git_dirty = _git_provenance()
     writer = BundleWriter(
         runs_root,
@@ -206,9 +213,7 @@ def run(
         provenance={
             "chainbreak_version": _chainbreak_version(),
             "capability_catalog_version": compiled.catalog_version,
-            "capability_catalog_fingerprint": hash_file(
-                Path(__file__).resolve().parents[1] / "capabilities" / "catalog.yaml"
-            ),
+            "capability_catalog_fingerprint": hash_bytes(catalog_bytes()),
             "provider": adapter.name,
             "provider_adapter_version": compiled.adapter_version,
             "python_version": _python_version(),
@@ -277,6 +282,14 @@ def run(
             close()
 
     run_dir = runs_root / run_id
+    if run_id_file is not None:
+        try:
+            run_id_file.parent.mkdir(parents=True, exist_ok=True)
+            with run_id_file.open("a", encoding="utf-8") as handle:
+                handle.write(f"{run_id}\n")
+        except OSError as exc:
+            typer.echo(f"chainbreak run: could not record run id: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
     typer.echo(f"chainbreak run: {result.status.value} -> {run_dir}")
     for discarded in result.discarded_matrices:
         typer.echo(

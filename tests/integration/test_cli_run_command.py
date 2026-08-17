@@ -51,6 +51,8 @@ class TestArgumentHandling:
                 str(BASIC_SCENARIO),
                 "--provider",
                 "aws",
+                "--block-id",
+                "offline-contract",
                 "--terraform-outputs",
                 str(tmp_path / "missing-outputs.json"),
             ],
@@ -107,6 +109,7 @@ class TestFakeProviderHappyPath:
 
         monkeypatch.chdir(tmp_path)  # no chainbreak.toml here -- fake needs none
         runs_root = tmp_path / "runs"
+        run_id_file = tmp_path / "artifacts" / "run-ids.txt"
         result = CliRunner().invoke(
             app,
             [
@@ -118,6 +121,8 @@ class TestFakeProviderHappyPath:
                 "11",
                 "--runs-root",
                 str(runs_root),
+                "--run-id-file",
+                str(run_id_file),
             ],
         )
         assert result.exit_code == 0, result.output
@@ -131,6 +136,7 @@ class TestFakeProviderHappyPath:
 
         manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["status"] == "COMPLETED"
+        assert run_id_file.read_text(encoding="utf-8").strip() == run_dir.name
 
     def test_analyze_consumes_the_produced_bundle(self, tmp_path: Path, monkeypatch):
         from chainbreak.cli.main import app

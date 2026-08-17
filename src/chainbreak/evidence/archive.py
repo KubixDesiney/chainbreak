@@ -9,38 +9,48 @@ directly on top of :func:`chainbreak.evidence.export.export_public`'s
 already-scrubbed staging output rather than reading the raw bundle itself,
 so there is no code path that could archive an unscrubbed artifact.
 
-Schema and catalog files are located repo-relative
-(``Path(__file__).resolve().parents[3]``), which resolves correctly under
-this project's only currently-documented install method (``pip install -e
-.``, README.md "Requirements"). CHAINBREAK does not yet ship ``schemas/`` as
-packaged data, so archiving from a non-editable wheel install would need
-that packaging work first -- out of scope here; :func:`create_archive`
-fails loudly rather than silently omitting the schemas if the directory is
-not found, per the project's "prefer INCONCLUSIVE over a guess" convention.
+Schema and catalog files are loaded with ``importlib.resources`` from the
+installed distribution.  ``--archive`` therefore works from a wheel in an
+empty directory and never silently consults a repository checkout.
 """
 
 from __future__ import annotations
 
 import tempfile
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Final
 
+from chainbreak.capabilities.loader import catalog_bytes
 from chainbreak.core.errors import EvidenceError
 from chainbreak.evidence.export import ExportReport, export_public
-from chainbreak.evidence.manifest import hash_file
+from chainbreak.evidence.manifest import hash_bytes
 from chainbreak.evidence.reader import read_manifest
 from chainbreak.evidence.writer import create_tar_archive
 
 __all__ = ["ArchiveReport", "create_archive"]
 
-_REPO_ROOT: Final = Path(__file__).resolve().parents[3]
-_SCHEMAS_DIR: Final = _REPO_ROOT / "schemas"
-
 #: JSON Schema files only (the milestone's own words: "the JSON Schemas"),
 #: not schemas/run-index.sql -- that describes the SQLite run-index cache
 #: (DECISIONS.md: "a cache, never a source of truth"), not the bundle.
 _SCHEMA_GLOB: Final = "*.schema.json"
+
+
+def _packaged_schemas() -> tuple[tuple[str, bytes], ...]:
+    root = resources.files("chainbreak._packaged_data").joinpath("schemas")
+    if not root.is_dir():
+        # Editable source checkouts do not contain the wheel's force-included
+        # mirror. Installed distributions never take this branch.
+        root_path = Path(__file__).resolve().parents[3] / "schemas"
+        return tuple(
+            (path.name, path.read_bytes()) for path in sorted(root_path.glob(_SCHEMA_GLOB))
+        )
+    return tuple(
+        (item.name, item.read_bytes())
+        for item in sorted(root.iterdir(), key=lambda item: item.name)
+        if item.name.endswith(_SCHEMA_GLOB.removeprefix("*"))
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,8 +156,9 @@ def create_archive(
     """
     manifest = read_manifest(run_dir / "manifest.json")
 
-    from chainbreak.capabilities.loader import DEFAULT_CATALOG_PATH, load_catalog
+    from chainbreak.capabilities.loader import load_catalog
 
+    catalog_data = catalog_bytes()
     recorded_catalog_version = str(manifest.provenance.get("capability_catalog_version", ""))
     current_catalog = load_catalog()
     if current_catalog.version != recorded_catalog_version:
@@ -163,7 +174,7 @@ def create_archive(
         )
 
     recorded_catalog_fingerprint = manifest.provenance.get("capability_catalog_fingerprint")
-    current_catalog_fingerprint = hash_file(DEFAULT_CATALOG_PATH)
+    current_catalog_fingerprint = hash_bytes(catalog_data)
     if recorded_catalog_fingerprint is not None and str(recorded_catalog_fingerprint) != (
         current_catalog_fingerprint
     ):
@@ -177,17 +188,9 @@ def create_archive(
             current_catalog_fingerprint=current_catalog_fingerprint,
         )
 
-    if not _SCHEMAS_DIR.is_dir():
-        raise EvidenceError(
-            f"no schemas/ directory found at {_SCHEMAS_DIR}; archiving requires a repository "
-            "checkout (see chainbreak/evidence/archive.py's module docstring)",
-            run_id=manifest.run_id,
-        )
-    schema_paths = sorted(_SCHEMAS_DIR.glob(_SCHEMA_GLOB))
-    if not schema_paths:
-        raise EvidenceError(
-            f"no {_SCHEMA_GLOB} files found under {_SCHEMAS_DIR}", run_id=manifest.run_id
-        )
+    schema_data = _packaged_schemas()
+    if not schema_data:
+        raise EvidenceError("no packaged JSON Schemas are available", run_id=manifest.run_id)
 
     reproduce_md = _reproduce_md(
         run_id=manifest.run_id,
@@ -213,9 +216,9 @@ def create_archive(
             for path in sorted(staging_dir.rglob("*"))
             if path.is_file()
         }
-        members[f"{manifest.run_id}/catalog.yaml"] = DEFAULT_CATALOG_PATH
-        for schema_path in schema_paths:
-            members[f"{manifest.run_id}/schemas/{schema_path.name}"] = schema_path
+        members[f"{manifest.run_id}/catalog.yaml"] = catalog_data
+        for schema_name, schema_bytes in schema_data:
+            members[f"{manifest.run_id}/schemas/{schema_name}"] = schema_bytes
         members[f"{manifest.run_id}/REPRODUCE.md"] = reproduce_md.encode("utf-8")
 
         archive_path = output_path or run_dir.parent / f"{manifest.run_id}-archive.tar.gz"
@@ -225,6 +228,6 @@ def create_archive(
         run_id=manifest.run_id,
         archive_path=archive_path,
         export_report=export_report,
-        schema_files=tuple(p.name for p in schema_paths),
+        schema_files=tuple(name for name, _ in schema_data),
         catalog_version=current_catalog.version,
     )

@@ -29,16 +29,16 @@ def validate(
     """Run all five validation stages, print the result, exit with the
     stage's documented exit code.
 
-    Stage 4 (provider binding) always resolves against an empty registry
-    today: no provider package (M5 fake, M8 AWS) has registered a real
-    binding into one yet, so any scenario naming a real capability currently
-    fails at exit 4 -- see PROJECT_STATUS.md known issue 2.
+    Provider bindings use the same synthetic, non-network registry as the
+    runtime compilation path. This lets the command validate shipped AWS
+    scenarios offline without Terraform outputs or an AWS call.
     """
     from chainbreak.capabilities.loader import load_catalog
-    from chainbreak.capabilities.registry import BindingRegistry
+    from chainbreak.cli.run import _build_registry
     from chainbreak.scenarios.loader import EXIT_VALID, validate_scenario
 
-    result = validate_scenario(path, catalog=load_catalog(), registry=BindingRegistry())
+    catalog = load_catalog()
+    result = validate_scenario(path, catalog=catalog, registry=_build_registry(catalog))
     if result.compiled is not None:
         typer.echo(f"OK  {path}  compiled_hash={result.compiled.compiled_hash}")
         raise typer.Exit(code=EXIT_VALID)
@@ -51,14 +51,28 @@ def validate(
 
 @app.command("list")
 def list_scenarios(
-    directory: Path = typer.Option(_DEFAULT_SCENARIOS_DIR, "--dir", help="Scenario corpus root."),
+    directory: Path | None = typer.Option(
+        None,
+        "--dir",
+        help="Scenario corpus root. Defaults to the 24 scenarios shipped in the wheel.",
+    ),
 ) -> None:
     """List every scenario file found under ``directory``."""
-    if not directory.exists():
-        typer.echo(f"no such directory: {directory}", err=True)
-        raise typer.Exit(code=2)
-    paths = sorted(directory.rglob("*.yaml"))
-    for path in paths:
-        typer.echo(str(path))
+    if directory is not None:
+        if not directory.exists():
+            typer.echo(f"no such directory: {directory}", err=True)
+            raise typer.Exit(code=2)
+        paths = sorted(directory.rglob("*.yaml"))
+        label = directory
+        for path in paths:
+            typer.echo(str(path))
+    else:
+        from chainbreak.scenarios.resources import packaged_scenarios_path
+
+        with packaged_scenarios_path() as packaged:
+            paths = sorted(packaged.rglob("*.yaml"))
+            label = packaged
+            for path in paths:
+                typer.echo(str(path))
     if not paths:
-        typer.echo(f"no scenario files found under {directory}", err=True)
+        typer.echo(f"no scenario files found under {label}", err=True)
