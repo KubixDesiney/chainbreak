@@ -428,6 +428,38 @@ namespace-tagged SNS budget notification topic and Budgets publish policy, retai
 supplied email recipient, and enumerate SNS during cleanup.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
+## 2026-08-17 M17-20260817-W12 — apply apparatus failure, cleaned
+
+workflow: GitHub Actions run `32030738949`; block ID `M17-20260817-W12`; window
+2026-08-17 12:36-12:43 UTC.
+checklist: preflight contract passed; clean tree and full unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; blanket operator approval for W12
+apply and subsequent M17 apply/destroy gates was recorded. The apply did not complete,
+so no post-apply live gate was run.
+infrastructure: apply attempted; no complete infrastructure fingerprint was captured;
+the exact namespace was the approved `cb-3cee2aea`, region `eu-west-3`.
+adapter/catalog: repository commit `67e8ce3b50e6cc05384883ed0ec7fe6539c13cc8`;
+provider `aws`; negative controls enabled.
+scenarios: suite requested; all five positive benchmark families were not run; all six
+negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded because `chainbreak infra apply` failed while creating
+`module.resources.aws_s3_bucket_lifecycle_configuration.objectstore` with the exact
+AWS/Terraform detail `couldn't find resource`. This is an apply apparatus failure; no
+measurement or provider conclusion is inferred.
+observation: none publishable; no timing or family score is inferred.
+anomalies: explained S3 lifecycle eventual-consistency race under repair; no public
+archive or scrub diff was produced because no run was sealed.
+cleanup: destroy approval was recorded under the blanket operator approval; cleanup
+completed successfully and the exact namespace verify-clean gate passed. The apply
+failed before a complete resource count was available.
+repair: lifecycle configuration is now explicitly sequenced after the marker PUT in
+the next commit, so the next apply uses a completed S3 data-plane operation before
+calling the lifecycle endpoint.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
+
 ---
 
 ## Template
