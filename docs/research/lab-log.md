@@ -532,6 +532,51 @@ subscriber and optional email subscriber, and explicitly sequence budget creatio
 the SNS topic policy.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated.
 
+## 2026-08-17 M17-20260817-W15 — budget notification still omitted, public work stopped, cleaned
+
+workflow: GitHub Actions run `32033277122`; block ID `M17-20260817-W15`; window
+2026-08-17 13:06-13:16 UTC; repository commit
+`465f1c47c9db043c2e88d0ea103c1563e545c2ef`.
+checklist: preflight contract passed; clean tree and full unit/integration tests passed;
+short-lived GitHub OIDC role assumption passed; exact pre-apply namespace/status/
+verify-clean passed; budget guard contract passed; standing operator approval for W09
+apply and all subsequent M17 apply/destroy gates was active and recorded. Apply completed,
+so fresh Terraform outputs and the post-apply live gate were captured before cleanup.
+infrastructure: apply complete at 13:10:57 UTC with 46 resources; exact namespace
+`cb-3cee2aea`; region `eu-west-3`; fresh infrastructure fingerprint
+`sha256:28a55a99d6322de3b75abdb55f5d4001be383331cba525ce587f4895842f36dc`.
+adapter/catalog: provider `aws`; capability catalog `v1.0.0`; 24 scenarios structurally
+valid; negative controls enabled.
+post-apply live gate: attempt 1 failed fresh marker checks with exact diagnostics
+`objectstore.marker_present code=403 status=403`,
+`keyvalue.marker_present code=AccessDeniedException status=400`, and
+`function.alive code=AccessDeniedException status=403`; `queue.present` passed. Attempt 2
+passed the marker checks and reached the budget check. Attempts 2 through 6 reported the
+same fresh redacted budget shape: `type='COST'; time_unit='MONTHLY'; limit=1.00;
+notifications=0; states=[]; subscriber_counts=[]`. The live table reported
+`AWS live validation (P1-P11) + budget FAIL` with the exact detail
+`budget missing a positive monthly COST limit or active subscribed alarm`.
+scenarios: suite requested; all five positive benchmark families were not run; all six
+negative controls were not run.
+runs: none; no sealed Chainbreak run IDs exist for this block.
+negative controls: not run.
+exclusions: whole block excluded because the required post-apply live gate failed;
+the suite and analysis steps were skipped. No timing, family score, or control result
+is inferred from this block.
+archives: no public scrubbed archive or scrub diff was produced because no run was sealed.
+anomalies: the budget existed but AWS returned zero notification objects after the
+unconditional Terraform notification block, SNS topic, Budgets publish policy, actual-cost
+notification type, and explicit topic-policy dependency repairs were present in the commit.
+This repeated omission now triggers the `SECURITY.md` cloud-provider-defect stop rule.
+No provider defect is declared from this incomplete block; public work is paused pending
+private reproduction, documented-behavior review, and coordinated disclosure if warranted.
+cleanup: destroy approval was recorded under the standing operator approval. First destroy
+completed with `46 destroyed`; second destroy completed with `0 destroyed` and `No changes`;
+exact namespace `cb-3cee2aea` verification reported `chainbreak infra verify-clean: nothing
+remaining`. Cleanup succeeded.
+outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated;
+further public apply is stopped pending the SECURITY.md coordinated-disclosure sequence.
+
 repair after W13: the budget notification is changed from `FORECASTED` to `ACTUAL` so
 the guard does not depend on AWS forecast-history availability; the live validator now
 records redacted budget shape, notification-state, and subscriber-count diagnostics on
