@@ -237,11 +237,21 @@ jobs:
       - name: Stage B - post-apply live gate
         run: |
           set -euo pipefail
-          chainbreak infra status aws-sandbox --provider aws --block-id "$BLOCK_ID" \
-            --capture-namespace artifacts/namespace.txt
-          cmp --silent artifacts/namespace-derived.txt artifacts/namespace.txt
-          chainbreak validate --provider aws --stage live --check-budget --block-id "$BLOCK_ID" \
-            --terraform-outputs infra/terraform/environments/aws-sandbox/outputs.json
+          for attempt in 1 2 3 4 5 6; do
+            echo "post-apply live-gate attempt ${attempt}/6"
+            chainbreak infra status aws-sandbox --provider aws --block-id "$BLOCK_ID" \
+              --capture-namespace artifacts/namespace.txt
+            cmp --silent artifacts/namespace-derived.txt artifacts/namespace.txt
+            if chainbreak validate --provider aws --stage live --check-budget --block-id "$BLOCK_ID" \
+              --terraform-outputs infra/terraform/environments/aws-sandbox/outputs.json; then
+              exit 0
+            fi
+            if [[ "$attempt" -lt 6 ]]; then
+              echo "post-apply live gate failed; waiting 10s for AWS IAM/data-plane propagation"
+              sleep 10
+            fi
+          done
+          exit 1
 
       - name: Run AWS experiment suite and capture exact run ids
         run: |
