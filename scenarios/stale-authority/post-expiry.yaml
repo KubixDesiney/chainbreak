@@ -82,7 +82,10 @@ spec:
       session_policy:
         derive_from: intended_capabilities
       credential:
-        requested_lifetime_seconds: 900
+        # Keep the parent session alive through the 1000 s wait so the
+        # paired-fresh leg can re-delegate at t_exec; agent-c below remains
+        # the credential that intentionally expires at 900 s.
+        requested_lifetime_seconds: 3600
 
     - id: hop-3
       from: agent-b
