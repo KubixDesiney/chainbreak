@@ -47,6 +47,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "objectstore" {
 resource "aws_s3_bucket_lifecycle_configuration" "objectstore" {
   bucket = aws_s3_bucket.objectstore.id
 
+  # S3 can briefly report a newly created bucket as absent to the lifecycle
+  # endpoint. The marker PUT is a completed bucket data-plane operation, so
+  # sequencing this configuration after it removes that apply-time race.
+  depends_on = [aws_s3_object.marker]
+
   rule {
     id     = "expire-scratch"
     status = "Enabled"
