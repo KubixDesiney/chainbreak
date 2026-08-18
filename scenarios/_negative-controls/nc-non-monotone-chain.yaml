@@ -59,7 +59,7 @@ spec:
     - id: hop-1
       from: principal
       to: agent-a
-      mechanism: ROLE_CHAIN
+      mechanism: SESSION_POLICY_SCOPED
       intended_capabilities:
         - objectstore.read
         - keyvalue.read
@@ -67,11 +67,13 @@ spec:
         - identity.delegate
       credential:
         requested_lifetime_seconds: 3600
+      session_policy:
+        derive_from: intended_capabilities
 
     - id: hop-2
       from: agent-a
       to: agent-b
-      mechanism: ROLE_CHAIN
+      mechanism: SESSION_POLICY_SCOPED
       intended_capabilities:
         - objectstore.read
         - keyvalue.read
@@ -79,6 +81,8 @@ spec:
         - identity.delegate
       credential:
         requested_lifetime_seconds: 3600
+      session_policy:
+        derive_from: intended_capabilities
 
     - id: hop-3
       from: agent-b

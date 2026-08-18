@@ -44,3 +44,8 @@ output "agent_c_nonmonotone_role_arn" {
   description = "Only set when enable_negative_controls = true."
   value       = var.enable_negative_controls ? aws_iam_role.agent_c_nonmonotone[0].arn : null
 }
+
+output "agent_c_stale_role_arn" {
+  description = "Only set when enable_negative_controls = true."
+  value       = var.enable_negative_controls ? aws_iam_role.agent_c_stale[0].arn : null
+}

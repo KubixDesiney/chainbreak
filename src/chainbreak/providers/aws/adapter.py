@@ -254,6 +254,12 @@ class AwsProviderAdapter:
             account_ref=self.account_ref,
         )
 
+    def _role_arn_for_identity(self, identity_id: IdentityId) -> str:
+        provider_binding = self._identity_output_bindings.get(identity_id)
+        if provider_binding is not None:
+            return self.outputs.role_arn_for_output(provider_binding)
+        return mutation_mod.role_arn_for_identity(identity_id, self.outputs)
+
     def _sts_client(self, session: Any) -> Any:
         client = session.client(
             "sts", region_name=self.region, endpoint_url=f"https://sts.{self.region}.amazonaws.com"
@@ -565,21 +571,34 @@ class AwsProviderAdapter:
         assert_aws_reference(role_arn, account_id=self.account_ref, namespace=self.namespace)
         session_name = session_mod.build_session_name(self.namespace, request.target_identity_id)
 
-        result = session_mod.assume_role(
-            sts_client,
-            role_arn=role_arn,
-            session_name=session_name,
-            external_id=self.outputs.external_id,
-            requested_duration_s=request.requested_duration_s,
-            mechanism=request.mechanism,
-            intended_capabilities=request.intended_capabilities,
-            bindings=self.bindings,
-            namespace=self.namespace,
-            target_identity_id=request.target_identity_id,
-            identity_ref=self._make_ref(role_arn),
-            credential_id=new_credential_id(),
-            salt=self._salt(),
-        )
+        try:
+            result = session_mod.assume_role(
+                sts_client,
+                role_arn=role_arn,
+                session_name=session_name,
+                external_id=self.outputs.external_id,
+                requested_duration_s=request.requested_duration_s,
+                mechanism=request.mechanism,
+                intended_capabilities=request.intended_capabilities,
+                bindings=self.bindings,
+                namespace=self.namespace,
+                target_identity_id=request.target_identity_id,
+                identity_ref=self._make_ref(role_arn),
+                credential_id=new_credential_id(),
+                salt=self._salt(),
+            )
+        except ClientError as exc:
+            # A future-issuance denial is an expected observation for the
+            # stale-authority control. Convert the provider exception at the
+            # adapter boundary so deferred execution can record a safe,
+            # machine-readable paired-leg denial without serializing AWS's
+            # request text, role ARN, or session details.
+            code = error_code(exc)
+            raise DelegationError(
+                f"target role issuance failed with provider error {code!r}",
+                target_identity=request.target_identity_id,
+                provider_error_code=code,
+            ) from exc
         self._credentials.append(result.credential)
         boto_session = session_mod.boto3_session_from_credential(
             result.credential, region=self.region
@@ -728,12 +747,12 @@ class AwsProviderAdapter:
             outputs=self.outputs,
             bindings=self.bindings,
             namespace=self.namespace,
+            target_role_arn=self._role_arn_for_identity(mutation.target_identity),
         )
 
     def restore_declared_policy(
         self, target_identity: str, declared_capabilities: Any
     ) -> MutationReceipt:
-        del declared_capabilities  # Terraform's managed ceiling is the source of truth.
         self._ensure_open()
         bootstrap = self._bootstrap_session()
         iam_client = self._clients_for(self.outputs.bootstrap_role_arn, bootstrap).iam
@@ -742,6 +761,9 @@ class AwsProviderAdapter:
             target_identity=target_identity,
             outputs=self.outputs,
             namespace=self.namespace,
+            target_role_arn=self._role_arn_for_identity(target_identity),
+            declared_capabilities=declared_capabilities,
+            bindings=self.bindings,
         )
 
     def restore_trust_policy(self, target_identity: str) -> MutationReceipt:
@@ -753,6 +775,7 @@ class AwsProviderAdapter:
             target_identity=target_identity,
             outputs=self.outputs,
             namespace=self.namespace,
+            target_role_arn=self._role_arn_for_identity(target_identity),
         )
 
     def snapshot_policy_state(self, identity_ref: IdentityRef) -> PolicyStateSnapshot:
@@ -766,6 +789,7 @@ class AwsProviderAdapter:
             outputs=self.outputs,
             salt=self._salt(),
             now_ns=time.monotonic_ns(),
+            role_arn=self._role_arn_for_identity(identity_id),
         )
 
     def clear_caches(self) -> None:

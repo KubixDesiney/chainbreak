@@ -95,6 +95,12 @@ resource "aws_iam_policy" "ceiling" {
         Effect   = "Allow"
         Action   = ["sts:AssumeRole"]
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.agent_by_index[each.key + 1]}"
+      }] : [],
+      each.key == 1 ? [for role_arn in var.negative_control_role_arns : {
+        Sid      = "CbAllowNegativeControlDelegate"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole"]
+        Resource = role_arn
       }] : []
     )
   })
@@ -105,6 +111,63 @@ resource "aws_iam_role_policy_attachment" "ceiling" {
 
   role       = each.value
   policy_arn = aws_iam_policy.ceiling[each.key].arn
+}
+
+# The stale-credential negative control needs one removable, inline baseline
+# grant. It deliberately does not use the ordinary managed ceiling policy:
+# removing an explicit deny would deny old and fresh sessions alike, while
+# removing this allow leaves the already-issued session as the AWS stale
+# authority under test.
+resource "aws_iam_role_policy" "negative_control_stale_grant" {
+  count = var.enable_negative_controls ? 1 : 0
+  name  = "cb-grant"
+  role  = "${var.namespace}-agent-c-stale"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CbStaleControlWhoami"
+        Effect   = "Allow"
+        Action   = ["sts:GetCallerIdentity"]
+        Resource = "*"
+      },
+      {
+        Sid      = "CbStaleControlObjectstoreRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${var.resource_arns.objectstore_bucket_arn}/*"
+      },
+    ]
+  })
+}
+
+# Baseline capabilities for the non-monotone terminal role. The separate
+# defect policy below adds keyvalue.write; keeping the intended read/whoami
+# grant here makes the observed expansion attributable to exactly that extra
+# capability.
+resource "aws_iam_role_policy" "negative_control_nonmonotone_base" {
+  count = var.enable_negative_controls ? 1 : 0
+  name  = "cb-nonmonotone-base"
+  role  = "${var.namespace}-agent-c-nonmonotone"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CbNonmonotoneBaseWhoami"
+        Effect   = "Allow"
+        Action   = ["sts:GetCallerIdentity"]
+        Resource = "*"
+      },
+      {
+        Sid      = "CbNonmonotoneBaseObjectstoreRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${var.resource_arns.objectstore_bucket_arn}/*"
+      },
+    ]
+  })
 }
 
 # ---------------------------------------------------------------------------
@@ -163,7 +226,7 @@ resource "aws_iam_policy" "negative_control_nonmonotone" {
     Statement = [{
       Sid      = "CbNegativeControlNonmonotoneKeyvalueWrite"
       Effect   = "Allow"
-      Action   = ["dynamodb:PutItem"]
+      Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
       Resource = var.resource_arns.keyvalue_table_arn
     }]
   })

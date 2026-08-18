@@ -203,6 +203,7 @@ def parse_terraform_outputs(raw: object, *, path: Path) -> TerraformOutputs:
             "agent_b_expansion_role_arn",
             "agent_b_survival_role_arn",
             "agent_c_nonmonotone_role_arn",
+            "agent_c_stale_role_arn",
         )
         if name in raw and value(name) is not None
     }

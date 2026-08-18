@@ -87,3 +87,9 @@ variable "enable_negative_controls" {
   type        = bool
   default     = false
 }
+
+variable "negative_control_role_arns" {
+  description = "Additional exact role ARNs that agent-b may assume for negative-control scenarios. Kept as an explicit list so the normal chain remains least-privilege."
+  type        = list(string)
+  default     = []
+}

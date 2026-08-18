@@ -179,6 +179,9 @@ def restore_declared_policy(
     target_identity: IdentityId,
     outputs: TerraformOutputs,
     namespace: str,
+    target_role_arn: str | None = None,
+    declared_capabilities: AuthoritySet | None = None,
+    bindings: Mapping[CapabilityId, ProviderCapabilityBinding] | None = None,
 ) -> MutationReceipt:
     """Remove all harness-owned inline policies from one benchmark role.
 
@@ -187,7 +190,7 @@ def restore_declared_policy(
     policies, rather than replacing one of them with an allow document that
     becomes an orphaned policy on the next run.
     """
-    role_arn = role_arn_for_identity(target_identity, outputs)
+    role_arn = target_role_arn or role_arn_for_identity(target_identity, outputs)
     assert_aws_reference(role_arn, account_id=outputs.account_id, namespace=namespace)
     assert_role_is_benchmark_agent(role_arn)
     role_name = role_arn.rsplit("/", 1)[-1]
@@ -196,9 +199,19 @@ def restore_declared_policy(
     for policy_name in TRANSIENT_POLICY_NAMES:
         with contextlib.suppress(ClientError):
             iam_client.delete_role_policy(RoleName=role_name, PolicyName=policy_name)
+    if role_name.endswith("-agent-c-stale"):
+        if declared_capabilities is None or bindings is None:  # pragma: no cover
+            raise ValueError("stale control reversion requires declared capabilities and bindings")
+        iam_client.put_role_policy(
+            RoleName=role_name,
+            PolicyName=GRANT_POLICY_NAME,
+            PolicyDocument=_grant_document(declared_capabilities, bindings, namespace),
+        )
     confirmed, latency_ms = _poll_until(
         lambda: all(
-            _try_get_role_policy(iam_client, role_name, name) is None
+            _try_get_role_policy(iam_client, role_name, name) is not None
+            if role_name.endswith("-agent-c-stale") and name == GRANT_POLICY_NAME
+            else _try_get_role_policy(iam_client, role_name, name) is None
             for name in TRANSIENT_POLICY_NAMES
         ),
         lambda value: value is True,
@@ -218,9 +231,10 @@ def restore_trust_policy(
     target_identity: IdentityId,
     outputs: TerraformOutputs,
     namespace: str,
+    target_role_arn: str | None = None,
 ) -> MutationReceipt:
     """Restore the Terraform-declared trust policy after the null control."""
-    role_arn = role_arn_for_identity(target_identity, outputs)
+    role_arn = target_role_arn or role_arn_for_identity(target_identity, outputs)
     assert_aws_reference(role_arn, account_id=outputs.account_id, namespace=namespace)
     assert_role_is_benchmark_agent(role_arn)
     if target_identity == "agent-a":
@@ -273,8 +287,9 @@ def apply_mutation(
     bindings: Mapping[CapabilityId, ProviderCapabilityBinding],
     namespace: str,
     sleep: Callable[[float], None] = time.sleep,
+    target_role_arn: str | None = None,
 ) -> MutationReceipt:
-    role_arn = role_arn_for_identity(mutation.target_identity, outputs)
+    role_arn = target_role_arn or role_arn_for_identity(mutation.target_identity, outputs)
     assert_aws_reference(role_arn, account_id=outputs.account_id, namespace=namespace)
     assert_role_is_benchmark_agent(role_arn)
     role_name = role_arn.rsplit("/", 1)[-1]

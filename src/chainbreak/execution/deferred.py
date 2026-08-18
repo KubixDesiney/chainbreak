@@ -44,7 +44,7 @@ from typing import Any
 
 from chainbreak.core.clock import RunClock
 from chainbreak.core.enums import PlanPhase
-from chainbreak.core.errors import ExecutionError
+from chainbreak.core.errors import DelegationError, ExecutionError
 from chainbreak.core.ids import new_event_id
 from chainbreak.core.models import DeferredExecutionPlan, Observation, WaitPlan
 from chainbreak.execution._records import build_observation
@@ -180,15 +180,39 @@ def run_deferred_execution_phase(
 
     # F3: unconditional -- never gated by remaining lifetime (unlike
     # delegation.ensure_fresh_credential's F6 threshold).
-    fresh_result = adapter.delegate(
+    try:
+        fresh_result = adapter.delegate(
         DelegationRequest(
             source_identity=materialized.refs[edge.source_id],
             target_identity_id=edge.target_id,
+            target_provider_binding=materialized.provider_bindings.get(edge.target_id),
             mechanism=edge.mechanism,
-            requested_duration_s=edge.credential_lifetime_s,
-            intended_capabilities=edge.intended_capabilities,
+                requested_duration_s=edge.credential_lifetime_s,
+                intended_capabilities=edge.intended_capabilities,
+            )
         )
-    )
+    except DelegationError as exc:
+        # A trust-policy mutation is the AWS control that can preserve an
+        # already-issued session while denying only future issuance. There is
+        # no fresh credential to probe in that case; record the paired leg as
+        # an issuance denial and let stale analysis classify the still-live
+        # pinned credential against ``fresh_outcome=None``.
+        events.append(
+            {
+                "event_id": new_event_id(),
+                "sequence": sequence,
+                "kind": "PAIRED_FRESH_CREDENTIAL_MINT_FAILED",
+                "phase_name": plan.phase_name,
+                "identity_id": identity_id,
+                "edge_id": edge.edge_id,
+                "pinned_credential_id": pinned_credential.credential_id,
+                "error_type": type(exc).__name__,
+                "machine_reason": getattr(exc, "machine_reason", "DELEGATION_ERROR"),
+            }
+        )
+        return DeferredExecutionRun(
+            observations=tuple(observations), events=tuple(events), next_sequence=sequence + 1
+        )
     materialized.refs[identity_id] = fresh_result.identity_ref
     materialized.credentials[identity_id] = fresh_result.record
     fresh_result.credential.scrub()  # M11 S2 -- see delegation.py's identical comment

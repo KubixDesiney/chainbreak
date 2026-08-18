@@ -65,9 +65,10 @@ def snapshot_policy_state(
     outputs: TerraformOutputs,
     salt: str,
     now_ns: int,
+    role_arn: str | None = None,
 ) -> PolicyStateSnapshot:
     global _snapshot_counter
-    role_arn = role_arn_for_identity(identity_id, outputs)
+    role_arn = role_arn or role_arn_for_identity(identity_id, outputs)
     role_name = role_arn.rsplit("/", 1)[-1]
 
     fingerprints: list[PolicyFingerprint] = []

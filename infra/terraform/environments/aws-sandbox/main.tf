@@ -82,8 +82,9 @@ module "delegation" {
     for letter in ["a", "b", "c", "d", "e", "f"] :
     "${module.benchmark_account.namespace}-agent-${letter}"
   ]
-  resource_arns            = module.resources.resource_arns
-  enable_negative_controls = var.enable_negative_controls
+  resource_arns              = module.resources.resource_arns
+  enable_negative_controls   = var.enable_negative_controls
+  negative_control_role_arns = var.enable_negative_controls ? [module.identities.agent_c_stale_role_arn] : []
 
   # module.identities must exist (the roles this module attaches policies
   # to) before delegation runs, even though delegation references the role

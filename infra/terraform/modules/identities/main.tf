@@ -91,14 +91,17 @@ resource "aws_iam_role_policy" "bootstrap" {
           "iam:DeleteRolePolicy",
           "iam:UpdateAssumeRolePolicy",
         ]
-        Resource = [
-          aws_iam_role.agent_a.arn,
-          aws_iam_role.agent_b.arn,
-          aws_iam_role.agent_c.arn,
-          aws_iam_role.agent_d.arn,
-          aws_iam_role.agent_e.arn,
-          aws_iam_role.agent_f.arn,
-        ]
+        Resource = concat(
+          [
+            aws_iam_role.agent_a.arn,
+            aws_iam_role.agent_b.arn,
+            aws_iam_role.agent_c.arn,
+            aws_iam_role.agent_d.arn,
+            aws_iam_role.agent_e.arn,
+            aws_iam_role.agent_f.arn,
+          ],
+          var.enable_negative_controls ? [aws_iam_role.agent_c_stale[0].arn] : []
+        )
       },
     ]
   })
@@ -235,6 +238,28 @@ resource "aws_iam_role" "agent_f" {
     Statement = [{
       Effect    = "Allow"
       Principal = { AWS = [aws_iam_role.agent_e.arn, aws_iam_role.bootstrap.arn] }
+      Action    = "sts:AssumeRole"
+      Condition = {
+        StringEquals = { "sts:ExternalId" = var.external_id }
+        StringLike   = { "sts:RoleSessionName" = "${var.namespace}-*" }
+      }
+    }]
+  })
+}
+
+# Dedicated stale-authority control role. Its baseline objectstore grant is
+# an inline policy that the REMOVE_INLINE_POLICY mutation can delete. The
+# ordinary agent-c role must retain its Terraform ceiling for the positive
+# scenarios, so reusing it would make the AWS stale-session premise invalid.
+resource "aws_iam_role" "agent_c_stale" {
+  count                = var.enable_negative_controls ? 1 : 0
+  name                 = "${var.namespace}-agent-c-stale"
+  max_session_duration = var.max_session_duration
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = [aws_iam_role.agent_b.arn, aws_iam_role.bootstrap.arn] }
       Action    = "sts:AssumeRole"
       Condition = {
         StringEquals = { "sts:ExternalId" = var.external_id }

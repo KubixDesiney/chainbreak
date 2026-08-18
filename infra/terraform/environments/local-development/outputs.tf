@@ -70,6 +70,11 @@ output "agent_c_nonmonotone_role_arn" {
   value       = module.identities.agent_c_nonmonotone_role_arn
 }
 
+output "agent_c_stale_role_arn" {
+  description = "Only set when enable_negative_controls = true."
+  value       = module.identities.agent_c_stale_role_arn
+}
+
 output "objectstore_bucket" {
   value = module.resources.objectstore_bucket
 }

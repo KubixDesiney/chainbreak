@@ -47,7 +47,10 @@ class MaterializedGraph:
 
     ``credentials``/``edges_by_target`` are ``None`` for the root (registered
     directly, never delegated to -- there is no expiring session and no edge
-    to re-delegate along). The three dicts are mutated in place by
+    to re-delegate along). ``provider_bindings`` preserves the compiled
+    provider binding for each materialized identity so re-delegation cannot
+    silently fall back to the default physical role. The four dicts are
+    mutated in place by
     :func:`ensure_fresh_credential` as re-delegation happens; the dataclass
     itself stays frozen (only its own three attributes are immutable, not
     the dicts they point at).
@@ -56,6 +59,7 @@ class MaterializedGraph:
     refs: dict[IdentityId, IdentityRef] = field(default_factory=dict)
     credentials: dict[IdentityId, CredentialRecord | None] = field(default_factory=dict)
     edges_by_target: dict[IdentityId, DelegationEdge | None] = field(default_factory=dict)
+    provider_bindings: dict[IdentityId, str | None] = field(default_factory=dict)
 
 
 def materialize_graph(adapter: ProviderAdapter, graph: AuthorizationGraph) -> MaterializedGraph:
@@ -75,6 +79,7 @@ def materialize_graph(adapter: ProviderAdapter, graph: AuthorizationGraph) -> Ma
     )
     materialized.credentials[root.identity_id] = None
     materialized.edges_by_target[root.identity_id] = None
+    materialized.provider_bindings[root.identity_id] = root.provider_binding
 
     for edge in graph.edges:
         result = adapter.delegate(
@@ -94,6 +99,11 @@ def materialize_graph(adapter: ProviderAdapter, graph: AuthorizationGraph) -> Ma
         materialized.refs[edge.target_id] = result.identity_ref
         materialized.credentials[edge.target_id] = result.record
         materialized.edges_by_target[edge.target_id] = edge
+        materialized.provider_bindings[edge.target_id] = next(
+            node.provider_binding
+            for node in graph.nodes
+            if node.identity_id == edge.target_id
+        )
         # M11 S2: each hop's raw secret is scrubbed the moment its safe
         # CredentialRecord projection has been extracted -- the identity's
         # own live session (held by the adapter, e.g. FakeProviderAdapter's
@@ -146,6 +156,7 @@ def ensure_fresh_credential(
         DelegationRequest(
             source_identity=materialized.refs[edge.source_id],
             target_identity_id=edge.target_id,
+            target_provider_binding=materialized.provider_bindings.get(edge.target_id),
             mechanism=edge.mechanism,
             requested_duration_s=edge.credential_lifetime_s,
             intended_capabilities=edge.intended_capabilities,
