@@ -3,12 +3,13 @@
 How to present this project honestly, and what it actually demonstrates.
 
 > **Read this first.** As of 2026-08-18, CHAINBREAK has a complete architecture, a verified
-> domain model, a validated scenario corpus, and a full implementation plan. Three complete
-> real-AWS M17 suites were run, but all were excluded because the same two negative controls
-> returned `DETECTOR_FAILURE`; **no valid AWS measurement exists**. W03/W04/W05 remain recorded
-> as earlier apparatus exclusions. Fake-provider reports and the AWS block-07 sample are
-> apparatus outputs, not publishable benchmark results. Presenting designed-but-unmeasured work
-> as results would be dishonest.
+> domain model, a validated scenario corpus, and three valid real-AWS M17 blocks. The blocks
+> contain 87 analyzed/exported runs (`n=32`, `n=23`, `n=32`) and six `DETECTOR_OK` controls per
+> block. The measured timing rows and exact run IDs are in
+> [results-v0.1.md](research/results-v0.1.md); they apply only to this account, this region,
+> and this time. W03/W04/W05 and the older AWS blocks remain excluded apparatus records.
+> Fake-provider outputs remain apparatus checks. The release candidate is awaiting owner/admin
+> IAM cleanup and the final history/publication decision.
 
 ---
 
@@ -86,6 +87,18 @@ is ambiguous between "the policy change never propagated" and "the old credentia
 old authority". Probing again immediately with a freshly minted credential disambiguates
 them. Without that pair the family produces uninterpretable results, and the design element
 costs almost nothing.
+
+### What was measured
+
+The valid M17 blocks were `cb-m17-20260818-01` (`n=32`), `cb-m17-20260818-02` (`n=23`), and
+`cb-m17-20260818-03` (`n=32`), for 87 AWS runs in `eu-west-3`; the exact run IDs, mechanisms,
+intervals, and this-account/region/time scope are recorded in
+[results-v0.1.md](research/results-v0.1.md). Timing conditions have `n=5` runs per row. The
+two explicit-deny rows measured `10.500–12.265 s` and `10.046–11.375 s`; three revocation rows
+recorded no transition within the configured poll window. Stale-authority waits measured
+`30.907–31.062 s`, `120.938–122.250 s`, and `600.906–602.688 s` across two declared
+capabilities per run; post-expiry recorded no stale window. These are measurements of this
+account, this region, this time, not AWS-general claims.
 
 ### Knowing what not to claim
 
@@ -185,11 +198,11 @@ by someone who knows AWS, and failing that check costs more than the claim was w
 
 ## Update checklist for M19
 
-- [ ] Replace the status banner with what M17 actually measured, with run IDs.
-- [ ] Add a results summary: which families ran, n per condition, which categories were
+- [x] Replace the status banner with what M17 actually measured, with run IDs.
+- [x] Add a results summary: which families ran, n per condition, which categories were
       `NOT_MEASURED`.
-- [ ] Add the honest surprises — including the ones where nothing surprising happened, since
+- [x] Add the honest surprises — including the ones where nothing surprising happened, since
       "the documented behavior held, measured as follows" is a legitimate and useful result.
-- [ ] Add the engineering problems actually hit during M8/M9/M17, which will be better
+- [x] Add the engineering problems actually hit during M8/M9/M17, which will be better
       interview material than the anticipated ones above.
-- [ ] Re-verify every claim in this document against `PROJECT_STATUS.md`.
+- [x] Re-verify every claim in this document against `PROJECT_STATUS.md`.

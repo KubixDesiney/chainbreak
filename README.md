@@ -5,14 +5,13 @@
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
 and the authority a delegated workload *actually* holds when it executes.
 
-> **Status: release candidate blocked — M0–M16 are complete, including dedicated-account
-> acceptance for M8 (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 completed three
-> full AWS suites, but all remain excluded because two negative controls returned
-> `DETECTOR_FAILURE`; no valid or publishable block exists. W03 failed the root-session
-> `AssumeRole` live gate and W04 failed Terraform S3 lifecycle creation; W05 passed the live
-> gate but its IAM-user operator lacked `sts:AssumeRole` on the benchmark roles. All were
-> cleaned. M18 compare/archive/migration was exercised against excluded AWS bundles and is not
-> a publishable result. M19 preparation is complete, but the release gate is blocked.**
+> **Status: release candidate pending owner decision — M0–M16 are complete, including
+> dedicated-account acceptance for M8/M9. Three valid real-AWS M17 blocks completed on
+> 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six negative controls `DETECTOR_OK`, complete
+> analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid
+> AWS bundles, including honest lower-confidence cross-operator and heterogeneous behavior.
+> The release gate remains pending the owner/admin IAM cleanup and final history/publication
+> decision. No tag, history rewrite, force-push, GitHub release, or publication was made.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -54,17 +53,17 @@ and the authority a delegated workload *actually* holds when it executes.
 > anywhere) and the terminal/Markdown/HTML reporting layer (`reporting/`: hand-built
 > evidence-derived SVG figures, Jinja2 with autoescape on and no `|safe` anywhere, a `provider:
 > fake` run stamped in the header and every figure caption)
-> (1,818 passing tests, 33 skipped in the current full local gate;
+> (1,814 passing tests, 9 skipped and 28 deselected in the current full unit/integration gate;
 > `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
 > `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
 > `providers/fake/` ~99.7%, `analysis/` 98%, `execution/` ~99% (every M13/M14-proper module at
 > exactly 100%), `reporting/` 99%, `providers/aws/` ~97% **against
 > moto and pure logic only**, Terraform modules `fmt`/`validate`-clean against a real Terraform
-> binary and dedicated-account acceptance passed for M8/M9; no valid M17 block has produced a
-> benchmark measurement. CI enforces lint, types, import boundaries, security scans,
-> schema/scenario/Terraform checks, and offline tests on every push. **No valid or publishable
-> M17 block exists**, so no number anywhere in this repository is a measurement from a valid
-> M17 benchmark block.
+> binary and dedicated-account acceptance passed for M8/M9; valid M17 evidence is documented in
+> [docs/research/results-v0.1.md](docs/research/results-v0.1.md), with exact run IDs and scope.
+> CI enforces lint, types, import boundaries, security scans, schema/scenario/Terraform checks,
+> and offline tests on every push. M17 values are measurements only for this account, this
+> region, and this time; the remaining scope is listed in the results document.
 > See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the authoritative state of the project.
 
 ---

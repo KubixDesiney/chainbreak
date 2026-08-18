@@ -1,28 +1,26 @@
 # Ready-to-run Claude Code prompts — final phase
 
-**State verified 2026-08-17.** M0–M16 are complete, including dedicated-account acceptance for
-M8 and M9. The current unit/integration gate is 1,812 passed, 9 skipped and 28 deselected. M17 has
-only invalid/incomplete apparatus attempts recorded: zero valid/publishable blocks and no M17
-measurement. M18's offline portion is complete; its real-AWS exercise is pending. M19 has not
-started.
+**State verified 2026-08-18.** M0–M16 are complete, including dedicated-account acceptance for
+M8 and M9. Three valid M17 AWS blocks are recorded (`n=32`, `n=23`, `n=32`); M18 compare,
+archive, and migration were exercised on valid bundles; and M19 documentation/release
+preparation is complete. Exact evidence is in `docs/research/results-v0.1.md`.
 
 **The AWS account state is not recorded here.** The real-account acceptance work requires an
 operator-provisioned dedicated account; its identifier, region, namespace, and live resource
 state must be supplied at execution time and must not be committed to documentation.
 
-S1–S8 from the previous edition are all done. The remaining work is a valid M17 suite, the
-real-AWS portion of M18, and the M19 release.
+S1–S8 from the previous edition are all done. Remaining work is owner/admin removal of the
+temporary benchmark IAM permission and the owner's final history, tag, and publication decision.
 
 ---
 
 ## Ordering
 
 ```
-P1 (offline, completed) → P2 (AWS: valid M17 block) → P3 (AWS: M18 exercise) → P4 (release)
+P1 (offline, completed) → P2 (valid M17, completed) → P3 (M18, completed) → P4 (owner release decision)
 ```
 
-P1 is complete. P2 must produce valid/publishable M17 blocks before P3 can exercise real-AWS
-reproducibility. P4 remains gated on both.
+P1, P2, and P3 are complete. P4 remains owner-gated; this pass performs no publication action.
 
 ---
 
@@ -40,7 +38,7 @@ publication is part of the pass. The full offline-gate output is recorded in the
 ## P2 — M18 offline portion — complete
 
 The offline M18 deliverables are implemented and verified. The real-AWS comparison/archive/
-migration exercise remains pending because M17 has zero valid or publishable blocks.
+migration exercise was completed on valid M17 bundles; measured results are in the research record.
 
 ```
 Implement the offline portion of milestone M18 for CHAINBREAK — reproducibility tooling.
@@ -161,11 +159,10 @@ which tests actually ran. Never mark a criterion met that you did not observe pa
 
 ---
 
-## P4 — M17 valid/publishable suite (AWS, pending)
+## P4 — M17 valid/publishable suite (AWS, completed 2026-08-18)
 
-No valid or publishable M17 block exists yet. The lab log's invalid/incomplete attempts are
-historical apparatus evidence and must remain excluded. A future valid run is mostly discipline,
-not code.
+Three valid blocks exist. The historical invalid/incomplete attempts remain excluded. The exact
+block IDs, run IDs, windows, controls, and cleanup are in the run index and lab log.
 
 ```
 Execute milestone M17 for CHAINBREAK — the full AWS experiment suite. This produces the
@@ -229,7 +226,7 @@ ran unless it ran.
 
 ---
 
-## P5 — M19 release (offline, pending a valid M17 result and M18 real-AWS exercise)
+## P5 — M19 release (prepared; owner decision pending)
 
 ```
 Execute milestone M19 for CHAINBREAK — the v0.1.0 release.

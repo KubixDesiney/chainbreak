@@ -182,11 +182,11 @@ def run_deferred_execution_phase(
     # delegation.ensure_fresh_credential's F6 threshold).
     try:
         fresh_result = adapter.delegate(
-        DelegationRequest(
-            source_identity=materialized.refs[edge.source_id],
-            target_identity_id=edge.target_id,
-            target_provider_binding=materialized.provider_bindings.get(edge.target_id),
-            mechanism=edge.mechanism,
+            DelegationRequest(
+                source_identity=materialized.refs[edge.source_id],
+                target_identity_id=edge.target_id,
+                target_provider_binding=materialized.provider_bindings.get(edge.target_id),
+                mechanism=edge.mechanism,
                 requested_duration_s=edge.credential_lifetime_s,
                 intended_capabilities=edge.intended_capabilities,
             )

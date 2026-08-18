@@ -1,10 +1,9 @@
 # CHAINBREAK Lab Log
 
-**Status as of 2026-08-17:** historical apparatus evidence only. Every M17 entry below is
-invalid, incomplete, or a pre-block guard failure; all are superseded/excluded and none yields a
-valid or publishable block. Intermediate values in these entries are apparatus observations, not
-measurements, and must not be used as results. The live namespace is represented everywhere in
-this tracked log by the stable label `NAMESPACE_SCRUBBED`.
+**Status as of 2026-08-18:** three valid M17 AWS blocks are recorded at the end of this log.
+Earlier entries are historical apparatus evidence only: invalid, incomplete, or pre-block guard
+failures. Those entries remain superseded/excluded and yield no measurement claim. The live
+namespace is represented everywhere in this tracked log by the stable label `NAMESPACE_SCRUBBED`.
 
 The human-readable counterpart to the evidence bundles. Every experiment block appends an
 entry. Exclusions are recorded **with reasons** — that is the single most important honesty
@@ -691,10 +690,45 @@ mechanism, region, and scope are the AWS role-chain or pinned/fresh-credential c
 `eu-west-3`, and this account, this region, this time. Under the protocol, every block is
 unvalidated and no family or timing value from these blocks is publishable.
 
-M18 was exercised only as an excluded AWS apparatus check against block 07: same-scenario
+Historical M18 was exercised as an excluded AWS apparatus check against block 07: same-scenario
 compare n=2 passed, cross-operator compare n=2 passed with its required lower-confidence
 warning, heterogeneous compare n=2 refused without the flag and reported lower-confidence
 divergence with it, empty-directory archive analysis n=1 passed only with `--allow-unsealed`,
 and synthetic `(1,99)` migration n=1 preserved the original and copied bytes identically. All
 mechanisms used the AWS adapter and `eu-west-3`, scoped to this account, this region, this time;
-none is a publishable M18 result while M17 remains invalid.
+none is part of the valid evidence set.
+
+## 2026-08-18 M17-20260818-01/02/03 — valid AWS evidence blocks
+
+These three post-repair blocks are the valid M17 evidence set. Each used the same Terraform
+sandbox, AWS adapter, region `eu-west-3`, and benchmark account; scope is this account, this
+region, this time. The exact run IDs are in [m17-run-index.md](m17-run-index.md), and the
+measured values are in [results-v0.1.md](results-v0.1.md).
+
+| block | runs | UTC window | analysis/export | controls | cleanup |
+|---|---:|---|---|---|---|
+| `cb-m17-20260818-01` | 32 | 10:11:02–11:32:57 | 32/32, 32/32 | six `DETECTOR_OK` | two destroys and exact `verify-clean` passed |
+| `cb-m17-20260818-02` | 23 | 11:40:12–12:25:37 | 23/23, 23/23 | six `DETECTOR_OK` | two destroys and exact `verify-clean` passed |
+| `cb-m17-20260818-03` | 32 | 12:31:54–13:53:36 | 32/32, 32/32 | six `DETECTOR_OK` | two destroys and exact `verify-clean` passed |
+
+The mechanism was the CHAINBREAK AWS adapter against the Terraform sandbox. These blocks are
+valid because every required family/control gate completed and no detector failure occurred.
+The prior `20260817-05/06/07` entries remain excluded historical records and are not mixed with
+these blocks.
+
+## 2026-08-18 M18 — valid AWS bundle checks
+
+M18 compare, archive, and migration were exercised on valid bundles. Same-scenario compare used
+two run IDs, `n=2`, no applicable timing interval, mechanism `chainbreak compare`, region
+`eu-west-3`, and scope this account, this region, this time; it returned four measurements and
+zero divergent results. Cross-operator compare used the same two IDs and `n=2`, but retained
+the required lower-confidence warning that environment equivalence was assumed and unverified.
+Heterogeneous compare used two different scenario run IDs, `n=2`, no applicable timing
+interval, mechanism `chainbreak compare`, region `eu-west-3`, and the same scope; refusal
+without the flag and divergent lower-confidence output with the flag were both observed.
+
+An archive from one valid run was extracted into a newly created empty directory and analyzed
+with `--allow-unsealed`, `n=1`, interval not applicable, mechanism public archive, region
+`eu-west-3`, and scope this account, this region, this time. Synthetic `(1,99)` migration from
+that run preserved the source and copied bytes identically, `n=1`, interval not applicable,
+mechanism `copy_bundle_verbatim`/`migrate_bundle`, same region and scope.

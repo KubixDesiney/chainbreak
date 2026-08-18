@@ -115,7 +115,10 @@ def _assert_clean(text: str, filename: str) -> None:
         ("hostname", HOSTNAME_PATTERN),
         ("namespace", NAMESPACE_PATTERN),
     ):
-        if pattern.search(text):
+        matches = list(pattern.finditer(text))
+        if name == "namespace":
+            matches = [match for match in matches if match.group(0) != REDACTED_NAMESPACE]
+        if matches:
             raise EvidenceError(
                 f"export --public: {name} survived scrubbing in {filename}; refusing to export",
                 file=filename,

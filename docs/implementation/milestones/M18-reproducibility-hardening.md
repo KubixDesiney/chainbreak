@@ -3,8 +3,9 @@
 ## Current status
 
 The offline portion is complete: compare, archive, migration, Docker determinism, and the
-hash-locked dependency gate are implemented and verified. The real-AWS comparison/archive/
-migration exercise remains pending because M17 has zero valid or publishable blocks.
+hash-locked dependency gate are implemented and verified. Compare, archive, and migration were
+also exercised on valid real-AWS bundles from the three valid M17 blocks. Results are recorded
+with run IDs, n, mechanism, region, and scope in `docs/research/results-v0.1.md`.
 
 ## Purpose
 Make runs comparable, bundles archivable, and the whole thing runnable by someone who is not

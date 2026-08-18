@@ -2,11 +2,12 @@
 
 ## Current status
 
-Not complete. The dedicated-account M8/M9 acceptance passed, but every M17 attempt recorded so
-far was invalid or incomplete. Zero M17 blocks are valid or publishable, and no M17 measurement
-is claimed. The historical apparatus attempts and their exclusions remain in
-`docs/research/lab-log.md`; their intermediate values are superseded and excluded from all
-measurement claims.
+Evidence complete for the exercised scope. Three valid real-AWS blocks were completed on
+2026-08-18: `cb-m17-20260818-01` (`n=32`), `cb-m17-20260818-02` (`n=23`), and
+`cb-m17-20260818-03` (`n=32`). All six controls were `DETECTOR_OK` in every block, every run
+was analyzed/exported, and exact cleanup passed. Exact run IDs and measured values are in
+`docs/research/m17-run-index.md` and `docs/research/results-v0.1.md`. Earlier attempts remain
+excluded; all claims are limited to this account, this region, this time.
 
 ## Purpose
 Execute all five families against real AWS infrastructure, with negative controls, block
@@ -61,10 +62,12 @@ publish any result from it.** This is not a guideline.
 1. All five families executed against real AWS with the required trial counts.
 2. All six negative controls `DETECTOR_OK` in every published block.
 3. Timing measurements distributed across ≥3 blocks with `block_id` recorded.
-4. `results-v0.1.md` contains only measured values, each with n, interval, mechanism, region.
+4. `results-v0.1.md` contains only measured values, each with exact run IDs, n, interval where
+   applicable, mechanism, region, and scope.
 5. Every claim scoped to "this account, this region, this time".
 6. `verify-clean` shows nothing remaining after every block.
-7. `PROJECT_STATUS.md` moves experiments from "unmeasured" to "measured" **with run IDs**.
+7. `PROJECT_STATUS.md` moves the exercised experiments from "unmeasured" to "measured" with
+   run IDs and preserves the unmeasured scope.
 
 ## Verification commands
 

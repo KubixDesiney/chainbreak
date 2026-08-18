@@ -100,9 +100,7 @@ def materialize_graph(adapter: ProviderAdapter, graph: AuthorizationGraph) -> Ma
         materialized.credentials[edge.target_id] = result.record
         materialized.edges_by_target[edge.target_id] = edge
         materialized.provider_bindings[edge.target_id] = next(
-            node.provider_binding
-            for node in graph.nodes
-            if node.identity_id == edge.target_id
+            node.provider_binding for node in graph.nodes if node.identity_id == edge.target_id
         )
         # M11 S2: each hop's raw secret is scrubbed the moment its safe
         # CredentialRecord projection has been extracted -- the identity's

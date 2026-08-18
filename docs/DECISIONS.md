@@ -138,6 +138,21 @@ with zero live account, namespace, ARN, or hostname occurrences.
 
 ---
 
+## M19 release-gate decision record — 2026-08-18
+
+The three 2026-08-18 M17 blocks are valid evidence: all six controls passed in each block,
+and the measured values are published only with exact run IDs, `n`, intervals where applicable,
+mechanism, region, and the scope “this account, this region, this time.” M18 compare/archive/
+migration was exercised on those valid bundles; cross-operator equivalence remains explicitly
+assumed and unverified, and heterogeneous comparisons remain lower-confidence by design.
+
+Earlier AWS attempts and fake-provider outputs remain labelled excluded apparatus material. The
+temporary benchmark `sts:AssumeRole` permission must be removed by an authorized owner/admin;
+the current operator could not remove it. The owner decides whether to rewrite history, create a
+tag, publish, or create a GitHub release. This task deliberately performed none of those actions.
+
+---
+
 ## Deferred decisions
 
 Named so they are not silently forgotten.

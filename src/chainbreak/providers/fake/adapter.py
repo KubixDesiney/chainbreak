@@ -31,7 +31,11 @@ from chainbreak.core.enums import (
     PolicyKind,
     Provider,
 )
-from chainbreak.core.errors import CapabilityResolutionError, MutationTargetForbiddenError
+from chainbreak.core.errors import (
+    CapabilityResolutionError,
+    DelegationError,
+    MutationTargetForbiddenError,
+)
 from chainbreak.core.ids import (
     CapabilityId,
     IdentityId,
@@ -80,6 +84,7 @@ ADAPTER_VERSION = "0.1.0"
 #: Identities that must never be a mutation target (SI-12): the fake's own
 #: analogue of AWS_PROVIDER_SPEC section 3's bootstrap/principal.
 _DEFAULT_PROTECTED_IDENTITIES = frozenset({"bootstrap", "principal"})
+_STALE_CONTROL_BINDING = "agent_c_stale_role_arn"
 
 
 def _negative_control_grant(provider_binding: str | None) -> AuthoritySet:
@@ -164,6 +169,15 @@ class FakeProviderAdapter:
     #: it is about to run a deferred/paired-fresh probe against.
     _authority_cached_identities: set[IdentityId] = field(
         init=False, default_factory=set, repr=False
+    )
+    #: The stale-authority control's trust-policy mutation blocks only future
+    #: issuance for the dedicated stale-role binding. Existing sessions remain
+    #: usable, matching the real AWS negative-control premise.
+    _trust_policy_blocked_identities: set[IdentityId] = field(
+        init=False, default_factory=set, repr=False
+    )
+    _provider_bindings_by_identity: dict[IdentityId, str | None] = field(
+        init=False, default_factory=dict, repr=False
     )
     #: Every ``delegate()`` call captures its issuing identity's *live*
     #: (allow, deny) here, keyed by the new credential's own id -- always,
@@ -253,6 +267,7 @@ class FakeProviderAdapter:
         self.engine.register_identity(
             identity_id, allow=allow | self._negative_control_grant(provider_binding)
         )
+        self._provider_bindings_by_identity[identity_id] = provider_binding
         ref = self._make_ref(identity_id)
         self._ref_to_identity_id[ref.value] = identity_id
         return ref
@@ -322,12 +337,25 @@ class FakeProviderAdapter:
         # embeds self.namespace), so asserting on it would be tautological.
         assert_namespace(request.source_identity.value, self.namespace)
 
+        if (
+            request.target_provider_binding == _STALE_CONTROL_BINDING
+            and request.target_identity_id in self._trust_policy_blocked_identities
+        ):
+            raise DelegationError(
+                "target role issuance denied by the simulated trust policy",
+                target_identity=request.target_identity_id,
+                provider_error_code="AccessDenied",
+            )
+
         if not self.engine.is_registered(request.target_identity_id):
             self.engine.register_identity(
                 request.target_identity_id,
                 allow=request.intended_capabilities
                 | self._negative_control_grant(request.target_provider_binding),
             )
+        self._provider_bindings_by_identity[request.target_identity_id] = (
+            request.target_provider_binding
+        )
 
         result = self.sessions.issue(
             identity_ref=self._make_ref(request.target_identity_id),
@@ -513,11 +541,14 @@ class FakeProviderAdapter:
             case MutationKind.REVOKE_OLDER_SESSIONS:
                 for credential_id in self._credentials_by_identity.get(target, []):
                     self.sessions.revoke(credential_id)
-            case MutationKind.UPDATE_TRUST_POLICY | MutationKind.DELETE_SESSION_POLICY_SCOPE:
+            case MutationKind.UPDATE_TRUST_POLICY:
                 # Both are built-in negative controls (AWS_PROVIDER_SPEC
-                # section 4): neither affects a live session's authority --
-                # a trust policy change governs future AssumeRole only, and
-                # "deleting" a session policy scope only affects the *next*
+                # section 4): a trust policy change governs future AssumeRole
+                # only and does not affect an already-issued session.
+                if self._provider_bindings_by_identity.get(target) == _STALE_CONTROL_BINDING:
+                    self._trust_policy_blocked_identities.add(target)
+            case MutationKind.DELETE_SESSION_POLICY_SCOPE:
+                # Deleting a session policy scope only affects the next
                 # delegation, not the credential already issued.
                 pass
 
@@ -549,7 +580,7 @@ class FakeProviderAdapter:
         )
 
     def restore_trust_policy(self, target_identity: str) -> MutationReceipt:
-        del target_identity
+        self._trust_policy_blocked_identities.discard(target_identity)
         now_ns = self.clock.now_ms * 1_000_000
         return MutationReceipt(
             confirmed=True,

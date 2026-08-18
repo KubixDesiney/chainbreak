@@ -17,7 +17,8 @@ annotated-doc==0.0.5 \
 annotated-types==0.8.0 \
     --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
 ast_serialize==0.8.0 \
-    --hash=sha256:252f883290d1cdb728eb7fe1d9a7221b88af5a329aae0bc91ddee4dafb820331
+    --hash=sha256:252f883290d1cdb728eb7fe1d9a7221b88af5a329aae0bc91ddee4dafb820331 \
+    --hash=sha256:861794565b06337005c1447ef23103a3d5a627d08bdc827870d00d0b28ef5f51
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
 colorama==0.4.6 \

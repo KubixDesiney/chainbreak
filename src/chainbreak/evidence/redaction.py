@@ -91,7 +91,10 @@ SESSION_NAME_PATTERN: Final = re.compile(r"(?i)(session[-_]?name\"?\s*[:=]\s*\"?
 REDACTED_ARN: Final = "<REDACTED_ARN>"
 REDACTED_ACCOUNT: Final = "<REDACTED_ACCOUNT>"
 REDACTED_HOSTNAME: Final = "<REDACTED_HOSTNAME>"
-REDACTED_NAMESPACE: Final = "<REDACTED_NAMESPACE>"
+# Keep scrubbed evidence schema-valid: namespace-bearing request records still
+# require the public ``cb-[0-9a-f]{8}`` shape, while this fixed value carries no
+# account-, region-, or run-specific information.
+REDACTED_NAMESPACE: Final = "cb-00000000"
 REDACTED_SESSION_NAME: Final = "<REDACTED_SESSION_NAME>"
 
 

@@ -15,6 +15,11 @@
   evidence.
 - `reports/aws-m17-block07-scrubbed-report.md` and its sample archive are a scrubbed AWS
   apparatus sample from excluded block 07; they are not publishable M17 evidence.
+- `reports/aws-m17-valid-block01-scrubbed-report.md` and
+  `reports/aws-m17-valid-block01-scrubbed-sample.tar.gz` are scrubbed outputs from valid M17
+  AWS run `01M0A5WS8Q912NJSP0FEH1DWSK`. They are evidence for this account, region, and time;
+  they do not support general AWS claims. Fake-provider outputs remain apparatus checks, and
+  the historical AWS outputs above remain excluded.
 
 ## Reading a sample report
 

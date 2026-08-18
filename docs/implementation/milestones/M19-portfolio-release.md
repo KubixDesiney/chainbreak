@@ -2,10 +2,11 @@
 
 ## Current status
 
-Release gate blocked. M19 preparation added the measurement-free results gate, an explicitly
-labelled fake-provider apparatus sample, a changelog, and a tree/history scan. It remains gated
-on valid M17 blocks and the pending real-AWS portion of M18; no release, tag, or publication is
-part of this pass.
+Release candidate prepared, but owner decision remains. Valid M17 blocks and the real-AWS M18
+compare/archive/migration checks are recorded with scrubbed artifacts and measured-only docs.
+The remaining gates are owner/admin removal of the temporary benchmark IAM permission and the
+owner's final history/publication/tag decision. No release, tag, or publication is part of this
+pass.
 
 ## Purpose
 Ship v0.1.0: a coherent, honest, reviewable open-source artifact.
@@ -31,8 +32,9 @@ LICENSE                       # Apache-2.0
   README. Resolve every contradiction; do not paper over one.
 - F2 `PORTFOLIO_STORY.md` updated to describe **only measured results**, each with its run ID.
 - F3 `CHANGELOG.md` for v0.1.0.
-- F4 A scrubbed sample report under `examples/`; until valid M17 AWS evidence exists, it must
-  be labelled as a fake-provider apparatus check and excluded from AWS results.
+- F4 Scrubbed fake-provider apparatus outputs and a scrubbed valid-AWS sample exist under
+  `examples/`; each is labelled with provenance, and historical excluded AWS outputs remain
+  labelled excluded.
 - F5 README status block matches `PROJECT_STATUS.md` exactly.
 - F6 Every documented command works as documented, verified by executing each one.
 
@@ -61,7 +63,7 @@ record where they get stuck.
 4. Every documented command executes successfully.
 5. No sensitive value in the repository or its history.
 6. Sample report published and scrubbed.
-7. v0.1.0 tagged.
+7. v0.1.0 tag is an owner decision and was intentionally not created in this pass.
 
 ## Verification commands
 ```bash
