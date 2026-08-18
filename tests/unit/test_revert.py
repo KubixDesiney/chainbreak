@@ -47,9 +47,7 @@ class TestBuildRevertPlan:
         assert plan.actionable is True
         assert "transient revocation policy" in plan.action
 
-    @pytest.mark.parametrize(
-        "kind", [MutationKind.DELETE_SESSION_POLICY_SCOPE]
-    )
+    @pytest.mark.parametrize("kind", [MutationKind.DELETE_SESSION_POLICY_SCOPE])
     def test_control_kinds_are_not_actionable(self, graph, kind):
         plan = build_revert_plan(graph, "agent-b", kind)
         assert plan.actionable is False

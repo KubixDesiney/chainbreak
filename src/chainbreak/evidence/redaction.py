@@ -68,17 +68,30 @@ def _is_benign_hex(candidate: str) -> bool:
 # Identifier-shaped patterns (redacted in place, never fatal) -- ADR-013.
 # ---------------------------------------------------------------------------
 
-ARN_PATTERN: Final = re.compile(r"arn:aws[a-zA-Z0-9-]*:[a-zA-Z0-9-]*:[a-zA-Z0-9-]*:\d{12}:\S*")
-ACCOUNT_ID_PATTERN: Final = re.compile(r"(?<!\d)\d{12}(?!\d)")
+# Stop at JSON/string delimiters as well as whitespace.  A greedy ``\S*``
+# would consume every following JSON key when an ARN is adjacent to another
+# field, silently corrupting a public export.
+ARN_PATTERN: Final = re.compile(
+    r"arn:aws[a-zA-Z0-9-]*:[a-zA-Z0-9-]*:[a-zA-Z0-9-]*:\d{12}:[^\s\"',}]+"
+)
+# Do not treat the fractional portion of a timing value such as
+# ``5138.123456789012`` as an account id.  AWS account ids are standalone
+# digit tokens; a decimal point immediately adjacent to the digits means the
+# digits belong to a numeric literal instead.
+ACCOUNT_ID_PATTERN: Final = re.compile(r"(?<![\d.])\d{12}(?![\d.])")
 HOSTNAME_PATTERN: Final = re.compile(
     r"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+"
     r"(?:amazonaws\.com|compute\.internal|ec2\.internal)\b"
 )
+# Namespaces also occur embedded in resource/snapshot identifiers separated by
+# underscores, so word-boundaries would miss the suffix after ``cb-...``.
+NAMESPACE_PATTERN: Final = re.compile(r"(?<![A-Za-z0-9])cb-[0-9a-f]{8}(?![A-Za-z0-9])")
 SESSION_NAME_PATTERN: Final = re.compile(r"(?i)(session[-_]?name\"?\s*[:=]\s*\"?)([^\s\"',}]+)")
 
 REDACTED_ARN: Final = "<REDACTED_ARN>"
 REDACTED_ACCOUNT: Final = "<REDACTED_ACCOUNT>"
 REDACTED_HOSTNAME: Final = "<REDACTED_HOSTNAME>"
+REDACTED_NAMESPACE: Final = "<REDACTED_NAMESPACE>"
 REDACTED_SESSION_NAME: Final = "<REDACTED_SESSION_NAME>"
 
 

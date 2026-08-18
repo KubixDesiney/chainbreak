@@ -25,6 +25,8 @@ pytestmark = pytest.mark.unit
 _ARN = "arn:aws:iam::123456789012:role/agent-a"
 _ACCOUNT_ID = "123456789012"
 _HOSTNAME = "ip-10-0-1-2.ec2.internal"
+_NAMESPACE = "cb-a1b2c3d4"
+_SESSION_NAME = "cb-a1b2c3d4-session-abc123"
 _POLICY_DOCUMENT = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow"}]}'
 
 
@@ -62,8 +64,13 @@ def _build_seeded_bundle(tmp_path: Path) -> Path:
             "policy_document": _POLICY_DOCUMENT,
         }
     )
-    writer.write_environment({"host": {"hostname_hint": _HOSTNAME}})
-    writer.write_scenario({"id": "basic", "note": _ARN})
+    writer.write_environment(
+        {
+            "host": {"hostname_hint": _HOSTNAME},
+            "provider_environment": {"namespace": _NAMESPACE},
+        }
+    )
+    writer.write_scenario({"id": "basic", "note": _ARN, "session_name": _SESSION_NAME})
     writer.write_graph({"nodes": [], "edges": [], "note": _ACCOUNT_ID})
     writer.finalize(status="COMPLETED")
     return tmp_path / "01J8XKQ4V7ZP3N2M9YB6TCSEED"
@@ -78,6 +85,8 @@ def test_export_public_strips_arn_account_hostname_and_prints_a_diff(tmp_path: P
     assert "arn" in patterns_hit
     assert "hostname" in patterns_hit
     assert "account_id" in patterns_hit
+    assert "namespace" in patterns_hit
+    assert "session_name" in patterns_hit
     assert "policy_document" in patterns_hit
     assert report.violations > 0
 
@@ -93,6 +102,10 @@ def test_export_public_strips_arn_account_hostname_and_prints_a_diff(tmp_path: P
         # The bare account id inside the (already redacted) ARN placeholder
         # text must not survive either.
         assert _ACCOUNT_ID not in text
+        assert _NAMESPACE not in text
+        assert _SESSION_NAME not in text
+        if artifact.suffix == ".json":
+            json.loads(text)
 
 
 def test_export_public_dry_run_writes_nothing(tmp_path: Path) -> None:
@@ -130,6 +143,26 @@ def test_export_public_on_a_clean_bundle_strips_nothing(tmp_path: Path) -> None:
     report = export_public(run_dir, output_dir=tmp_path / "public-clean", dry_run=True)
     assert report.violations == 0
     assert "nothing to strip" in report.render_diff()
+
+
+def test_export_public_does_not_corrupt_decimal_timing_values(tmp_path: Path) -> None:
+    writer = BundleWriter(
+        tmp_path,
+        "01J8XKQ4V7ZP3N2M9YB6TCCDEC",
+        scenario_ref={"id": "basic"},
+        provenance={"chainbreak_version": "0.1.0a0"},
+    )
+    writer.write_environment({"timing": {"credential_age_ms": 5138.123456789012}})
+    writer.write_scenario({"id": "basic"})
+    writer.write_graph({"nodes": [], "edges": []})
+    writer.finalize(status="COMPLETED")
+
+    output_dir = tmp_path / "public-decimal"
+    report = export_public(
+        tmp_path / "01J8XKQ4V7ZP3N2M9YB6TCCDEC", output_dir=output_dir, dry_run=False
+    )
+    assert report.violations == 0
+    json.loads((output_dir / "environment.json").read_text(encoding="utf-8"))
 
 
 def test_export_public_refuses_an_unsealed_bundle(tmp_path: Path) -> None:

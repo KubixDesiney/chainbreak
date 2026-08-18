@@ -13,8 +13,8 @@
 - `reports/aws-m17-block04-excluded-scrubbed-report.md` and its sample archive — scrubbed
   outputs from an excluded AWS apparatus block. They are labelled excluded and are not AWS
   evidence.
-- `bundles/` — not yet populated; will hold a small exported evidence bundle demonstrating the
-  format.
+- `reports/aws-m17-block07-scrubbed-report.md` and its sample archive are a scrubbed AWS
+  apparatus sample from excluded block 07; they are not publishable M17 evidence.
 
 ## Reading a sample report
 

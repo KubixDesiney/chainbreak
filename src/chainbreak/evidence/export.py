@@ -31,9 +31,13 @@ from chainbreak.evidence.redaction import (
     ACCOUNT_ID_PATTERN,
     ARN_PATTERN,
     HOSTNAME_PATTERN,
+    NAMESPACE_PATTERN,
     REDACTED_ACCOUNT,
     REDACTED_ARN,
     REDACTED_HOSTNAME,
+    REDACTED_NAMESPACE,
+    REDACTED_SESSION_NAME,
+    SESSION_NAME_PATTERN,
 )
 from chainbreak.evidence.writer import write_text_artifact
 
@@ -83,11 +87,17 @@ def _scrub_text(
         ("arn", ARN_PATTERN, REDACTED_ARN),
         ("hostname", HOSTNAME_PATTERN, REDACTED_HOSTNAME),
         ("account_id", ACCOUNT_ID_PATTERN, REDACTED_ACCOUNT),
+        ("namespace", NAMESPACE_PATTERN, REDACTED_NAMESPACE),
     ):
         count = len(pattern.findall(text))
         if count:
             text = pattern.sub(replacement, text)
             hits.append(ScrubHit(filename, name, count))
+
+    count = len(SESSION_NAME_PATTERN.findall(text))
+    if count:
+        text = SESSION_NAME_PATTERN.sub(rf"\1{REDACTED_SESSION_NAME}", text)
+        hits.append(ScrubHit(filename, "session_name", count))
 
     if not include_policy_documents:
         count = len(_POLICY_DOCUMENT_PATTERN.findall(text))
@@ -100,12 +110,24 @@ def _scrub_text(
 
 def _assert_clean(text: str, filename: str) -> None:
     """F6: assert zero redaction violations remain before anything is written."""
-    for name, pattern in (("arn", ARN_PATTERN), ("hostname", HOSTNAME_PATTERN)):
+    for name, pattern in (
+        ("arn", ARN_PATTERN),
+        ("hostname", HOSTNAME_PATTERN),
+        ("namespace", NAMESPACE_PATTERN),
+    ):
         if pattern.search(text):
             raise EvidenceError(
                 f"export --public: {name} survived scrubbing in {filename}; refusing to export",
                 file=filename,
                 pattern=name,
+            )
+    for match in SESSION_NAME_PATTERN.finditer(text):
+        if match.group(2) != REDACTED_SESSION_NAME:
+            raise EvidenceError(
+                f"export --public: session_name survived scrubbing in {filename}; "
+                "refusing to export",
+                file=filename,
+                pattern="session_name",
             )
 
 

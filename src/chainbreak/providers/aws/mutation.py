@@ -170,7 +170,7 @@ def _poll_until(
             return True, (time.monotonic() - start) * 1000
         if time.monotonic() - start >= _READ_AFTER_WRITE_TIMEOUT_S:
             return False, (time.monotonic() - start) * 1000
-            sleep(_READ_AFTER_WRITE_INTERVAL_S)
+        sleep(_READ_AFTER_WRITE_INTERVAL_S)
 
 
 def restore_declared_policy(

@@ -6,13 +6,13 @@ CHAINBREAK measures the gap between the authority a security policy *intended* t
 and the authority a delegated workload *actually* holds when it executes.
 
 > **Status: release candidate blocked — M0–M16 are complete, including dedicated-account
-> acceptance for M8 (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 still has zero
-> valid or publishable blocks and no M17 measurement. W03 failed the root-session `AssumeRole`
-> live gate and W04 failed Terraform S3 lifecycle creation; W05 passed the live gate but its
-> IAM-user operator lacked `sts:AssumeRole` on the benchmark roles. All three were cleaned.
-> M18's
-> offline portion is complete; its real-AWS exercise remains pending. M19 offline release
-> preparation is complete, but the release gate is blocked.**
+> acceptance for M8 (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 completed three
+> full AWS suites, but all remain excluded because two negative controls returned
+> `DETECTOR_FAILURE`; no valid or publishable block exists. W03 failed the root-session
+> `AssumeRole` live gate and W04 failed Terraform S3 lifecycle creation; W05 passed the live
+> gate but its IAM-user operator lacked `sts:AssumeRole` on the benchmark roles. All were
+> cleaned. M18 compare/archive/migration was exercised against excluded AWS bundles and is not
+> a publishable result. M19 preparation is complete, but the release gate is blocked.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -54,7 +54,7 @@ and the authority a delegated workload *actually* holds when it executes.
 > anywhere) and the terminal/Markdown/HTML reporting layer (`reporting/`: hand-built
 > evidence-derived SVG figures, Jinja2 with autoescape on and no `|safe` anywhere, a `provider:
 > fake` run stamped in the header and every figure caption)
-> (1,812 passing tests, 9 skipped and 28 deselected in the current unit/integration gate;
+> (1,818 passing tests, 33 skipped in the current full local gate;
 > `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
 > `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
 > `providers/fake/` ~99.7%, `analysis/` 98%, `execution/` ~99% (every M13/M14-proper module at

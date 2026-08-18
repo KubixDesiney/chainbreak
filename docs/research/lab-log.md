@@ -664,3 +664,37 @@ notes:                block window; next block scheduled (control C-7 requires >
   result from it.
 - State observations in measurement language: "authorization remained effective for X–Y s
   after the mutation request, mechanism M, n=k". Not "revocation is slow".
+
+## 2026-08-17 M17-20260817-05/06/07 — completed AWS suites, excluded by detector failures
+
+These are three consecutive post-repair AWS blocks in `eu-west-3`, using the same account,
+Terraform sandbox, adapter, and negative-control configuration. Stage A and Stage B passed for
+each block; each completed its full run matrix, analyzed every sealed bundle, exported every
+public archive, destroyed the infrastructure, and passed exact namespace `verify-clean`.
+The complete run-ID index is [m17-run-index.md](m17-run-index.md).
+
+| block | AWS run count | UTC window | analysis/export | cleanup |
+|---|---:|---|---|---|
+| `cb-m17-20260817-05` | 32 | 20:00:39–21:23:40 | 32/32, 32/32 | destroy and exact verify-clean passed |
+| `cb-m17-20260817-06` | 23 | 21:31:13–22:22:29 | 23/23, 23/23 | destroy and exact verify-clean passed |
+| `cb-m17-20260817-07` | 32 | 22:38:03–23:58:38 | 32/32, 32/32 | destroy and exact verify-clean passed |
+
+All times are UTC on 2026-08-17; region is `eu-west-3`; scope is this account, this region,
+this time. The mechanism was the CHAINBREAK AWS adapter against the Terraform sandbox.
+
+`nc-non-monotone-chain` returned `DETECTOR_FAILURE` for n=3: runs
+`01M08NBZW62JSMJP4XTWJDP2C5`, `01M08TR9JG16BN4ZQGNWAC5PN9`, and
+`01M08YB93C5MT3A1V1JEYKV8Q3`. `nc-stale-credential-reuse` returned `DETECTOR_FAILURE`
+for n=3: runs `01M08NE3QWCSRB22CV6GESB7QJ`, `01M08TTVNF9K29W6TR97QJ9SAV`, and
+`01M08YDA5REA3KVP1EEE4D1NT1`. Interval is not applicable to either set/pair control;
+mechanism, region, and scope are the AWS role-chain or pinned/fresh-credential control,
+`eu-west-3`, and this account, this region, this time. Under the protocol, every block is
+unvalidated and no family or timing value from these blocks is publishable.
+
+M18 was exercised only as an excluded AWS apparatus check against block 07: same-scenario
+compare n=2 passed, cross-operator compare n=2 passed with its required lower-confidence
+warning, heterogeneous compare n=2 refused without the flag and reported lower-confidence
+divergence with it, empty-directory archive analysis n=1 passed only with `--allow-unsealed`,
+and synthetic `(1,99)` migration n=1 preserved the original and copied bytes identically. All
+mechanisms used the AWS adapter and `eu-west-3`, scoped to this account, this region, this time;
+none is a publishable M18 result while M17 remains invalid.

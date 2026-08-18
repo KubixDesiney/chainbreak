@@ -4,32 +4,30 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Verification refresh:** 2026-08-17. Dedicated-account acceptance for M8/M9 passed live P1–P11,
+**Verification refresh:** 2026-08-18. Dedicated-account acceptance for M8/M9 passed live P1–P11,
 all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown, and service
-enumeration. The shared contract behavioral assertions run unchanged with explicit AWS setup
-hooks for its fixed Terraform roles. M17 has only invalid/incomplete apparatus attempts: zero
-valid or publishable blocks and no M17 measurement. The new local W03 apply was cleaned, but its
-root-session `AssumeRole` live-gate failure excluded it before any scenario run. W04 was also
-cleaned after Terraform's S3 lifecycle creation failure, with no scenario run. W05 passed the
-live gate but was excluded at the first scenario because the IAM-user operator lacked
-`sts:AssumeRole`; its infrastructure was cleaned.
+enumeration. Three full post-repair M17 AWS suites completed in `eu-west-3` with 32, 23, and
+32 analyzed/exported runs and exact cleanup, but all three are invalid because the same two
+negative controls returned `DETECTOR_FAILURE`. Their measured values are retained as excluded
+apparatus records only; no publishable M17 result exists. The public scrubber also gained a
+regression fix so decimal timing values remain valid JSON. The temporary operator permission
+cannot yet be removed by the current IAM user; owner/admin action is required.
 
-**Last updated:** 2026-08-17 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
-dedicated-account acceptance complete; M17 has zero valid/publishable blocks after excluded W03,
-W04, and W05 attempts; M18 offline complete with real-AWS exercise pending; M19 offline release
-preparation complete, release gate blocked pending valid M17 evidence.
+**Last updated:** 2026-08-18 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
+dedicated-account acceptance complete; M17 has three completed but excluded blocks and zero
+valid/publishable blocks; M18 AWS compare/archive/migration was exercised as excluded apparatus;
+M19 release preparation is complete but the release gate remains blocked pending repaired
+negative controls, three clean M17 blocks, and removal of the temporary IAM permission.
 
 ---
 
 ## The honest headline
 
 > **Status: 0.1.0a0 — M0–M16 are complete, including dedicated-account acceptance for M8
-> (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 has had invalid/incomplete
-> apparatus attempts only: zero valid or publishable blocks and no M17 measurement. M18's
-> offline reproducibility portion is complete; its real-AWS exercise remains pending. M19
-> offline release preparation is complete, but the release gate is blocked. The current
-> unit/integration gate is 1,812 passed, 9 skipped and 28
-> deselected.**
+> (AWS provider adapter) and M9 (Terraform AWS sandbox). M17 completed three full AWS suites,
+> but all are excluded because two negative controls returned `DETECTOR_FAILURE`; zero valid
+> or publishable M17 blocks exist. M18 real-AWS tooling was exercised only against those
+> excluded bundles. M19 release preparation is complete, but the release gate is blocked.**
 
 CHAINBREAK has a complete architecture, a verified domain model, a validated scenario corpus,
 and a full implementation plan. The execution engine runs end to end against the deterministic
@@ -184,16 +182,18 @@ test, since a third-party bundle's `security_interpretation` is a plausible XSS 
 rendered page. M0 through M9 are domain/capability/scenario/CLI/provider-laboratory/evidence/
 analysis/AWS-adapter-offline/Terraform-local work; M10 through M14 are the milestones that
 actually execute something end to end — against the fake provider only; M15 and M16 are both
-downstream of that evidence rather than producing more of it. M17 has no valid or publishable
-five-family dedicated-account block; all incomplete attempts are recorded as superseded/excluded
-apparatus evidence in the lab log.
+downstream of that evidence rather than producing more of it. M17 completed three full
+five-family dedicated-account blocks, but all are invalidated by repeated negative-control
+detector failures; all AWS values are recorded as superseded/excluded apparatus evidence in
+the lab log and [results-v0.1.md](docs/research/results-v0.1.md).
 M18's offline portion — `chainbreak compare`'s three-level classification, `--archive`, the
 migration framework, a verified-deterministic Docker image, and a hash-locked
 `requirements.lock` enforced with `--require-hashes` in CI — is also complete, ahead of
 M18-reproducibility-hardening.md's own listed dependency on M17: `docs/implementation/
 NEXT_PROMPTS.md`'s P2 prompt scopes this deliberately, since Level 2/3 comparison logic "can be
 exercised against two fake-provider runs with different seeds," which needs no AWS account to
-validate; only the real-AWS half of that comparison remains blocked on M17.
+validate. The real-AWS compare/archive/migrate paths were exercised against block-07 bundles,
+but remain excluded apparatus checks because M17 was invalidated.
 
 ---
 
@@ -221,7 +221,7 @@ validate; only the real-AWS half of that comparison remains blocked on M17.
 | Silent-narrowing execution and analysis (Family E) | Complete **and verified in code, run end to end** — `execution/workers/base.py` (`TaskWorker` Protocol, defined purely over a capability-invoker and a `TaskOutcome`, ADR-007), `execution/workers/deterministic.py` (four workers: `sequential`, `always-complete`, `substituting`, `redelegating`), `execution/task_runner.py` (the capability-invoker every worker is confined to — S1 — and the objective invocation log that overrides `redelegation_attempts`/`substituted_capabilities` rather than trusting either worker self-report), `execution/side_effects.py` (independent bootstrap-attributed marker verification, F4), `analysis/task_contract.py` (up to three distinct findings per task — `SILENT_NARROWING`, `CAPABILITY_SUBSTITUTED`, `REDELEGATION_ATTEMPTED`, two new `FindingType` members added this milestone — never collapsed into one) | AUTHORIZATION_MODEL §6, [M14-silent-narrowing.md](docs/implementation/milestones/M14-silent-narrowing.md), `execution/workers/`, `execution/task_runner.py`, `execution/side_effects.py`, `analysis/task_contract.py` |
 | Scoring | Complete **and verified in code, run end to end** — six independent `CategoryResult` evaluators (F1), NOT_MEASURED/PARTIAL/DIVERGENT/DETECTOR_FAILED status rules (F2/F3/S2), min-aggregated confidence (F4), cross-run aggregation refusing heterogeneous compiled_hash/adapter_version/catalog_version (F7/F8), `chainbreak analyze` writes `scores.json` and `--aggregate-scores`; no composite score anywhere (ADR-010) | [SCORING_MODEL.md](SCORING_MODEL.md), [M15-scoring.md](docs/implementation/milestones/M15-scoring.md), `scoring/` |
 | Reporting | Complete **and verified in code, run end to end** — terminal (`rich`), Markdown and self-contained HTML (Jinja2, autoescape on, no `|safe`) all render from a real fake-provider bundle; `reporting/language.py`'s EXPERIMENT_PROTOCOL §7 lint enforced at render time (`enforce_report`), not left to operator discipline; seven evidence-derived figures as inline SVG; every finding renders observation/expected_state/observed_state/security_interpretation under separate headings (ADR-006); `provider: fake` stamped in the header and every figure caption | ARCHITECTURE §3.16, [M16-reporting.md](docs/implementation/milestones/M16-reporting.md), `reporting/` |
-| Reproducibility tooling | Offline portion complete **and verified in code** — three-level `chainbreak compare` (`analysis/compare.py`), self-contained `--archive` (`evidence/archive.py`), the bundle-migration framework (`evidence/migrate.py`), a 68 MB Docker image verified to run genuinely determinism-preserving fake-provider scenarios, a 90-package hash-locked `requirements.lock` verified with `pip install --require-hashes` in a clean Linux container — **real-AWS Level 2/3 comparison and real-AWS archive/migrate exercise not yet done, blocked on M17** | [REPRODUCIBILITY.md](REPRODUCIBILITY.md), [M18-reproducibility-hardening.md](docs/implementation/milestones/M18-reproducibility-hardening.md), `analysis/compare.py`, `evidence/archive.py`, `evidence/migrate.py` |
+| Reproducibility tooling | Offline portion complete **and verified in code** — three-level `chainbreak compare` (`analysis/compare.py`), self-contained `--archive` (`evidence/archive.py`), the bundle-migration framework (`evidence/migrate.py`), a 68 MB Docker image verified to run genuinely determinism-preserving fake-provider scenarios, a 90-package hash-locked `requirements.lock` verified with `pip install --require-hashes` in a clean Linux container — **real-AWS compare/archive/migrate exercised against excluded block 07; no publishable M18 result because M17 has no valid block** | [REPRODUCIBILITY.md](REPRODUCIBILITY.md), [M18-reproducibility-hardening.md](docs/implementation/milestones/M18-reproducibility-hardening.md), `analysis/compare.py`, `evidence/archive.py`, `evidence/migrate.py` |
 | Research methodology | Complete | [RESEARCH_METHODOLOGY.md](RESEARCH_METHODOLOGY.md) |
 | Threat model | Complete | [THREAT_MODEL.md](THREAT_MODEL.md) |
 
@@ -1996,19 +1996,18 @@ M10/M16 each went through).
 M18's `--cross-operator`/`--allow-heterogeneous` refusal paths are unit-tested directly (hand-built
 `RunSnapshot`s with differing versions) rather than exercised via two real, differently-versioned
 runs, since this repository only ever ships one catalog/adapter version at a time — nothing to
-block on here, just noted for completeness. What genuinely remains for M18 is real-AWS Level 2/3
-comparison (two real AWS runs of the same scenario, `compare`d against each other) and real-AWS
-archive/migrate exercise, both pending on the separate M17 evidence bar rather than on account
-provisioning.
+block on here, just noted for completeness. What remains for a publishable M18 result is
+repeating these Level 2/3 checks from a valid M17 block. The real-AWS paths were exercised
+against excluded block 07; their outputs are retained as apparatus checks rather than promoted
+to evidence.
 
 M8 and M9 dedicated-account criteria are complete. M18's real-AWS comparison and archive/migrate
-exercise remain pending on a valid M17 evidence bar.
+paths are exercised but remain excluded until a valid M17 evidence block exists.
 
 ### M19 preparation complete, release blocked
 
 M19's offline preparation is complete. M17 has only invalid/incomplete attempts and zero
-valid/publishable blocks; M18's offline portion is complete and its real-AWS comparison remains
-pending. See
+valid/publishable blocks; M18's real-AWS paths were exercised only against excluded bundles. See
 [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
@@ -2277,9 +2276,9 @@ M17 apparatus entries and their exclusions; no valid block has been published.
 1. **No valid/publishable M17 block exists.** The historical attempts in
    `docs/research/lab-log.md` are invalid/incomplete apparatus evidence and remain excluded from
    measurement claims. A valid five-family/six-control M17 block is still pending.
-2. **The real-AWS portion of M18 is pending.** Offline compare/archive/migration and dependency
-   hardening are complete; real-AWS comparison and archive/migration exercise must follow a valid
-   M17 block.
+2. **A publishable real-AWS M18 result is pending.** Compare/archive/migration and dependency
+   hardening are complete; the real-AWS paths were exercised against excluded block 07 and must
+   be repeated from a valid M17 block before publication.
 3. **M19 release gate is blocked.** The results write-up and scrubbed apparatus artifacts are
    prepared, but the tag and publication remain gated on M17 and M18.
 
@@ -2496,8 +2495,9 @@ Recorded now so it is deliberate rather than discovered later.
 | At least three separate time windows | M17 | Control C-7: timing trials must be distributed across blocks |
 
 M0–M7 were entirely offline. M8's adapter code and M9's Terraform sandbox were verified offline
-and then passed dedicated-account acceptance. M10–M16 are complete offline; only the future
-real-AWS M17 block and the real-AWS half of M18 still require the account and identity above.
+and then passed dedicated-account acceptance. M10–M16 are complete offline; a repaired,
+publishable real-AWS M17 campaign and a repeat of M18 from valid blocks still require the account
+and identity above.
 
 ---
 
@@ -2505,8 +2505,9 @@ real-AWS M17 block and the real-AWS half of M18 still require the account and id
 
 **M0–M16 are complete, including dedicated-account acceptance for M8 and M9. M17 has only
 invalid/incomplete apparatus attempts, with zero valid/publishable blocks and no measurement.
-M18's offline portion is complete; its real-AWS comparison/archive/migration exercise remains
-pending. M19's offline release preparation is complete, but its release gate is blocked.**
+M18's real-AWS compare/archive/migration paths were exercised against excluded block 07, but no
+publishable result can be inferred. M19's offline release preparation is complete, but its
+release gate is blocked.**
 
 The next action is a future, explicitly approved M17 run that satisfies the complete family,
 negative-control, block, timing, and cleanup gates. No result may be inferred from the historical

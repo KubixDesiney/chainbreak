@@ -118,6 +118,24 @@ that real-AWS bundles cover one account/region while fake bundles use synthetic 
 apparatus checks. This resolves the contradiction between the fake-provider banner and the old
 AWS-specific limitation wording.
 
+**2026-08-18 — retain the M17 gate after three complete AWS blocks.** Blocks 05, 06, and 07
+completed the required suite and cleanup, but each produced `DETECTOR_FAILURE` for
+`nc-non-monotone-chain` and `nc-stale-credential-reuse`. The protocol says a block containing
+any detector failure is unvalidated, so their measured timing and family values remain excluded
+and the release gate stays closed. This resolves the apparent contradiction between sealed AWS
+bundles and publishable M17 evidence.
+
+**2026-08-18 — tighten account-ID scrubbing boundaries.** The public-export regex now treats a
+12-digit value adjacent to a decimal point as part of a numeric literal, preventing corruption
+of timing JSON such as `credential_age_ms`. A regression test parses the exported JSON. This
+resolves the evidence-schema/export-method contradiction exposed by the real AWS archive check.
+
+**2026-08-18 — scrub namespaces, session names, and adjacent JSON safely.** Public export now
+redacts benchmark namespaces even when embedded in underscore-delimited snapshot identifiers,
+redacts session-name fields, and bounds ARN matches at JSON delimiters. Regression coverage
+asserts the resulting JSON remains parseable; the block-07 archive was regenerated and scanned
+with zero live account, namespace, ARN, or hostname occurrences.
+
 ---
 
 ## Deferred decisions

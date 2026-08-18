@@ -2,13 +2,13 @@
 
 How to present this project honestly, and what it actually demonstrates.
 
-> **Read this first.** As of 2026-08-17, CHAINBREAK has a complete architecture, a verified
-> domain model, a validated scenario corpus, and a full implementation plan. Real AWS sandbox
-> attempts W03 and W04 were excluded before any scenario run: W03 failed the root-session
-> `AssumeRole` gate and W04 failed Terraform S3 lifecycle creation. W05 passed the live gate but
-> its IAM-user operator lacked `sts:AssumeRole` on the benchmark roles. **No valid AWS measurement
-> exists.** Fake-provider reports are apparatus checks only. Presenting designed-but-unmeasured
-> work as results would be dishonest.
+> **Read this first.** As of 2026-08-18, CHAINBREAK has a complete architecture, a verified
+> domain model, a validated scenario corpus, and a full implementation plan. Three complete
+> real-AWS M17 suites were run, but all were excluded because the same two negative controls
+> returned `DETECTOR_FAILURE`; **no valid AWS measurement exists**. W03/W04/W05 remain recorded
+> as earlier apparatus exclusions. Fake-provider reports and the AWS block-07 sample are
+> apparatus outputs, not publishable benchmark results. Presenting designed-but-unmeasured work
+> as results would be dishonest.
 
 ---
 
