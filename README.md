@@ -10,8 +10,9 @@ and the authority a delegated workload *actually* holds when it executes.
 > 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six negative controls `DETECTOR_OK`, complete
 > analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid
 > AWS bundles, including honest lower-confidence cross-operator and heterogeneous behavior.
-> The release gate remains pending the owner/admin IAM cleanup and final history/publication
-> decision. No tag, history rewrite, force-push, GitHub release, or publication was made.**
+> The confirmed historical account-ID finding was scrubbed from active Git history and verified
+> absent; the release gate remains pending owner/admin IAM cleanup and final publication checks.
+> No tag or GitHub release has been created.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic

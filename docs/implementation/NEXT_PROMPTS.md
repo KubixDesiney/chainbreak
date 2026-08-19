@@ -10,7 +10,8 @@ operator-provisioned dedicated account; its identifier, region, namespace, and l
 state must be supplied at execution time and must not be committed to documentation.
 
 S1–S8 from the previous edition are all done. Remaining work is owner/admin removal of the
-temporary benchmark IAM permission and the owner's final history, tag, and publication decision.
+temporary benchmark IAM permission, followed by the final release checks. The confirmed historical
+account-ID finding has already been scrubbed from active Git history.
 
 ---
 
@@ -20,7 +21,8 @@ temporary benchmark IAM permission and the owner's final history, tag, and publi
 P1 (offline, completed) → P2 (valid M17, completed) → P3 (M18, completed) → P4 (owner release decision)
 ```
 
-P1, P2, and P3 are complete. P4 remains owner-gated; this pass performs no publication action.
+P1, P2, and P3 are complete. P4 remains gated on IAM cleanup and the final release checks; this
+pass performs no publication action.
 
 ---
 

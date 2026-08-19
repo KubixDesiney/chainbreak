@@ -2005,9 +2005,9 @@ cross-account and differently-versioned real infrastructure.
 ### M19 release candidate prepared, owner decision pending
 
 M19's consistency review, measured-only results, scrubbed report/sample, CHANGELOG, and
-tracked-tree/history scan are complete. The temporary benchmark IAM permission still requires
-authorized owner/admin removal. No history rewrite, force-push, tag, GitHub release, or
-publication was performed; the owner makes the final decision. See
+tracked-tree/history scan are complete. The confirmed historical account-ID finding was scrubbed
+from active Git history and verified absent; the temporary benchmark IAM permission still requires
+authorized owner/admin removal. No tag or GitHub release has been created. See
 [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
@@ -2280,9 +2280,9 @@ and the historical invalid/incomplete apparatus entries with their exclusions.
 2. **Cross-operator equivalence remains unverified.** The valid-bundle M18 check retained the
    explicit assumed-and-unverified warning; cross-account and differently-versioned real
    infrastructure were not measured.
-3. **Owner release actions remain.** An authorized administrator must remove the temporary
-   benchmark `sts:AssumeRole` permission, and the owner must decide history handling, tag, and
-   publication. This pass did not perform those actions.
+3. **Release actions remain.** An authorized administrator must remove the temporary benchmark
+   `sts:AssumeRole` permission. The confirmed historical account-ID finding has been scrubbed from
+   active history; tag and publication remain blocked until IAM cleanup and final checks pass.
 
 The following ledger is historical milestone context, not the active issue list. Resolved entries
 are retained only where they explain a past apparatus repair; they are not current blockers.

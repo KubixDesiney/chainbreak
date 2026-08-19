@@ -2,7 +2,7 @@
 
 All notable changes to CHAINBREAK are recorded here.
 
-## Unreleased - release candidate pending owner decision
+## Unreleased - release candidate after history scrub
 
 - Completed three valid real-AWS M17 blocks on 2026-08-18 (`n=32`, `n=23`, `n=32`), with all
   six negative controls `DETECTOR_OK`, complete analysis/export, and exact cleanup. Added the
@@ -20,9 +20,11 @@ All notable changes to CHAINBREAK are recorded here.
 - Added the platform-specific Windows wheel hash observed during verification; the lock remains
   generated for and verified against the CI Linux target.
 - Added the M17 W03 exclusion record, explicitly labelled fake-provider apparatus outputs, and
-  recorded the current tree/history scan. No v0.1.0 tag or publication was created.
+  recorded the current tree/history scan. Scrubbed the confirmed historical account-ID finding
+  from active Git history and retained a private local recovery bundle. No v0.1.0 tag or
+  publication was created.
 
 ## v0.1.0
 
-Not released. The owner still decides history handling, tag, publication, and final release after
-the temporary benchmark IAM permission is removed by an authorized administrator.
+Not released. Tag, publication, and final release remain blocked until the temporary benchmark
+IAM permission is removed by an authorized administrator and the final checks pass.

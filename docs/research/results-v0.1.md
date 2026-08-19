@@ -90,7 +90,8 @@ samples and the prior block-04 sample are labelled excluded and are not used abo
 The measured rows do not cover other accounts, regions, times, clouds, permission boundaries,
 SCPs, consequential resource policies, or production role graphs. No cross-account or
 cross-operator equivalence has been established; the cross-operator M18 check above is
-explicitly assumed and unverified. No history rewrite, tag, force-push, GitHub release, or
-publication was performed. Final release, history handling, and publication remain owner
-decisions; removal of the temporary benchmark `sts:AssumeRole` permission remains an
-owner/admin cleanup action because the current operator could not remove that IAM policy.
+explicitly assumed and unverified. The confirmed historical account-ID finding was scrubbed from
+active Git history and the active refs were rescanned with zero matches; the pre-scrub objects are
+retained only in a private local recovery bundle. No tag or GitHub release has been created.
+Removal of the temporary benchmark `sts:AssumeRole` permission remains an owner/admin cleanup
+action because the current operator could not remove that IAM policy.

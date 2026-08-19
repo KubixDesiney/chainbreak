@@ -148,8 +148,9 @@ assumed and unverified, and heterogeneous comparisons remain lower-confidence by
 
 Earlier AWS attempts and fake-provider outputs remain labelled excluded apparatus material. The
 temporary benchmark `sts:AssumeRole` permission must be removed by an authorized owner/admin;
-the current operator could not remove it. The owner decides whether to rewrite history, create a
-tag, publish, or create a GitHub release. This task deliberately performed none of those actions.
+the current operator could not remove it. The confirmed historical account-ID finding was scrubbed
+from active Git history, with a private local recovery bundle retained. No tag or publication is
+created until IAM cleanup and the final release checks pass.
 
 ---
 

@@ -1,6 +1,6 @@
 # Tracked tree and Git history scan
 
-Scan date: 2026-08-18. The scan covered every path from `git ls-files`, every commit reachable
+Scan date: 2026-08-19. The scan covered every path from `git ls-files`, every commit reachable
 from `git rev-list --all`, and Git diffs searched with account-ID, ARN, namespace, hostname,
 session-name, and credential-shaped patterns. Values are deliberately omitted.
 
@@ -13,12 +13,13 @@ session-name, and credential-shaped patterns. Values are deliberately omitted.
   terraform.tfvars.example`, `infra/terraform/environments/local-development/variables.tf`,
   `src/chainbreak/cli/run.py`, provider test fixtures, and redaction tests. These are apparatus
   inputs or construction code, not live account evidence.
-- Historical live account finding: the account-ID pattern occurred in
+- Pre-scrub historical live account finding: the account-ID pattern occurred in
   `docs/implementation/NEXT_PROMPTS.md` in commits
   `1c934ea5fd2d860d15ad9b679530980d4e9c1bc4` and
   `c500ed83fe10cf43ff879c42e87c198840421e98`. The value is not reproduced here. This is the
-  exact history finding that requires an owner decision before publication; history was not
-  rewritten.
+  exact finding that was remediated. Active refs were rewritten and rescanned with zero
+  historical account-ID matches; the pre-scrub objects are retained only in a private local
+  recovery bundle outside the repository refs.
 - Historical namespace-shaped matches occur in `docs/research/lab-log.md`, `PROJECT_STATUS.md`,
   and `docs/implementation/NEXT_PROMPTS.md` across the historical experiment commits. Current
   code/test matches are intentional placeholders and fixtures in
@@ -55,7 +56,7 @@ session-name, and credential-shaped patterns. Values are deliberately omitted.
 
 ## Release implication
 
-The current tree is scrubbed for the scanned classes. The two historical account-ID findings
-remain in Git history and are reported exactly by path and commit above without printing the
-value. The owner must decide whether to rewrite history before publication. This pass did not
-rewrite history, force-push, tag, create a GitHub release, or publish anything.
+The current tree is scrubbed for the scanned classes. The two pre-scrub historical account-ID
+findings are reported exactly by path and commit above without printing the value; active refs now
+contain zero matches. No tag or GitHub release has been created. Temporary benchmark IAM cleanup
+and final release checks remain before publication.
