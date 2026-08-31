@@ -34,7 +34,6 @@ aws = [
 ]
 report = [
   "jinja2>=3.1",
-  "plotly>=5.22",
 ]
 analysis = [
   "pyarrow>=16.0",
@@ -163,7 +162,7 @@ plugins = ["pydantic.mypy"]
 files = ["src/chainbreak"]
 
 [[tool.mypy.overrides]]
-module = ["plotly.*", "moto.*"]
+module = ["moto.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

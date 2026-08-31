@@ -9,8 +9,9 @@ M15.
 
 ## Required components
 `reporting/terminal.py` (rich), `reporting/markdown.py`, `reporting/html.py` (Jinja2,
-autoescape on), `reporting/figures.py` (Plotly), `reporting/language.py` (the rule set),
-`reporting/templates/`.
+autoescape on), `reporting/figures.py` (hand-built inline SVG — see
+[docs/DECISIONS.md](../../DECISIONS.md#smaller-decisions) for why Plotly was rejected),
+`reporting/language.py` (the rule set), `reporting/templates/`.
 
 ## Files expected
 ```

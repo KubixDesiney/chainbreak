@@ -74,6 +74,19 @@ justification per [CAPABILITY_MODEL §7](../CAPABILITY_MODEL.md#7-adding-a-capab
 capability: it cannot be denied by an identity policy, so its failure means the apparatus is
 broken rather than that a policy denied something.
 
+**Hand-built inline SVG in `reporting/figures.py`, not Plotly, despite M16's original spec
+text naming Plotly.** Plotly's only two paths to a genuinely self-contained, no-CDN report
+each fail a harder requirement the same milestone states in the same breath:
+`include_plotlyjs="inline"` embeds a multi-megabyte minified library per report, alone
+exceeding M16's own "HTML report under 2 MB" budget; a CDN-hosted bundle violates the
+self-contained, no-network-fetch requirement outright. Hand-built inline SVG, generated
+programmatically from the same evidence Plotly would have been fed, satisfies the actual
+requirement (structured, evidence-derived charts, never hand-written numbers) without either
+conflict, and is additionally readable without JavaScript — where a Plotly `<div>` is not.
+M16-reporting.md and ARCHITECTURE.md now describe the implementation directly rather than the
+original Plotly text; `plotly` has been removed from `pyproject.toml`'s `report` extra and its
+mypy override, since an unused declared dependency is pure attack surface (T-14).
+
 **Six agent roles provisioned even though most scenarios use two or three.** Depth is a
 research variable up to 6; provisioning all of them means changing depth does not require a
 `terraform apply`, which removes a source of between-condition variation.

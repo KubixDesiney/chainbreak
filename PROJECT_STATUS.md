@@ -2463,16 +2463,18 @@ Recorded now so it is deliberate rather than discovered later.
   `python -m chainbreak.scenarios.export_schema schemas && git diff --exit-code schemas/` in
   every CI run; whether it correctly blocks a real drifted PR is unverified until GitHub
   Actions runs it against a real drift, which has not happened yet.
-- **`docs/research/` has a lab log and nothing else.** `results-v0.1.md` arrives at M17.
-- **`reporting/figures.py` uses hand-built inline SVG, not Plotly, despite M16's own spec text
-  naming Plotly.** Recorded as a design decision in the module's own docstring and the M16 entry
-  above (both of Plotly's self-contained-HTML paths violate a harder requirement the milestone
-  states in the same breath), not treated as a gap to close later — if a future milestone adds
-  genuinely interactive dashboards (explicitly out of M16's own scope), Plotly becomes worth
-  revisiting then, with kaleido or a CDN-hosted deployment target where the 2 MB/no-network
-  constraints no longer apply the same way. `plotly` remains an installable (unused) member of
-  the `report` extras group in `pyproject.toml` rather than removed, since nothing about this
-  decision is permanent.
+- ~~`reporting/figures.py` uses hand-built inline SVG, not Plotly, despite M16's own spec text
+  naming Plotly.~~ **Reclassified: this was a stale spec, not open debt.** The mismatch was in
+  M16-reporting.md's text, not the code — `include_plotlyjs="inline"` alone exceeds M16's own
+  2 MB report budget, a CDN violates the self-contained requirement, and SVG is readable
+  without JavaScript where a Plotly `<div>` is not, exactly as the module's own docstring
+  argued. M16-reporting.md and ARCHITECTURE.md §3.16 now describe the SVG implementation
+  directly, and the rationale is recorded in
+  [docs/DECISIONS.md](docs/DECISIONS.md#smaller-decisions) under "Smaller decisions" so a
+  reviewer finds it without reading source. The unused
+  `plotly>=5.22` dependency and its mypy override have been removed from `pyproject.toml`
+  (THREAT_MODEL T-14: minimal dependency surface, and an unused declared dependency is pure
+  attack surface).
 
 ---
 
