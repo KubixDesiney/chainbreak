@@ -93,6 +93,20 @@ empty package directories were deleted and ARCHITECTURE.md §3.7/§3.12 rewritte
 where the responsibility actually lives, closing the tension PROJECT_STATUS.md had recorded
 since M10 rather than leaving it open indefinitely.
 
+**Hand-built inline SVG in `reporting/figures.py`, not Plotly, despite M16's own spec naming
+Plotly.** Plotly's only two paths to a self-contained, no-CDN report each violate a harder
+requirement the same milestone states in the same breath: `include_plotlyjs="inline"` embeds
+a multi-megabyte minified library before a single data point is drawn, alone exceeding "HTML
+report under 2 MB"; static image export (`kaleido`) needs a headless-browser binary this
+offline environment cannot download, which would violate "no network fetches" at *build* time
+instead of render time. Hand-built SVG generated from the same evidence satisfies F3's actual
+requirement — structured, evidence-derived charts, never hand-written numbers — without either
+conflict, and is additionally readable without JavaScript. The same judgment call M4 recorded
+for `rich_markup_mode` (spec intent honored over spec literalism, once the literal reading
+fails a harder requirement in the same spec), applied here to a harder constraint conflict.
+Plotly was never imported, so it was dropped as a `report` extra and its `mypy` override
+removed.
+
 ---
 
 ## Release-gate decisions

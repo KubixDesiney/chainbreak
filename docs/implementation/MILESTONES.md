@@ -5,11 +5,14 @@ an implementation agent can execute one without inventing missing requirements.
 
 Ready-to-copy Claude Code prompts are in [CLAUDE_CODE_HANDOFF.md](../CLAUDE_CODE_HANDOFF.md).
 
-**Current state (2026-08-17):** M0–M16 are complete, including dedicated-account acceptance for
-M8 and M9. M17 has zero valid or publishable blocks; its invalid/incomplete attempts remain
-superseded/excluded apparatus evidence in the lab log. M18's offline portion is complete and its
-real-AWS exercise is pending. M19's offline release preparation is complete, but its release gate
-is blocked.
+**Current state (2026-08-18):** M0–M16 are complete, including dedicated-account acceptance for
+M8 and M9. M17 has three valid AWS blocks (`n=32`, `n=23`, `n=32`), all six negative controls
+`DETECTOR_OK`, complete analysis/export, and exact cleanup. The earlier `20260817-05/06/07`
+blocks completed their full suite but are excluded by `DETECTOR_FAILURE`; they, along with the
+other invalid/incomplete attempts, remain superseded/excluded apparatus evidence in the lab log.
+M18's offline portion is complete and its real-AWS compare/archive/migration paths were
+exercised on the valid bundles. M19's offline release preparation is complete, but its release
+gate remains blocked pending owner/admin IAM cleanup.
 
 ---
 

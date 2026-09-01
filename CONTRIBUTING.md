@@ -50,7 +50,11 @@ test demonstrating the new behavior is still safe.
 1. Open an issue describing the problem before writing code, unless it is a typo or an
    obvious bug fix.
 2. Branch: `feat/…`, `fix/…`, `docs/…`, `adr/…`, `scenario/…`.
-3. Small, reviewable commits. Conventional-commit prefixes preferred.
+3. Small, reviewable commits. Conventional-commit prefixes preferred. A change to a safety
+   gate or a live-validation check (`SafetyGate`, `cli/validate.py`, anything in
+   `providers/*/preflight.py`) is a `fix:`, never a `chore:`, even when it ships alongside
+   release housekeeping — it changes what the apparatus will accept or reject, which is exactly
+   the kind of change history and review need to be able to find later.
 4. Update the documents your change affects **in the same PR**. A code change that
    contradicts a specification is a bug in one of them; leaving them inconsistent is worse
    than either.

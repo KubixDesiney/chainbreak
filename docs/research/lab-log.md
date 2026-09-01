@@ -576,6 +576,18 @@ remaining`. Cleanup succeeded.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated;
 further public apply is stopped pending the SECURITY.md coordinated-disclosure sequence.
 
+repair after W15: private reproduction found the repeated omission was not AWS behavior.
+`_check_live_budget` in `cli/validate.py` read `NotificationsWithSubscribers` directly off the
+`describe_budget` response and failed closed whenever AWS omitted SNS-backed subscribers from
+that compound field, even on budgets where the dedicated `describe_notifications_for_budget`
+and `describe_subscribers_for_notification` endpoints reported the notification and subscriber
+as present and active. Fixed in `fcf44cc` by reconstructing the same shape from those
+authoritative endpoints instead of trusting a possibly-incomplete `describe_budget` projection.
+No AWS provider defect is declared and the SECURITY.md coordinated-disclosure sequence was not
+entered; this is recorded as a protocol deviation, not a disclosure — the stop-work rule
+triggered on an apparatus bug in the validator, not a provider finding, and public work resumed
+once the validator was repaired.
+
 ## 2026-08-17 M17-20260817-W03 — local profile apply, root-session live-gate failure, cleaned
 
 checklist: the local guarded pre-apply configuration and exact-namespace clean check passed;
