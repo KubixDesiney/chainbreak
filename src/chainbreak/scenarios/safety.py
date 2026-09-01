@@ -53,8 +53,8 @@ def _reject_tag(loader: StrictScenarioLoader, suffix: str, node: yaml.Node) -> A
     )
 
 
-StrictScenarioLoader.add_multi_constructor("!", _reject_tag)  # type: ignore[no-untyped-call]
-StrictScenarioLoader.add_multi_constructor("tag:", _reject_tag)  # type: ignore[no-untyped-call]
+StrictScenarioLoader.add_multi_constructor("!", _reject_tag)
+StrictScenarioLoader.add_multi_constructor("tag:", _reject_tag)
 
 
 def load_scenario_yaml(path: Path) -> dict[str, Any]:

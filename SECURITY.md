@@ -2,8 +2,8 @@
 
 ## Reporting a vulnerability in CHAINBREAK
 
-Report privately via GitHub Security Advisories on this repository, or by email to the
-maintainer address in `pyproject.toml`. Please do not open a public issue for a
+Report privately via GitHub's Private Vulnerability Reporting on this repository
+(Security tab → Report a vulnerability). Please do not open a public issue for a
 security-relevant defect.
 
 Include: the version or commit, the invariant you believe is violated (see
