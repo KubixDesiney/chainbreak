@@ -48,6 +48,11 @@ resource "aws_sns_topic" "budget_alerts" {
 
   name = "${local.namespace}-budget-alerts"
 
+  # Budget notifications can contain cost and account metadata; encrypt the
+  # topic at rest with the AWS-managed SNS key so the security gate passes
+  # without requiring a customer-managed key as an additional module input.
+  kms_master_key_id = "alias/aws/sns"
+
   tags = {
     Project   = "CHAINBREAK"
     Namespace = local.namespace
