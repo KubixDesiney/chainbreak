@@ -21,8 +21,8 @@ evidence.
 M18's offline portion is complete and its compare/archive/migration paths were exercised on
 valid bundles. M19's final release gate is complete. IAM cleanup was completed by the owner on
 2026-09-01 and the benchmark account verified clean - zero `cb-*` roles, zero resources tagged
-`Project=CHAINBREAK`, benchmark budget removed. The release gate now waits on one owner action:
-explicit publication approval.
+`Project=CHAINBREAK`, benchmark budget removed. The annotated `v0.1.0` tag and GitHub release
+were published from the verified release commit.
 
 > This block previously read "M17 has zero valid or publishable blocks", dated 2026-08-17. That
 > was accurate when written and went stale within a day. It was corrected on 2026-08-19 after

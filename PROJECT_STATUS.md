@@ -18,23 +18,22 @@ owner/admin action was still required, is superseded.
 
 **Last updated:** 2026-09-04 · **Version:** 0.1.0 · **Phase:** M0–M16 complete; M8/M9
 dedicated-account acceptance complete; M17 has three valid blocks; M18 AWS
-compare/archive/migration is exercised on valid bundles; M19 release gate complete; IAM cleanup
-complete and account verified clean; owner publication approval is the only outstanding gate.
+compare/archive/migration is exercised on valid bundles; M19 v0.1.0 release published; IAM
+cleanup complete and account verified clean.
 
 ---
 
 ## The honest headline
 
-> **Status: 0.1.0 release candidate ready for owner publication approval — M0–M16 are complete,
+> **Status: v0.1.0 released — M0–M16 are complete,
 > including dedicated-account acceptance for M8/M9. Three valid real-AWS M17 blocks completed on
 > 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six negative controls `DETECTOR_OK`, complete
 > analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid AWS
 > bundles, including honest lower-confidence cross-operator and heterogeneous behavior. The
 > confirmed historical account-ID finding was scrubbed from active Git history and verified
 > absent. IAM cleanup completed 2026-09-01: the temporary benchmark `sts:AssumeRole` permission
-> was removed and the account verified clean. The package version is `0.1.0`; no tag or GitHub
-> release has been created. The owner's explicit publication approval is the only remaining
-> action.**
+> was removed and the account verified clean. The package version is `0.1.0`; the annotated
+> `v0.1.0` tag and GitHub release were published from the green release commit.**
 
 CHAINBREAK has a complete architecture, a verified domain model, a validated 24-scenario corpus,
 and a full implementation plan. The execution engine runs end to end against the deterministic
@@ -2016,9 +2015,8 @@ M19's consistency review, measured-only results, scrubbed report/sample, CHANGEL
 tracked-tree/history scan are complete. The confirmed historical account-ID finding was scrubbed
 from active Git history and verified absent. The temporary benchmark IAM permission was removed
 on 2026-09-01 and the account verified clean. The package version is `0.1.0`, and the final
-read-only release gate is complete. No tag or GitHub release has been created; the owner's
-explicit publication approval remains. Historical evidence retains its original `0.1.0a0`
-provenance. See
+read-only release gate is complete. The annotated `v0.1.0` tag and GitHub release were published
+from the green release commit. Historical evidence retains its original `0.1.0a0` provenance. See
 [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 Final release-gate evidence captured on 2026-09-04:
@@ -2552,8 +2550,7 @@ IAM cleanup is complete. On 2026-09-01 the owner removed the temporary benchmark
 budget removed. The operator identity can no longer enumerate its own attached policies, which
 is consistent with the reduced permission set.
 
-**The only remaining action is the owner's explicit publication approval, after which the
-already-verified release commit may be pushed, tagged, and published.**
+**The v0.1.0 publication is complete from the already-verified release commit.**
 Historical invalid attempts remain excluded and are not mixed with the valid evidence.
 
 Verification commands for the full offline surface (M0 through M16 plus the current offline

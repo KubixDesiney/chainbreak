@@ -12,7 +12,7 @@ state must be supplied at execution time and must not be committed to documentat
 S1–S8 from the previous edition are all done. IAM cleanup completed 2026-09-01 - the temporary
 benchmark `sts:AssumeRole` permission was removed and the account verified clean. The confirmed
 historical account-ID finding was scrubbed from active Git history. The final release gate passed
-on 2026-09-04. The only remaining work is the owner's explicit publication approval.
+on 2026-09-04, and the annotated `v0.1.0` tag and GitHub release were published.
 
 ---
 
@@ -22,8 +22,8 @@ on 2026-09-04. The only remaining work is the owner's explicit publication appro
 P1 (offline, completed) → P2 (valid M17, completed) → P3 (M18, completed) → P4 (owner release decision)
 ```
 
-P1, P2, and P3 are complete. IAM cleanup is done, so P4 is gated only on the owner's publication
-and tag decision; this pass performs no publication action.
+P1, P2, P3, and P4 are complete. IAM cleanup is done, and this release pass performed no
+additional experiment run or infrastructure write.
 
 ---
 

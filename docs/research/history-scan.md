@@ -59,6 +59,6 @@ session-name, and credential-shaped patterns. Values are deliberately omitted.
 The current tree is scrubbed for the scanned classes. The two pre-scrub historical account-ID
 findings are reported exactly by path and commit above without printing the value; active refs now
 contain zero matches. Temporary benchmark IAM cleanup completed 2026-09-01 with the account
-verified clean. The final release gate completed on 2026-09-04; no tag or GitHub release has been
-created pending the owner's explicit publication approval. This scan is evidence for that final
-approval decision; it is not a claim that the candidate has been published.
+verified clean. The final release gate completed on 2026-09-04; the annotated `v0.1.0` tag and
+GitHub release were published from the verified release commit. This scan records the scrubbed
+state that preceded publication.

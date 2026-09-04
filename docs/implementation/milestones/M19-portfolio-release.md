@@ -2,12 +2,12 @@
 
 ## Current status
 
-Final release gate completed 2026-09-04 for package version `0.1.0`. Valid M17 blocks and the
+Final release gate completed 2026-09-04 for package version `0.1.0`. The annotated `v0.1.0` tag
+and GitHub release were published from the verified release commit. Valid M17 blocks and the
 real-AWS M18 compare/archive/migration checks are recorded with scrubbed artifacts and
 measured-only docs. IAM cleanup completed 2026-09-01 - the temporary benchmark
 `sts:AssumeRole` permission was removed and the account verified clean (zero `cb-*` roles, zero
-`Project=CHAINBREAK` tagged resources, benchmark budget removed). The candidate remains
-unpublished; the owner's explicit publication approval is the only remaining action.
+`Project=CHAINBREAK` tagged resources, benchmark budget removed). The release is complete.
 
 ## Purpose
 Prepare the `0.1.0` release candidate for the owner's final `v0.1.0` publication decision: a coherent,

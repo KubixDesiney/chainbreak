@@ -40,10 +40,10 @@ AWS measurement. Measured values hold for that account, that region, and that ti
 
 IAM cleanup completed 2026-09-01 — the temporary benchmark `sts:AssumeRole` permission was
 removed and the account verified clean. The final read-only release gate passed on 2026-09-04;
-no tag or GitHub release has been created pending the owner's explicit publication approval.
+the annotated `v0.1.0` tag and GitHub release were published from the green release commit.
 
 Historical M17/M18 bundles, lab records, and synthetic fixtures intentionally retain
 `0.1.0a0` in their `chainbreak_version` provenance. Those values describe the runtime that
 created the historical evidence and are not current package-version metadata.
 
-The release is prepared but remains unpublished until that approval is given.
+The `v0.1.0` release is published with the verified wheel and scoped release notes.

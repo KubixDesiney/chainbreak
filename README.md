@@ -5,16 +5,15 @@
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
 and the authority a delegated workload *actually* holds when it executes.
 
-> **Status: 0.1.0 release candidate ready for owner publication approval — M0–M16 are complete,
+> **Status: v0.1.0 released — M0–M16 are complete,
 > including dedicated-account acceptance for M8/M9. Three valid real-AWS M17 blocks completed on
 > 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six negative controls `DETECTOR_OK`, complete
 > analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid AWS
 > bundles, including honest lower-confidence cross-operator and heterogeneous behavior. The
 > confirmed historical account-ID finding was scrubbed from active Git history and verified
 > absent. IAM cleanup completed 2026-09-01: the temporary benchmark `sts:AssumeRole` permission
-> was removed and the account verified clean. The package version is `0.1.0`; no tag or GitHub
-> release has been created. The owner's explicit publication approval is the only remaining
-> action.**
+> was removed and the account verified clean. The package version is `0.1.0`; the annotated
+> `v0.1.0` tag and GitHub release were published from the green release commit.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
