@@ -5,11 +5,29 @@ an implementation agent can execute one without inventing missing requirements.
 
 Ready-to-copy Claude Code prompts are in [CLAUDE_CODE_HANDOFF.md](../CLAUDE_CODE_HANDOFF.md).
 
-**Current state (2026-08-17):** M0–M16 are complete, including dedicated-account acceptance for
-M8 and M9. M17 has zero valid or publishable blocks; its invalid/incomplete attempts remain
-superseded/excluded apparatus evidence in the lab log. M18's offline portion is complete and its
-real-AWS exercise is pending. M19's offline release preparation is complete, but its release gate
-is blocked.
+**Current state (2026-09-01):** M0–M16 are complete, including dedicated-account acceptance for
+M8 and M9. M17 has three valid blocks — `cb-m17-20260818-01` (`n=32`), `-02` (`n=23`) and `-03`
+(`n=32`), 87 analyzed and exported AWS runs in `eu-west-3`, with all six negative controls
+`DETECTOR_OK` in every block. Measured values and exact run IDs are in
+[results-v0.1.md](../research/results-v0.1.md); they are scoped to that account, that region and
+that time, and are not claims about AWS generally.
+
+The earlier attempts remain **excluded**, not deleted: blocks `cb-m17-20260817-05/06/07`
+completed their full matrices but contained `DETECTOR_FAILURE` on `nc-non-monotone-chain` and
+`nc-stale-credential-reuse`, so under the protocol every value from them is unpublishable. W03,
+W04, W05 and the W07–W15 series are apparatus records. None of it is mixed with the valid
+evidence.
+
+M18's offline portion is complete and its compare/archive/migration paths were exercised on
+valid bundles. M19's release preparation is complete. IAM cleanup was completed by the owner on
+2026-09-01 and the benchmark account verified clean — zero `cb-*` roles, zero resources tagged
+`Project=CHAINBREAK`, benchmark budget removed. The release gate now waits on one owner action:
+the publication and tag decision.
+
+> This block previously read "M17 has zero valid or publishable blocks", dated 2026-08-17. That
+> was accurate when written and went stale within a day. It was corrected on 2026-08-19 after
+> `PROJECT_STATUS.md` — the declared source of truth — and `docs/research/results-v0.1.md` were
+> both checked against it.
 
 ---
 

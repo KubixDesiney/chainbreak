@@ -92,6 +92,12 @@ SCPs, consequential resource policies, or production role graphs. No cross-accou
 cross-operator equivalence has been established; the cross-operator M18 check above is
 explicitly assumed and unverified. The confirmed historical account-ID finding was scrubbed from
 active Git history and the active refs were rescanned with zero matches; the pre-scrub objects are
-retained only in a private local recovery bundle. No tag or GitHub release has been created.
-Removal of the temporary benchmark `sts:AssumeRole` permission remains an owner/admin cleanup
-action because the current operator could not remove that IAM policy.
+retained only in a private local recovery bundle. Publication of this repository and the
+`v0.1.0` tag change none of the measured values above; they change only who can read them.
+
+The temporary benchmark `sts:AssumeRole` permission was removed by the owner on 2026-09-01, and
+the benchmark account was verified clean the same day: zero `cb-*` IAM roles, zero resources
+tagged `Project=CHAINBREAK` in `eu-west-3`, and the benchmark budget removed. This is an
+operational cleanup record and does not affect any measured value above — every row was sealed
+before that removal and is reproducible only from its archived bundle, not from live
+infrastructure, which no longer exists.

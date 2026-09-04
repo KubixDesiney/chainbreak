@@ -58,5 +58,7 @@ session-name, and credential-shaped patterns. Values are deliberately omitted.
 
 The current tree is scrubbed for the scanned classes. The two pre-scrub historical account-ID
 findings are reported exactly by path and commit above without printing the value; active refs now
-contain zero matches. No tag or GitHub release has been created. Temporary benchmark IAM cleanup
-and final release checks remain before publication.
+contain zero matches. Temporary benchmark IAM cleanup completed 2026-09-01 with the account
+verified clean. No tag or GitHub release has been created. This scan is evidence for the owner's
+remaining history, tag, and publication decision; it is not a claim that the candidate has been
+published.

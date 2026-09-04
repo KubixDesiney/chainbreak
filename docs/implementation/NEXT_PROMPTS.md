@@ -1,6 +1,6 @@
 # Ready-to-run Claude Code prompts — final phase
 
-**State verified 2026-08-18.** M0–M16 are complete, including dedicated-account acceptance for
+**State verified 2026-09-01.** M0–M16 are complete, including dedicated-account acceptance for
 M8 and M9. Three valid M17 AWS blocks are recorded (`n=32`, `n=23`, `n=32`); M18 compare,
 archive, and migration were exercised on valid bundles; and M19 documentation/release
 preparation is complete. Exact evidence is in `docs/research/results-v0.1.md`.
@@ -9,9 +9,10 @@ preparation is complete. Exact evidence is in `docs/research/results-v0.1.md`.
 operator-provisioned dedicated account; its identifier, region, namespace, and live resource
 state must be supplied at execution time and must not be committed to documentation.
 
-S1–S8 from the previous edition are all done. Remaining work is owner/admin removal of the
-temporary benchmark IAM permission, followed by the final release checks. The confirmed historical
-account-ID finding has already been scrubbed from active Git history.
+S1–S8 from the previous edition are all done. IAM cleanup completed 2026-09-01 — the temporary
+benchmark `sts:AssumeRole` permission was removed and the account verified clean. The confirmed
+historical account-ID finding was scrubbed from active Git history. The only remaining work is
+the owner's publication and tag decision.
 
 ---
 
@@ -21,8 +22,8 @@ account-ID finding has already been scrubbed from active Git history.
 P1 (offline, completed) → P2 (valid M17, completed) → P3 (M18, completed) → P4 (owner release decision)
 ```
 
-P1, P2, and P3 are complete. P4 remains gated on IAM cleanup and the final release checks; this
-pass performs no publication action.
+P1, P2, and P3 are complete. IAM cleanup is done, so P4 is gated only on the owner's publication
+and tag decision; this pass performs no publication action.
 
 ---
 
@@ -228,7 +229,7 @@ ran unless it ran.
 
 ---
 
-## P5 — M19 release (prepared; owner decision pending)
+## P5 — M19 release preparation (prepared; owner decision pending)
 
 ```
 Execute milestone M19 for CHAINBREAK — the v0.1.0 release.

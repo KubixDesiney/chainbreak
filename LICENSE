@@ -199,11 +199,3 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-
-   ADDITIONAL NOTICE — SCOPE OF ACCEPTABLE USE
-
-   CHAINBREAK is a defensive security measurement tool. It is intended for use
-   only against cloud accounts and identities that the operator owns or is
-   explicitly authorized to test. Use against third-party infrastructure
-   without authorization is outside the intended use of this software and is
-   likely unlawful in most jurisdictions. See SECURITY.md.

@@ -82,6 +82,24 @@ research variable up to 6; provisioning all of them means changing depth does no
 Not a reluctant floor — the enum serialization behavior in particular removes a whole class
 of custom-encoder bugs in the evidence layer.
 
+**Hand-built inline SVG for figures, not Plotly.** M16's own text originally said "(Plotly)",
+and the implementation ignored it for a reason worth recording. Plotly's only two routes to a
+genuinely self-contained no-CDN report both fail a harder requirement stated in the same
+milestone: `include_plotlyjs="inline"` embeds a multi-megabyte minified library per report,
+exceeding the "HTML report under 2 MB" NFR before a single data point is drawn, and the CDN
+route violates the no-external-resources constraint that exists so a third-party evidence
+bundle cannot reach the network at render time. SVG generated programmatically from the same
+evidence satisfies F3 — structured, evidence-derived charts, never hand-written numbers — and
+is readable without JavaScript, which a Plotly `<div>` is not. The `plotly` dependency was
+declared in `pyproject.toml` and never imported; it was removed on 2026-08-19, since an unused
+declared dependency is pure attack surface under T-14. The spec text was corrected to match the
+code rather than the reverse.
+
+**A commit that changes gate or validator behaviour takes a `fix:` prefix naming the gate.**
+The validator repair that closed the W15 stop rule was committed as `chore: prepare chainbreak
+release candidate`. It took a `git log -S` pickaxe search and two wrong guesses to find the most
+consequential repair in the M17 sequence. Recorded in CONTRIBUTING.md.
+
 **`delegation/` and `observation/` folded into `execution/`, not kept as separate top-level
 packages.** ARCHITECTURE.md reserved both at design time (§3.7, §3.12 as originally
 written). M10's own milestone file named `execution/delegation.py` instead of a top-level
@@ -147,10 +165,11 @@ migration was exercised on those valid bundles; cross-operator equivalence remai
 assumed and unverified, and heterogeneous comparisons remain lower-confidence by design.
 
 Earlier AWS attempts and fake-provider outputs remain labelled excluded apparatus material. The
-temporary benchmark `sts:AssumeRole` permission must be removed by an authorized owner/admin;
-the current operator could not remove it. The confirmed historical account-ID finding was scrubbed
-from active Git history, with a private local recovery bundle retained. No tag or publication is
-created until IAM cleanup and the final release checks pass.
+temporary benchmark `sts:AssumeRole` permission was removed by the owner on 2026-09-01, and the
+account was verified clean the same day — zero `cb-*` roles, zero `Project=CHAINBREAK` tagged
+resources, benchmark budget removed. The confirmed historical account-ID finding was scrubbed
+from active Git history, with a private local recovery bundle retained. No tag or publication has
+been created; that decision is the last remaining gate.
 
 ---
 

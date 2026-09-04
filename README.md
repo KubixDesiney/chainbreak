@@ -11,8 +11,9 @@ and the authority a delegated workload *actually* holds when it executes.
 > analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid
 > AWS bundles, including honest lower-confidence cross-operator and heterogeneous behavior.
 > The confirmed historical account-ID finding was scrubbed from active Git history and verified
-> absent; the release gate remains pending owner/admin IAM cleanup and final publication checks.
-> No tag or GitHub release has been created.**
+> absent. IAM cleanup completed 2026-09-01: the temporary benchmark `sts:AssumeRole` permission
+> was removed and the account verified clean. This is the `0.1.0a0` release candidate; no tag or
+> GitHub release has been created, and the owner's history, tag, and publication decision remains.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -201,5 +202,7 @@ deterministic fake provider.
 
 ## License
 
-Apache-2.0. See [SECURITY.md](SECURITY.md) for vulnerability reporting and the scope of
-acceptable use.
+Apache-2.0 — the unmodified licence text is in [LICENSE](LICENSE). [NOTICE](NOTICE) carries an
+informational statement of the authors' intended scope of use; it is not a licence term and
+modifies nothing. See [SECURITY.md](SECURITY.md) for vulnerability reporting and the same scope
+of acceptable use stated at length.

@@ -97,6 +97,21 @@ this repository does that consistently and it is not optional.
 
 ---
 
+## Commit messages
+
+Conventional-commit prefixes, and one rule that is not cosmetic:
+
+**A commit that changes the behaviour of a gate, a validator, a precondition or a safety
+invariant takes a `fix:` prefix and names the thing it changes. Never `chore:`.**
+
+This exists because of a real incident. The validator repair that closed the W15
+provider-defect stop rule — the change that unblocked the entire M17 evidence set — was
+committed as `chore: prepare chainbreak release candidate`. Reconstructing what resolved that
+hold later took a `git log -S` pickaxe search and two wrong guesses, because nothing in the
+history suggested that commit had touched a gate. A lab log entry can be reconstructed; the
+hours spent reconstructing it cannot. `fix: fall back to authoritative Budgets endpoints in
+live budget gate` would have cost nothing and answered the question immediately.
+
 ## Code style
 
 - Python 3.12, `ruff` (line length 100), `mypy --strict`. Both are merge gates.

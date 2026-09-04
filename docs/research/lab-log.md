@@ -576,6 +576,35 @@ remaining`. Cleanup succeeded.
 outcome: invalid/incomplete; no result published and `results-v0.1.md` remains gated;
 further public apply is stopped pending the SECURITY.md coordinated-disclosure sequence.
 
+repair after W15, recorded retrospectively on 2026-08-19: the stop rule was closed by an
+apparatus fix, not by provider action. Root cause was in the validator, not Terraform and not
+AWS. `_check_live_budget` in `src/chainbreak/cli/validate.py` read only the compound
+`NotificationsWithSubscribers` field of `DescribeBudget`. AWS can return that field empty even
+when an active notification and subscriber exist, and the validator failed closed on that
+incomplete projection — producing five consecutive false budget-gate failures, W11 through W15.
+The fix, commit `fcf44cc` authored 2026-08-17 16:25:00Z, falls back to
+`describe_notifications_for_budget` and `describe_subscribers_for_notification`, which are
+authoritative, and reconstructs the expected shape. Evidence that Terraform was not involved:
+`git diff <W15-commit>..HEAD -- infra/terraform/modules/benchmark-account/main.tf` is empty; the
+module is byte-identical across the range. No AWS defect is declared and AWS was never
+contacted. The SECURITY.md cloud-provider-defect stop rule is closed on the basis that private
+reproduction identified an apparatus bug.
+
+Verified timeline, all UTC: W15 ran 13:06:33–13:15:56 and failed (GitHub Actions run
+`32033277122`, conclusion `failure`); the fix landed at 16:25:00; block
+`cb-m17-20260817-05` began at 20:00:39.
+
+protocol deviation, recorded rather than smoothed over: the stop was declared at 13:15:56Z and
+public apply resumed at 20:00:39Z with no lifting of the hold documented at the time. The hold
+was closed in practice by `fcf44cc`; this entry is the retrospective record of that, written two
+days later. W13 and W14 each carry a `repair after` note; W15 did not, which is why the
+resolution took a commit-history search to reconstruct.
+
+apparatus note, not a finding: `DescribeBudget`'s compound `NotificationsWithSubscribers` field
+can under-report relative to the dedicated notification and subscriber endpoints. That is an API
+consistency observation about response projections. It is not a security defect, it is not
+disclosable, and it does not belong in `results-v0.1.md`.
+
 ## 2026-08-17 M17-20260817-W03 — local profile apply, root-session live-gate failure, cleaned
 
 checklist: the local guarded pre-apply configuration and exact-namespace clean check passed;

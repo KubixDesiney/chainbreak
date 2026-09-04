@@ -4,19 +4,23 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Verification refresh:** 2026-08-18. Dedicated-account acceptance for M8/M9 passed live P1–P11,
+**Verification refresh:** 2026-09-01. Dedicated-account acceptance for M8/M9 passed live P1–P11,
 all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown, and service
 enumeration. Three valid post-repair M17 AWS suites completed in `eu-west-3` with 32, 23, and
 32 analyzed/exported runs and exact cleanup; all six negative controls were `DETECTOR_OK` in
 each block. Their exact run IDs and measured values are in the research results and run index.
-The public scrubber also gained a regression fix so decimal timing values remain valid JSON. The
-temporary operator permission cannot yet be removed by the current IAM user; owner/admin action
-is required.
+The public scrubber also gained a regression fix so decimal timing values remain valid JSON.
 
-**Last updated:** 2026-08-18 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
+**IAM cleanup:** 2026-09-01. The temporary benchmark `sts:AssumeRole` permission was removed by
+the account owner and the account verified clean — zero `cb-*` roles, zero `Project=CHAINBREAK`
+tagged resources, benchmark budget removed. The sentence that previously stood here, saying
+owner/admin action was still required, is superseded.
+
+**Last updated:** 2026-09-01 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
 dedicated-account acceptance complete; M17 has three valid blocks; M18 AWS
-compare/archive/migration is exercised on valid bundles; M19 release candidate prepared, with
-final owner/admin IAM cleanup and history/publication/tag decisions outstanding.
+compare/archive/migration is exercised on valid bundles; M19 release candidate prepared; IAM
+cleanup complete and account verified clean; the publication and tag decision is the only
+outstanding gate.
 
 ---
 
@@ -25,10 +29,11 @@ final owner/admin IAM cleanup and history/publication/tag decisions outstanding.
 > **Status: 0.1.0a0 — M0–M16 are complete, including dedicated-account acceptance for M8/M9.
 > M17 has three valid AWS blocks (`n=32`, `n=23`, `n=32`), all six controls `DETECTOR_OK`,
 > complete analysis/export, and exact cleanup. M18 real-AWS compare/archive/migration was
-> exercised on valid bundles. The release candidate is prepared; owner/admin IAM cleanup and
-> the final history/publication/tag decision remain.**
+> exercised on valid bundles. The release candidate is prepared. IAM cleanup completed
+> 2026-09-01 and the account was verified clean. Only the publication and tag decision
+> remains.**
 
-CHAINBREAK has a complete architecture, a verified domain model, a validated scenario corpus,
+CHAINBREAK has a complete architecture, a verified domain model, a validated 24-scenario corpus,
 and a full implementation plan. The execution engine runs end to end against the deterministic
 fake provider for all five benchmark families — an apparatus check, not an AWS benchmark result.
 M15 turns that evidence into six independent category results, and M16 renders it into terminal,
@@ -2002,12 +2007,14 @@ migration preserved the source and copied bytes identically for `n=1`. Exact IDs
 region, and scope are in `docs/research/results-v0.1.md`. The remaining M18 scope is
 cross-account and differently-versioned real infrastructure.
 
-### M19 release candidate prepared, owner decision pending
+### M19 release candidate
 
 M19's consistency review, measured-only results, scrubbed report/sample, CHANGELOG, and
 tracked-tree/history scan are complete. The confirmed historical account-ID finding was scrubbed
-from active Git history and verified absent; the temporary benchmark IAM permission still requires
-authorized owner/admin removal. No tag or GitHub release has been created. See
+from active Git history and verified absent. The temporary benchmark IAM permission was removed
+on 2026-09-01 and the account verified clean. This commit is the `0.1.0a0` release candidate;
+no tag or GitHub release has been created, and the owner still decides history handling, tagging,
+and publication. See
 [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
 
 ---
@@ -2280,9 +2287,14 @@ and the historical invalid/incomplete apparatus entries with their exclusions.
 2. **Cross-operator equivalence remains unverified.** The valid-bundle M18 check retained the
    explicit assumed-and-unverified warning; cross-account and differently-versioned real
    infrastructure were not measured.
-3. **Release actions remain.** An authorized administrator must remove the temporary benchmark
-   `sts:AssumeRole` permission. The confirmed historical account-ID finding has been scrubbed from
-   active history; tag and publication remain blocked until IAM cleanup and final checks pass.
+3. **One release action remains.** IAM cleanup is **done** — the temporary benchmark
+   `sts:AssumeRole` permission was removed by the owner on 2026-09-01 and the benchmark account
+   was verified clean the same day: zero `cb-*` IAM roles, zero resources tagged
+   `Project=CHAINBREAK` in `eu-west-3`, and the `cb-<ns>-budget` gone (only the owner's unrelated
+   personal budget remains). The operator identity can no longer enumerate its own attached
+   policies, consistent with the reduced permission set. The confirmed historical account-ID
+   finding was scrubbed from active history. Only the owner's tag and publication decision is
+   outstanding.
 
 The following ledger is historical milestone context, not the active issue list. Resolved entries
 are retained only where they explain a past apparatus repair; they are not current blockers.
@@ -2472,16 +2484,19 @@ Recorded now so it is deliberate rather than discovered later.
   `python -m chainbreak.scenarios.export_schema schemas && git diff --exit-code schemas/` in
   every CI run; whether it correctly blocks a real drifted PR is unverified until GitHub
   Actions runs it against a real drift, which has not happened yet.
-- **`docs/research/` has a lab log and nothing else.** `results-v0.1.md` arrives at M17.
-- **`reporting/figures.py` uses hand-built inline SVG, not Plotly, despite M16's own spec text
-  naming Plotly.** Recorded as a design decision in the module's own docstring and the M16 entry
-  above (both of Plotly's self-contained-HTML paths violate a harder requirement the milestone
-  states in the same breath), not treated as a gap to close later — if a future milestone adds
-  genuinely interactive dashboards (explicitly out of M16's own scope), Plotly becomes worth
-  revisiting then, with kaleido or a CDN-hosted deployment target where the 2 MB/no-network
-  constraints no longer apply the same way. `plotly` remains an installable (unused) member of
-  the `report` extras group in `pyproject.toml` rather than removed, since nothing about this
-  decision is permanent.
+- ~~**`docs/research/` has a lab log and nothing else.** `results-v0.1.md` arrives at M17.~~
+  Resolved 2026-08-19: `docs/research/` now holds `lab-log.md`, `results-v0.1.md`,
+  `m17-run-index.md` and `history-scan.md`.
+- ~~**`reporting/figures.py` uses hand-built inline SVG, not Plotly, despite M16's own spec
+  text naming Plotly.**~~ Resolved 2026-08-19, in favour of the code. The implementation was
+  correct and the spec was stale: both of Plotly's self-contained-HTML routes violate a harder
+  requirement M16 states in the same breath (inline embedding blows the 2 MB report budget; the
+  CDN route breaks no-external-resources). M16-reporting.md was corrected to describe inline
+  SVG, the rationale was promoted from the module docstring into `docs/DECISIONS.md`, and the
+  unused `plotly` declaration plus its mypy override were removed from `pyproject.toml` —
+  an unused declared dependency is pure attack surface under T-14. If a future milestone adds
+  genuinely interactive dashboards, explicitly out of M16's scope, the dependency can be
+  reintroduced then against constraints that actually permit it.
 
 ---
 
@@ -2510,9 +2525,14 @@ and owner release actions remain out of scope for this pass.
 valid blocks and M18's real-AWS compare/archive/migration paths were exercised on valid bundles.
 M19 release preparation is complete.**
 
-The next action is owner/admin removal of the temporary benchmark IAM permission, followed by
-the owner's final decision on history handling, tag, and publication. Historical invalid attempts
-remain excluded and are not mixed with the valid evidence.
+IAM cleanup is complete. On 2026-09-01 the owner removed the temporary benchmark
+`sts:AssumeRole` permission, and the benchmark account was verified clean the same day: zero
+`cb-*` IAM roles, zero resources tagged `Project=CHAINBREAK` in `eu-west-3`, and the benchmark
+budget removed. The operator identity can no longer enumerate its own attached policies, which
+is consistent with the reduced permission set.
+
+**The only remaining action is the owner's decision on history handling, tag, and publication.**
+Historical invalid attempts remain excluded and are not mixed with the valid evidence.
 
 Verification commands for the full offline surface (M0 through M16 plus the current offline
 M18 tooling), run for real this session. The pre-pass baseline was 1,772 passed; the current

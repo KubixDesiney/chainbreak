@@ -9,8 +9,15 @@ M15.
 
 ## Required components
 `reporting/terminal.py` (rich), `reporting/markdown.py`, `reporting/html.py` (Jinja2,
-autoescape on), `reporting/figures.py` (Plotly), `reporting/language.py` (the rule set),
-`reporting/templates/`.
+autoescape on), `reporting/figures.py` (hand-built inline SVG, generated programmatically from
+evidence), `reporting/language.py` (the rule set), `reporting/templates/`.
+
+This section originally said "(Plotly)". The implementation deliberately does not use it, and
+the implementation is right: `include_plotlyjs="inline"` embeds a multi-megabyte library per
+report and breaks this milestone's own "HTML report under 2 MB" requirement, while loading it
+from a CDN breaks the self-contained requirement in the same breath. Inline SVG satisfies F3 —
+structured charts derived from evidence, never hand-written numbers — and is readable without
+JavaScript, which a Plotly `<div>` is not. See `docs/DECISIONS.md`.
 
 ## Files expected
 ```

@@ -35,6 +35,10 @@ aws = [
 report = [
   "jinja2>=3.1",
 ]
+# No charting library. reporting/figures.py builds inline SVG programmatically from
+# evidence -- see docs/DECISIONS.md. Plotly was declared here and never imported;
+# removed 2026-08-19 because an unused declared dependency is pure attack surface
+# (THREAT_MODEL.md T-14).
 analysis = [
   "pyarrow>=16.0",
 ]

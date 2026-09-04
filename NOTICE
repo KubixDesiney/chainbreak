@@ -1,0 +1,22 @@
+CHAINBREAK
+Copyright 2026 CHAINBREAK contributors
+
+This product is licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+---
+
+SCOPE OF ACCEPTABLE USE (informational)
+
+The following is an informational notice from the authors. It is not a licence term, it does
+not modify the Apache License, Version 2.0, and it grants and withholds nothing.
+
+CHAINBREAK is a defensive measurement tool. It is designed to be run only against cloud
+accounts, identities, and resources that the operator owns or is explicitly authorized to
+test. Running it against third-party infrastructure without authorization is contrary to the
+authors' intent and is likely unlawful in most jurisdictions.
+
+The project will not accept contributions that add credential harvesting or discovery,
+authentication bypass, privilege escalation against non-benchmark identities, persistence
+mechanisms, monitoring evasion, automated exploitation of findings, or any code path that
+acts outside the operator's declared account allowlist. See SECURITY.md and
+SECURITY_MODEL.md §6.

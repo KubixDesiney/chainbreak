@@ -67,5 +67,5 @@ otherwise and how it stays inside the benchmark namespace.
 
 ## Supported versions
 
-v0.1 is pre-release. Security fixes land on `main` only. A supported-version table will
-appear at the first tagged release.
+v0.1 is pre-release. Security fixes land on `main` only. A supported-version table will be added
+when a stable v0.1.0 release exists.

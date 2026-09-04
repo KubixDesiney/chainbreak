@@ -8,8 +8,8 @@ How to present this project honestly, and what it actually demonstrates.
 > block. The measured timing rows and exact run IDs are in
 > [results-v0.1.md](research/results-v0.1.md); they apply only to this account, this region,
 > and this time. W03/W04/W05 and the older AWS blocks remain excluded apparatus records.
-> Fake-provider outputs remain apparatus checks. The release candidate is awaiting owner/admin
-> IAM cleanup and the final history/publication decision.
+> Fake-provider outputs remain apparatus checks. IAM cleanup completed 2026-09-01 with the
+> account verified clean; the release candidate now awaits only the publication and tag decision.
 
 ---
 
