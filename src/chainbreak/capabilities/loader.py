@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from importlib import resources
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import yaml
 
@@ -42,8 +42,8 @@ def _reject_unknown(loader: _StrictLoader, suffix: str, node: yaml.Node) -> Any:
     raise BindingValidationError(f"unsupported YAML tag in catalog: !{suffix}")
 
 
-_StrictLoader.add_multi_constructor("!", _reject_unknown)  # type: ignore[no-untyped-call]
-_StrictLoader.add_multi_constructor("tag:", _reject_unknown)  # type: ignore[no-untyped-call]
+cast(Any, _StrictLoader).add_multi_constructor("!", _reject_unknown)
+cast(Any, _StrictLoader).add_multi_constructor("tag:", _reject_unknown)
 
 
 def load_catalog(path: Path | None = None) -> CapabilityCatalog:
