@@ -2535,17 +2535,19 @@ is consistent with the reduced permission set.
 Historical invalid attempts remain excluded and are not mixed with the valid evidence.
 
 Verification commands for the full offline surface (M0 through M16 plus the current offline
-M18 tooling), run for real this session. The pre-pass baseline was 1,772 passed; the current
-worktree, including pre-existing source/test changes, produced 1,808 passed:
+M18 tooling), run for this `0.1.0a0` candidate on 2026-09-04 with Python 3.12 and an isolated
+writable pytest temp root. The full unit/integration gate produced 1,814 passed:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
-ruff check . && ruff format --check .              # All checks passed! / 315 files already formatted
-mypy                                                # Success: no issues found in 122 source files
+ruff check . && ruff format --check .              # All checks passed / 327 files already formatted
+mypy                                                # Success: no issues found in 124 source files
 lint-imports                                        # 6 contracts kept
 bandit -r src/ -q                                   # clean
+pip-audit --skip-editable                           # No known vulnerabilities found
+pip check                                           # No broken requirements found
 pytest -m "unit or integration" --cov=chainbreak --cov-report=term-missing -q
-                                                      # 1,808 passed, 9 skipped, 28 deselected
+                                                      # 1,814 passed, 9 skipped, 28 deselected
 pytest -m unit tests/unit/test_redaction.py \
   --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # 100%
 pytest --cov=chainbreak.reporting --cov-report=term-missing -q \
@@ -2563,17 +2565,18 @@ chainbreak report <run-id> --format terminal        # renders; stamped FAKE-PROV
 Exact current gate summaries:
 
 ```text
-408 passed, 9 skipped in 1.70s
-16 passed in 0.93s
-52 passed in 1.72s
-22 skipped, 1823 deselected in 2.10s
+408 passed, 9 skipped in 2.21s (redaction, exact 100%)
+16 passed in 1.13s (SafetyGate, exact 100%)
+52 passed in 1.33s (scenario corpus)
+1,814 passed, 9 skipped, 28 deselected in 204.67s (unit/integration)
+22 skipped, 1,829 deselected in 2.31s (AWS opt-in gate)
 Terraform wildcard-resource check: PASS (28 Terraform files checked)
-Passed checks: 138, Failed checks: 0, Skipped checks: 30
+pip-audit: No known vulnerabilities found (editable package skipped)
+pip check: No broken requirements found
 ```
 
-`pip-audit --skip-editable` is the only non-green gate in this environment: it reports 15
-known vulnerabilities in installed `aiohttp 3.13.5` and `ecdsa 0.19.2`; no dependency or source
-behavior was changed in this documentation pass.
+The isolated gate environment reports no known vulnerabilities and no broken requirements. Its
+editable `chainbreak` install is intentionally skipped by pip-audit, matching CI's command.
 
 ---
 

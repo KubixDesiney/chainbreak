@@ -35,7 +35,7 @@ All notable changes to CHAINBREAK are recorded here.
 Three valid real-AWS blocks in `eu-west-3` on 2026-08-18 (`n=32`, `n=23`, `n=32` — 87 analyzed
 runs). All six negative controls `DETECTOR_OK` in each block. Blocks 05, 06 and 07 remain
 explicitly excluded and are labelled as such. Every other benchmark family result in this
-release comes from the deterministic fake provider and is labelled an apparatus check, not an
+candidate comes from the deterministic fake provider and is labelled an apparatus check, not an
 AWS measurement. Measured values hold for that account, that region, and that time only.
 
 IAM cleanup completed 2026-09-01 — the temporary benchmark `sts:AssumeRole` permission was
