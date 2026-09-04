@@ -4,7 +4,7 @@ and agentic cloud systems.
 See ARCHITECTURE.md for the layer map and the ARCH-1 dependency rule.
 """
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.0"
 EVIDENCE_BUNDLE_FORMAT_VERSION = 1
 SCENARIO_API_VERSION = "chainbreak.dev/v1alpha1"
 

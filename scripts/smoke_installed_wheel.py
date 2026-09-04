@@ -65,7 +65,12 @@ def main() -> None:
         smoke_env = os.environ.copy()
         smoke_env["PYTHONHASHSEED"] = "0"
         _run(
-            [str(python), "-c", "from chainbreak import __version__; print(__version__)"],
+            [
+                str(python),
+                "-c",
+                "from chainbreak import __version__; "
+                "assert __version__ == '0.1.0'; print(__version__)",
+            ],
             cwd=root,
             env=smoke_env,
         )

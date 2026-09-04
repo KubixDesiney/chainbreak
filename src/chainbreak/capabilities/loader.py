@@ -42,8 +42,8 @@ def _reject_unknown(loader: _StrictLoader, suffix: str, node: yaml.Node) -> Any:
     raise BindingValidationError(f"unsupported YAML tag in catalog: !{suffix}")
 
 
-_StrictLoader.add_multi_constructor("!", _reject_unknown)
-_StrictLoader.add_multi_constructor("tag:", _reject_unknown)
+_StrictLoader.add_multi_constructor("!", _reject_unknown)  # type: ignore[no-untyped-call]
+_StrictLoader.add_multi_constructor("tag:", _reject_unknown)  # type: ignore[no-untyped-call]
 
 
 def load_catalog(path: Path | None = None) -> CapabilityCatalog:

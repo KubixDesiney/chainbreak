@@ -9,7 +9,8 @@ How to present this project honestly, and what it actually demonstrates.
 > [results-v0.1.md](research/results-v0.1.md); they apply only to this account, this region,
 > and this time. W03/W04/W05 and the older AWS blocks remain excluded apparatus records.
 > Fake-provider outputs remain apparatus checks. IAM cleanup completed 2026-09-01 with the
-> account verified clean; the release candidate now awaits only the publication and tag decision.
+> account verified clean; the `0.1.0` release candidate now awaits only the owner's explicit
+> publication approval.
 
 ---
 

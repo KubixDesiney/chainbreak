@@ -2,7 +2,7 @@
 
 All notable changes to CHAINBREAK are recorded here.
 
-## Unreleased - release candidate after history scrub
+## v0.1.0 - 2026-09-04
 
 - Replaced the `LICENSE` stub with the complete, unmodified Apache-2.0 text, and moved the
   acceptable-use statement out of `LICENSE` into a separate `NOTICE` file so the licence is
@@ -30,7 +30,7 @@ All notable changes to CHAINBREAK are recorded here.
   from active Git history and retained a private local recovery bundle. No v0.1.0 tag or
   publication was created.
 
-### Scope of what the 0.1.0a0 release candidate measures
+### Scope of what the v0.1.0 release measures
 
 Three valid real-AWS blocks in `eu-west-3` on 2026-08-18 (`n=32`, `n=23`, `n=32` — 87 analyzed
 runs). All six negative controls `DETECTOR_OK` in each block. Blocks 05, 06 and 07 remain
@@ -39,10 +39,11 @@ candidate comes from the deterministic fake provider and is labelled an apparatu
 AWS measurement. Measured values hold for that account, that region, and that time only.
 
 IAM cleanup completed 2026-09-01 — the temporary benchmark `sts:AssumeRole` permission was
-removed and the account verified clean. No tag or GitHub release has been created; the final
-history, tag, and publication decision remains with the owner after the candidate gates pass.
+removed and the account verified clean. The final read-only release gate passed on 2026-09-04;
+no tag or GitHub release has been created pending the owner's explicit publication approval.
 
-## v0.1.0
+Historical M17/M18 bundles, lab records, and synthetic fixtures intentionally retain
+`0.1.0a0` in their `chainbreak_version` provenance. Those values describe the runtime that
+created the historical evidence and are not current package-version metadata.
 
-Not released. The tag, publication, and final release remain an owner decision; this candidate
-keeps version metadata at `0.1.0a0`.
+The release is prepared but remains unpublished until that approval is given.

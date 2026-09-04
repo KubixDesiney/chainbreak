@@ -4,7 +4,7 @@
 exists, what works, and what has actually been measured. Updated at the end of every
 milestone.
 
-**Verification refresh:** 2026-09-01. Dedicated-account acceptance for M8/M9 passed live P1–P11,
+**Verification refresh:** 2026-09-04. Dedicated-account acceptance for M8/M9 passed live P1–P11,
 all 21 AWS adapter tests, the wrong-account call-log gate, Terraform teardown, and service
 enumeration. Three valid post-repair M17 AWS suites completed in `eu-west-3` with 32, 23, and
 32 analyzed/exported runs and exact cleanup; all six negative controls were `DETECTOR_OK` in
@@ -16,22 +16,25 @@ the account owner and the account verified clean — zero `cb-*` roles, zero `Pr
 tagged resources, benchmark budget removed. The sentence that previously stood here, saying
 owner/admin action was still required, is superseded.
 
-**Last updated:** 2026-09-01 · **Version:** 0.1.0a0 · **Phase:** M0–M16 complete; M8/M9
+**Last updated:** 2026-09-04 · **Version:** 0.1.0 · **Phase:** M0–M16 complete; M8/M9
 dedicated-account acceptance complete; M17 has three valid blocks; M18 AWS
-compare/archive/migration is exercised on valid bundles; M19 release candidate prepared; IAM
-cleanup complete and account verified clean; the publication and tag decision is the only
-outstanding gate.
+compare/archive/migration is exercised on valid bundles; M19 release gate complete; IAM cleanup
+complete and account verified clean; owner publication approval is the only outstanding gate.
 
 ---
 
 ## The honest headline
 
-> **Status: 0.1.0a0 — M0–M16 are complete, including dedicated-account acceptance for M8/M9.
-> M17 has three valid AWS blocks (`n=32`, `n=23`, `n=32`), all six controls `DETECTOR_OK`,
-> complete analysis/export, and exact cleanup. M18 real-AWS compare/archive/migration was
-> exercised on valid bundles. The release candidate is prepared. IAM cleanup completed
-> 2026-09-01 and the account was verified clean. Only the publication and tag decision
-> remains.**
+> **Status: 0.1.0 release candidate ready for owner publication approval — M0–M16 are complete,
+> including dedicated-account acceptance for M8/M9. Three valid real-AWS M17 blocks completed on
+> 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six negative controls `DETECTOR_OK`, complete
+> analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid AWS
+> bundles, including honest lower-confidence cross-operator and heterogeneous behavior. The
+> confirmed historical account-ID finding was scrubbed from active Git history and verified
+> absent. IAM cleanup completed 2026-09-01: the temporary benchmark `sts:AssumeRole` permission
+> was removed and the account verified clean. The package version is `0.1.0`; no tag or GitHub
+> release has been created. The owner's explicit publication approval is the only remaining
+> action.**
 
 CHAINBREAK has a complete architecture, a verified domain model, a validated 24-scenario corpus,
 and a full implementation plan. The execution engine runs end to end against the deterministic
@@ -2012,10 +2015,28 @@ cross-account and differently-versioned real infrastructure.
 M19's consistency review, measured-only results, scrubbed report/sample, CHANGELOG, and
 tracked-tree/history scan are complete. The confirmed historical account-ID finding was scrubbed
 from active Git history and verified absent. The temporary benchmark IAM permission was removed
-on 2026-09-01 and the account verified clean. This commit is the `0.1.0a0` release candidate;
-no tag or GitHub release has been created, and the owner still decides history handling, tagging,
-and publication. See
+on 2026-09-01 and the account verified clean. The package version is `0.1.0`, and the final
+read-only release gate is complete. No tag or GitHub release has been created; the owner's
+explicit publication approval remains. Historical evidence retains its original `0.1.0a0`
+provenance. See
 [docs/implementation/MILESTONES.md](docs/implementation/MILESTONES.md).
+
+Final release-gate evidence captured on 2026-09-04:
+
+- Owner-approved short-lived AWS verification was read-only: both exact temporary-role
+  `sts:AssumeRole` checks were denied, and the project verifier found zero resources across
+  nine service enumerators in the exact benchmark namespace. No infrastructure write and no
+  M17 rerun occurred.
+- The clean source archive built `chainbreak-0.1.0-py3-none-any.whl`; installed-wheel smoke
+  passed on Windows and Linux. The wheel is scrubbed: no live identifiers, credentials, or
+  private run files.
+- Unit/integration tests passed: `1815 passed, 9 skipped, 28 deselected`; strict mypy passed
+  for 124 source files; ruff, import contracts, Bandit, schema gates, scenario corpus and all
+  24 CLI scenario validations passed.
+- Terraform offline gates passed for 7 directories, including format, validate, wildcard
+  resource checks and recursive TFLint. Checkov passed with `156` checks passed, `0` failed,
+  and `30` skipped. The Linux lock install, `pip check`, and pip-audit also passed. README
+  offline commands, archive extraction, link checks, and tree/history scrubbing passed.
 
 ---
 
@@ -2531,23 +2552,24 @@ IAM cleanup is complete. On 2026-09-01 the owner removed the temporary benchmark
 budget removed. The operator identity can no longer enumerate its own attached policies, which
 is consistent with the reduced permission set.
 
-**The only remaining action is the owner's decision on history handling, tag, and publication.**
+**The only remaining action is the owner's explicit publication approval, after which the
+already-verified release commit may be pushed, tagged, and published.**
 Historical invalid attempts remain excluded and are not mixed with the valid evidence.
 
 Verification commands for the full offline surface (M0 through M16 plus the current offline
-M18 tooling), run for this `0.1.0a0` candidate on 2026-09-04 with Python 3.12 and an isolated
-writable pytest temp root. The full unit/integration gate produced 1,814 passed:
+M18 tooling), run for this `0.1.0` release candidate on 2026-09-04 with Python 3.12 and an isolated
+writable pytest temp root. The full unit/integration gate produced 1,815 passed:
 
 ```bash
 pip install -e ".[dev,aws,report,analysis]"
-ruff check . && ruff format --check .              # All checks passed / 327 files already formatted
+ruff check . && ruff format --check .              # All checks passed / 328 files already formatted
 mypy                                                # Success: no issues found in 124 source files
 lint-imports                                        # 6 contracts kept
 bandit -r src/ -q                                   # clean
 pip-audit --skip-editable                           # No known vulnerabilities found
 pip check                                           # No broken requirements found
 pytest -m "unit or integration" --cov=chainbreak --cov-report=term-missing -q
-                                                      # 1,814 passed, 9 skipped, 28 deselected
+                                                      # 1,815 passed, 9 skipped, 28 deselected
 pytest -m unit tests/unit/test_redaction.py \
   --cov=chainbreak.evidence.redaction --cov-fail-under=100 -q   # 100%
 pytest --cov=chainbreak.reporting --cov-report=term-missing -q \
@@ -2568,7 +2590,7 @@ Exact current gate summaries:
 408 passed, 9 skipped in 2.21s (redaction, exact 100%)
 16 passed in 1.13s (SafetyGate, exact 100%)
 52 passed in 1.33s (scenario corpus)
-1,814 passed, 9 skipped, 28 deselected in 204.67s (unit/integration)
+1,815 passed, 9 skipped, 28 deselected in 181.32s (unit/integration)
 22 skipped, 1,829 deselected in 2.31s (AWS opt-in gate)
 Terraform wildcard-resource check: PASS (28 Terraform files checked)
 pip-audit: No known vulnerabilities found (editable package skipped)

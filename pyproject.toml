@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chainbreak"
-version = "0.1.0a0"
+version = "0.1.0"
 description = "An empirical benchmark for authorization behavior in delegated and agentic cloud systems"
 readme = "README.md"
 requires-python = ">=3.12"

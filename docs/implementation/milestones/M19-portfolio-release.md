@@ -2,15 +2,15 @@
 
 ## Current status
 
-Release candidate prepared, but owner decision remains. Valid M17 blocks and the real-AWS M18
-compare/archive/migration checks are recorded with scrubbed artifacts and measured-only docs.
-IAM cleanup completed 2026-09-01 — the temporary benchmark `sts:AssumeRole` permission was
-removed and the account verified clean (zero `cb-*` roles, zero `Project=CHAINBREAK` tagged
-resources, benchmark budget removed). The single remaining gate is the owner's history,
-publication and tag decision. No release, tag, or publication is part of this pass.
+Final release gate completed 2026-09-04 for package version `0.1.0`. Valid M17 blocks and the
+real-AWS M18 compare/archive/migration checks are recorded with scrubbed artifacts and
+measured-only docs. IAM cleanup completed 2026-09-01 - the temporary benchmark
+`sts:AssumeRole` permission was removed and the account verified clean (zero `cb-*` roles, zero
+`Project=CHAINBREAK` tagged resources, benchmark budget removed). The candidate remains
+unpublished; the owner's explicit publication approval is the only remaining action.
 
 ## Purpose
-Prepare the `0.1.0a0` release candidate for the owner's final `v0.1.0` decision: a coherent,
+Prepare the `0.1.0` release candidate for the owner's final `v0.1.0` publication decision: a coherent,
 honest, reviewable open-source artifact.
 
 ## Dependencies
@@ -34,7 +34,7 @@ LICENSE                       # Apache-2.0
   ↔ capability model ↔ AWS adapter ↔ Terraform ↔ tests ↔ evidence ↔ findings ↔ scoring ↔
   README. Resolve every contradiction; do not paper over one.
 - F2 `PORTFOLIO_STORY.md` updated to describe **only measured results**, each with its run ID.
-- F3 `CHANGELOG.md` for the 0.1.0a0 release candidate.
+- F3 `CHANGELOG.md` finalized and dated for the `v0.1.0` release.
 - F4 Scrubbed fake-provider apparatus outputs and a scrubbed valid-AWS sample exist under
   `examples/`; each is labelled with provenance, and historical excluded AWS outputs remain
   labelled excluded.
@@ -66,7 +66,8 @@ record where they get stuck.
 4. Every documented command executes successfully.
 5. No sensitive value in the repository or its history.
 6. Sample report present and scrubbed.
-7. v0.1.0 tag is an owner decision and was intentionally not created in this pass.
+7. The `v0.1.0` tag and publication remain an explicit owner decision and are intentionally not
+   created in this pass.
 
 ## Verification commands
 ```bash

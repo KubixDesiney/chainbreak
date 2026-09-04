@@ -2,6 +2,10 @@
 
 ## Release-gate status
 
+The runtime and package version for this release candidate is `0.1.0`. Historical M17/M18
+bundles retain their original `0.1.0a0` `chainbreak_version` provenance; changing the package
+version does not rewrite historical evidence.
+
 Three M17 real-AWS blocks are valid: `cb-m17-20260818-01` (`n=32`),
 `cb-m17-20260818-02` (`n=23`), and `cb-m17-20260818-03` (`n=32`). The exact run IDs are
 listed in [m17-run-index.md](m17-run-index.md). Every run was analyzed and publicly exported;

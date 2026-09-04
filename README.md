@@ -5,15 +5,16 @@
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
 and the authority a delegated workload *actually* holds when it executes.
 
-> **Status: release candidate pending owner decision — M0–M16 are complete, including
-> dedicated-account acceptance for M8/M9. Three valid real-AWS M17 blocks completed on
+> **Status: 0.1.0 release candidate ready for owner publication approval — M0–M16 are complete,
+> including dedicated-account acceptance for M8/M9. Three valid real-AWS M17 blocks completed on
 > 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six negative controls `DETECTOR_OK`, complete
-> analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid
-> AWS bundles, including honest lower-confidence cross-operator and heterogeneous behavior.
-> The confirmed historical account-ID finding was scrubbed from active Git history and verified
+> analysis/export, and exact cleanup. M18 compare/archive/migration was exercised on valid AWS
+> bundles, including honest lower-confidence cross-operator and heterogeneous behavior. The
+> confirmed historical account-ID finding was scrubbed from active Git history and verified
 > absent. IAM cleanup completed 2026-09-01: the temporary benchmark `sts:AssumeRole` permission
-> was removed and the account verified clean. This is the `0.1.0a0` release candidate; no tag or
-> GitHub release has been created, and the owner's history, tag, and publication decision remains.**
+> was removed and the account verified clean. The package version is `0.1.0`; no tag or GitHub
+> release has been created. The owner's explicit publication approval is the only remaining
+> action.**
 > The domain model, divergence algorithms, capability catalog, binding registry, operation
 > allowlist, the full five-stage scenario validation pipeline and compiler, layered
 > configuration resolution, the SafetyGate, the full `chainbreak` CLI, a real deterministic
@@ -55,7 +56,7 @@ and the authority a delegated workload *actually* holds when it executes.
 > anywhere) and the terminal/Markdown/HTML reporting layer (`reporting/`: hand-built
 > evidence-derived SVG figures, Jinja2 with autoescape on and no `|safe` anywhere, a `provider:
 > fake` run stamped in the header and every figure caption)
-> (1,814 passing tests, 9 skipped and 28 deselected in the current full unit/integration gate;
+> (1,815 passing tests, 9 skipped and 28 deselected in the current full unit/integration gate;
 > `core/` and `graph/` ~99% coverage, `capabilities/` 100%, `scenarios/` ~98%,
 > `core/safety.py` and `evidence/redaction.py` exactly 100%, `providers/base/` 100%,
 > `providers/fake/` ~99.7%, `analysis/` 98%, `execution/` ~99% (every M13/M14-proper module at

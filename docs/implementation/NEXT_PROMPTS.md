@@ -1,6 +1,6 @@
 # Ready-to-run Claude Code prompts — final phase
 
-**State verified 2026-09-01.** M0–M16 are complete, including dedicated-account acceptance for
+**State verified 2026-09-04.** M0–M16 are complete, including dedicated-account acceptance for
 M8 and M9. Three valid M17 AWS blocks are recorded (`n=32`, `n=23`, `n=32`); M18 compare,
 archive, and migration were exercised on valid bundles; and M19 documentation/release
 preparation is complete. Exact evidence is in `docs/research/results-v0.1.md`.
@@ -9,10 +9,10 @@ preparation is complete. Exact evidence is in `docs/research/results-v0.1.md`.
 operator-provisioned dedicated account; its identifier, region, namespace, and live resource
 state must be supplied at execution time and must not be committed to documentation.
 
-S1–S8 from the previous edition are all done. IAM cleanup completed 2026-09-01 — the temporary
+S1–S8 from the previous edition are all done. IAM cleanup completed 2026-09-01 - the temporary
 benchmark `sts:AssumeRole` permission was removed and the account verified clean. The confirmed
-historical account-ID finding was scrubbed from active Git history. The only remaining work is
-the owner's publication and tag decision.
+historical account-ID finding was scrubbed from active Git history. The final release gate passed
+on 2026-09-04. The only remaining work is the owner's explicit publication approval.
 
 ---
 
