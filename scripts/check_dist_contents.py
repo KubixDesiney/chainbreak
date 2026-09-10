@@ -39,7 +39,6 @@ _SDIST_TOP_LEVEL = {
     ".gitignore",
     ".github",
     ".pre-commit-config.yaml",
-    "AGENTS.md",
     "ARCHITECTURE.md",
     "AUTHORIZATION_MODEL.md",
     "AWS_PROVIDER_SPEC.md",
