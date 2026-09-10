@@ -1,21 +1,33 @@
 [build-system]
-requires = ["hatchling>=1.24"]
+# >=1.27: PEP 639 support (SPDX `license` expression and `license-files`).
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "chainbreak"
-version = "0.1.0"
+version = "0.1.1"
 description = "An empirical benchmark for authorization behavior in delegated and agentic cloud systems"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "CHAINBREAK contributors" }]
 keywords = ["security", "iam", "authorization", "aws", "sts", "delegation", "benchmark"]
+# No "License :: ..." classifier: the SPDX `license` expression above supersedes it,
+# and declaring both is an error under PEP 639.
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
   "Intended Audience :: Information Technology",
-  "Topic :: Security",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: Software Development :: Testing",
+  "Typing :: Typed",
 ]
 
 dependencies = [
@@ -63,8 +75,11 @@ chainbreak = "chainbreak.cli.main:app"
 
 [project.urls]
 Homepage = "https://github.com/KubixDesiney/chainbreak"
+Repository = "https://github.com/KubixDesiney/chainbreak"
 Documentation = "https://github.com/KubixDesiney/chainbreak/blob/main/ARCHITECTURE.md"
+Changelog = "https://github.com/KubixDesiney/chainbreak/blob/main/CHANGELOG.md"
 Issues = "https://github.com/KubixDesiney/chainbreak/issues"
+Security = "https://github.com/KubixDesiney/chainbreak/security/policy"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chainbreak"]
@@ -72,6 +87,48 @@ packages = ["src/chainbreak"]
 [tool.hatch.build.targets.wheel.force-include]
 schemas = "chainbreak/_packaged_data/schemas"
 scenarios = "chainbreak/_packaged_data/scenarios"
+
+# ---------------------------------------------------------------------------
+# sdist -- an explicit allowlist, deliberately not an exclude list.
+#
+# Hatchling's default selection is "every file under the project root that
+# .gitignore does not match", which includes untracked files. Under v0.1.0 that
+# swept .claude/worktrees/ into the tarball: 744 untracked files, 4.83 MB, 48%
+# of the unpacked sdist, being two stale duplicates of the working tree. No
+# credential or account ID reached it, but the contents of a published sdist
+# became a function of whichever files happened to sit in the builder's working
+# directory, not of the tagged commit -- so the same tag built on a clean clone
+# produces a different tarball. That contradicts REPRODUCIBILITY.md.
+#
+# An allowlist makes every path in a published artifact a reviewed decision, and
+# fails closed: a new top-level directory is absent until someone adds it here.
+# Adding a directory to the repository root therefore requires a line below.
+# ---------------------------------------------------------------------------
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/scenarios",
+  "/schemas",
+  "/infra",
+  "/docs",
+  "/scripts",
+  "/examples",
+  "/.github",
+  "/*.md",
+  "/LICENSE",
+  "/NOTICE",
+  "/Makefile",
+  "/Dockerfile",
+  "/pyproject.toml",
+  "/requirements.lock",
+  "/requirements-build.lock",
+  "/requirements-runtime.lock",
+  "/chainbreak.example.toml",
+  "/.pre-commit-config.yaml",
+  "/.gitattributes",
+  "/.dockerignore",
+]
 
 # ---------------------------------------------------------------------------
 # pytest
