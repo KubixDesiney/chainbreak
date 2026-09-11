@@ -2,6 +2,48 @@
 
 All notable changes to CHAINBREAK are recorded here.
 
+## v0.1.1 - 2026-09-10
+
+First release published to PyPI. `v0.1.0` was tagged and released on GitHub but never uploaded
+to any package index; the defects below were found during publication preparation, and PyPI
+versions are immutable, so they were fixed under a new version rather than shipped once and
+corrected afterwards.
+
+- Fixed the source distribution, which carried 744 untracked files from `.claude/worktrees/`
+  (4.83 MB, 48% of the unpacked tarball, two stale duplicates of the working tree). Hatchling's
+  default sdist selection is "everything under the project root that `.gitignore` does not
+  match", which includes untracked files, so the published archive was a function of the
+  builder's working directory rather than of the tagged commit — the same tag built on a clean
+  clone produced a different tarball, contradicting `REPRODUCIBILITY.md`. `pyproject.toml` now
+  declares an explicit sdist allowlist. No credential or account ID had reached the archive;
+  the defect was reproducibility and uncontrolled contents, not disclosure.
+- Added `scripts/check_dist_contents.py` and wired it into CI. It asserts that both artifacts
+  carry the full 24-scenario corpus, all 12 runtime schema files, the capability catalog and
+  the typing marker, and that the sdist's top-level entries match the declared allowlist.
+- Fixed the CI `wheel` job, which built `--wheel` only and never built or inspected the sdist.
+  That is why the defect above survived to a tagged release. It now builds both artifacts and
+  runs the contents check.
+- Added `.github/workflows/release.yml`, publishing through GitHub Trusted Publishing (OIDC).
+  No PyPI API token exists for this project and none is to be created.
+- Replaced the deprecated PEP 621 `license = { text = ... }` table with the PEP 639 SPDX
+  expression `license = "Apache-2.0"` plus explicit `license-files`, and raised the Hatchling
+  floor to `>=1.27` accordingly. The licence itself is unchanged.
+- Corrected `Development Status :: 2 - Pre-Alpha` to `3 - Alpha`. Pre-Alpha asserts the project
+  is not usable, which 1,815 passing tests, a shipped CLI and published real-AWS measurements
+  contradict. Beta would assert feature-completeness and a stable API, which the `v1alpha1`
+  scenario schema and the v0.2+ provider work contradict just as plainly. Alpha is the claim
+  the evidence actually supports.
+- Expanded the classifier set and added `Repository`, `Changelog` and `Security` project URLs.
+- Added the `src/chainbreak/py.typed` marker. `mypy --strict` has been a merge gate throughout,
+  but the marker's absence meant none of that typing reached anyone who installed the package.
+- Rewrote all 28 relative links in `README.md` as absolute URLs. PyPI does not rewrite relative
+  links the way GitHub does, so every one of them — the whole documentation map — resolved to a
+  404 on the package page. Replaced the Mermaid architecture diagram, which PyPI renders as raw
+  source, with a plain-text diagram that renders on both surfaces.
+- Shortened the README status blockquote from 62 lines to 11, keeping the measured-only
+  caveat and delegating the per-milestone detail to `PROJECT_STATUS.md`.
+- Removed a stale empty `.release-gate-temp-*` directory from the repository root.
+
 ## v0.1.0 - 2026-09-04
 
 - Replaced the `LICENSE` stub with the complete, unmodified Apache-2.0 text, and moved the
