@@ -12,7 +12,10 @@
   fake-provider apparatus and excluded from AWS evidence.
 - `reports/aws-m17-block04-excluded-scrubbed-report.md` and its sample archive — scrubbed
   outputs from an excluded AWS apparatus block. They are labelled excluded and are not AWS
-  evidence.
+  evidence. **The archive was re-scrubbed on 2026-09-12**: it was committed one day before
+  `NAMESPACE_PATTERN` was added to the exporter, so it still carried a live `cb-` benchmark
+  namespace in `environment.json` and `observations.jsonl`. See
+  [docs/site-provenance.md](../docs/site-provenance.md) for the record.
 - `reports/aws-m17-block07-scrubbed-report.md` and its sample archive are a scrubbed AWS
   apparatus sample from excluded block 07; they are not publishable M17 evidence.
 - `reports/aws-m17-valid-block01-scrubbed-report.md` and
@@ -20,6 +23,15 @@
   AWS run `01M0A5WS8Q912NJSP0FEH1DWSK`. They are evidence for this account, region, and time;
   they do not support general AWS claims. Fake-provider outputs remain apparatus checks, and
   the historical AWS outputs above remain excluded.
+
+## Published on the web
+
+The valid-block AWS report and the fake-provider apparatus check are rendered and published at
+<https://kubixdesiney.github.io/chainbreak/>, and the scrubbed archives here are attached to the
+[v0.1.0 release](https://github.com/KubixDesiney/chainbreak/releases/tag/v0.1.0) so a reader can
+run `chainbreak analyze` on real evidence without an AWS account. Both are produced from the
+archives in this directory by `scripts/build_site.py` and gated by
+`scripts/verify_public_site_scrub.py`; see [docs/site-provenance.md](../docs/site-provenance.md).
 
 ## Reading a sample report
 

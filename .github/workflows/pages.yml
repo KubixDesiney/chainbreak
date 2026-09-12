@@ -1,0 +1,81 @@
+# CHAINBREAK GitHub Pages
+#
+# INVARIANT: nothing is uploaded that has not passed the scrub gate. The
+# `deploy` job needs `build`, and `build` runs
+# `scripts/verify_public_site_scrub.py` BEFORE `upload-pages-artifact`. A
+# non-zero exit from the gate fails the job while the artifact step has not
+# run, so a page carrying an account ID, ARN, live namespace or session name
+# cannot reach the published site (EVIDENCE_SCHEMA.md section 11,
+# docs/site-provenance.md).
+#
+# INVARIANT: this workflow requires NO cloud credentials (threat T-12). The
+# site is rebuilt from the evidence archives committed in examples/reports/.
+#
+# Action pinning: every third-party action is pinned to a full commit SHA; the
+# CI `guards` job fails the build if one is not.
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "scripts/build_site.py"
+      - "scripts/verify_public_site_scrub.py"
+      - "examples/reports/**"
+      - "src/chainbreak/reporting/**"
+      - "src/chainbreak/evidence/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with: { python-version: "3.12" }
+
+      - name: Install CHAINBREAK
+        run: python -m pip install -e ".[report]"
+
+      # Re-render from the sealed bundles rather than trusting the committed
+      # site/: a page and the archive it claims to come from cannot drift.
+      - name: Rebuild the site from the sealed bundles
+        run: python scripts/build_site.py --out site
+
+      - name: Fail if the rebuild does not match the committed site
+        run: git diff --exit-code -- site/
+
+      # ---- THE GATE. Everything below this step is downstream of it. ----
+      - name: Scrub gate - site
+        run: python scripts/verify_public_site_scrub.py site
+
+      - name: Scrub gate - release assets
+        run: python scripts/verify_public_site_scrub.py examples/reports --allow-fake-synthetic
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
