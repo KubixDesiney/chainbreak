@@ -28,7 +28,7 @@
   "$id": "https://chainbreak.dev/schemas/detector-check.v1.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Negative-control verification. A DETECTOR_FAILURE invalidates the block's positive results. Generated from the Pydantic model -- do not hand-edit. Regenerate with `python -m chainbreak.scenarios.export_schema`.",
+  "description": "PERTURBED FOR CI DRIFT-DETECTION PROOF -- this line does not match the Pydantic model and this commit is never meant to be merged.",
   "properties": {
     "expected_type": {
       "$ref": "#/$defs/FindingType"
