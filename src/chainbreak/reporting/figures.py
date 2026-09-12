@@ -66,6 +66,22 @@ _MARGIN = 40
 _AXIS_COLOR = "#8a8a8a"
 _BAR_COLORS = ("#4c78a8", "#e45756", "#54a24b", "#f2b701")
 
+#: Approximate advance width, in px, of one monospace character at the
+#: font-size (10) every axis label in this module is drawn at. Used only to
+#: decide layout (rotate labels or not, how wide to draw the chart) -- never
+#: to position a glyph exactly, so a rough constant is enough.
+_CHAR_PX = 6.0
+#: A chart is capped at this width even when every category label is drawn
+#: horizontally. Past this point (routinely reached by, e.g.,
+#: repeatability_figure's 20+ identity/capability cells) centering that many
+#: labels would either force the report wider than any reasonable page or,
+#: if the width were capped instead, overlap into an unreadable smear --
+#: see _bar_group_chart's rotate_labels below.
+_MAX_UNROTATED_WIDTH = 900
+#: Horizontal padding on each side of a centered, unrotated label so two
+#: adjacent labels never touch.
+_LABEL_PAD = 8.0
+
 
 @dataclass(frozen=True, slots=True)
 class Figure:
@@ -92,6 +108,14 @@ def _caption(text: str, *, provider: Provider) -> str:
 
 
 def _svg_open(width: int, height: int) -> str:
+    # Responsive sizing (so a chart widened for many/long category labels
+    # never overflows the report page) lives in report.html.j2's own
+    # <style> block, not as an inline style="..." attribute here: html.py
+    # strips <style> blocks before running the report-language lint
+    # specifically because CSS legitimately contains a bare "100%" with no
+    # denominator, but that stripping does not reach an inline attribute --
+    # an inline `style="max-width:100%"` here would read as exactly the
+    # "percentage_without_denominator" violation the lint exists to catch.
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
         f'width="{width}" height="{height}">'
@@ -108,13 +132,45 @@ def _bar_group_chart(
 ) -> str:
     """A grouped vertical bar chart. One bar cluster per category, one bar
     per series within the cluster. All values are non-negative counts or
-    durations read from evidence -- never invented here."""
-    width, height = _WIDTH, _HEIGHT
-    plot_h = height - 2 * _MARGIN
-    plot_w = width - 2 * _MARGIN
+    durations read from evidence -- never invented here.
+
+    Category labels are drawn horizontally and centered under their cluster
+    whenever that fits in a page-reasonable width. Past a handful of long
+    labels (repeatability_figure's identity/capability cells routinely
+    number 20+), centering them at a legible size would either force the
+    chart absurdly wide or, if width were capped instead, overlap edge to
+    edge into an unreadable smear -- the failure this replaced. Past that
+    point, labels are rotated vertical instead, which needs only
+    per-character horizontal room rather than per-label room."""
     series_names = list(series)
     n_cat = max(len(categories), 1)
     n_series = max(len(series_names), 1)
+    max_label_px = max((len(str(c)) * _CHAR_PX for c in categories), default=0.0)
+    # A cluster must be at least wide enough to show its bars distinctly
+    # (one slot per series plus one gap) regardless of label length.
+    bars_cluster_min = (n_series + 1) * 16.0
+
+    width_unrotated = 2 * _MARGIN + n_cat * max(bars_cluster_min, max_label_px + _LABEL_PAD)
+    rotate_labels = n_cat > 1 and width_unrotated > _MAX_UNROTATED_WIDTH
+
+    if rotate_labels:
+        cluster_w_min = max(bars_cluster_min, 26.0)
+        width = max(_WIDTH, min(_MAX_UNROTATED_WIDTH, int(2 * _MARGIN + n_cat * cluster_w_min)))
+    else:
+        width = max(_WIDTH, int(width_unrotated))
+
+    top_margin = _MARGIN
+    plot_h = _HEIGHT - 2 * _MARGIN
+    # Rotated labels hang below the axis; give them room proportional to how
+    # long the longest one is, capped so one pathological label can't blow
+    # the chart out to an unusable height.
+    bottom_margin = (
+        _MARGIN if not rotate_labels else min(400, int(_MARGIN + max_label_px * 0.9) + 10)
+    )
+    height = top_margin + plot_h + bottom_margin
+    axis_y = top_margin + plot_h
+
+    plot_w = width - 2 * _MARGIN
     cluster_w = plot_w / n_cat
     bar_w = cluster_w / (n_series + 1)
     max_value = max((v for values in series.values() for v in values), default=0.0) or 1.0
@@ -126,8 +182,8 @@ def _bar_group_chart(
     )
     # axis
     parts.append(
-        f'<line x1="{_MARGIN}" y1="{height - _MARGIN}" x2="{width - _MARGIN}" '
-        f'y2="{height - _MARGIN}" stroke="{_AXIS_COLOR}"/>'
+        f'<line x1="{_MARGIN}" y1="{axis_y}" x2="{width - _MARGIN}" '
+        f'y2="{axis_y}" stroke="{_AXIS_COLOR}"/>'
     )
     for c_idx, category in enumerate(categories):
         cluster_x = _MARGIN + c_idx * cluster_w
@@ -135,7 +191,7 @@ def _bar_group_chart(
             value = series[name][c_idx] if c_idx < len(series[name]) else 0.0
             bar_h = (value / max_value) * plot_h if max_value else 0.0
             x = cluster_x + (s_idx + 0.25) * bar_w
-            y = height - _MARGIN - bar_h
+            y = axis_y - bar_h
             color = _BAR_COLORS[s_idx % len(_BAR_COLORS)]
             parts.append(
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w * 0.8:.1f}" '
@@ -147,10 +203,19 @@ def _bar_group_chart(
                 f'font-family="monospace" font-size="10">{value:g}</text>'
             )
         label_x = cluster_x + cluster_w / 2
-        parts.append(
-            f'<text x="{label_x:.1f}" y="{height - _MARGIN + 14}" text-anchor="middle" '
-            f'font-family="monospace" font-size="10">{_esc(str(category))}</text>'
-        )
+        if rotate_labels:
+            anchor_x, anchor_y = label_x, axis_y + 6
+            parts.append(
+                f'<text x="{anchor_x:.1f}" y="{anchor_y:.1f}" text-anchor="end" '
+                f'font-family="monospace" font-size="10" '
+                f'transform="rotate(-90 {anchor_x:.1f} {anchor_y:.1f})">'
+                f"{_esc(str(category))}</text>"
+            )
+        else:
+            parts.append(
+                f'<text x="{label_x:.1f}" y="{axis_y + 14}" text-anchor="middle" '
+                f'font-family="monospace" font-size="10">{_esc(str(category))}</text>'
+            )
     if n_series > 1:
         for s_idx, name in enumerate(series_names):
             legend_x = _MARGIN + s_idx * 120
