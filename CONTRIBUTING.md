@@ -144,4 +144,6 @@ Reviewers check, in this order:
 ## Code of conduct
 
 Be straightforward, be specific, assume competence. Disagreement about technical direction
-is expected and welcome; it belongs in an issue or an ADR. Harassment is not tolerated.
+is expected and welcome; it belongs in an issue or an ADR. Harassment is not tolerated —
+see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the full standard and how to report a
+violation.
