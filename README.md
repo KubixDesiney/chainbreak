@@ -7,6 +7,13 @@
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
 and the authority a delegated workload *actually* holds when it executes.
 
+**[See a real report &rarr;](https://kubixdesiney.github.io/chainbreak/)** &mdash; a rendered
+AWS scope-attenuation measurement and a fake-provider apparatus check, side by side, no install
+required. Every page on that site carries its provider stamp and its measured-scope caveat, and
+every published file passed
+[the scrub gate](https://github.com/KubixDesiney/chainbreak/blob/main/docs/site-provenance.md)
+first.
+
 > **Status: v0.1.1 — M0–M16 complete, including dedicated-account acceptance for M8/M9.**
 > Three valid real-AWS M17 blocks completed on 2026-08-18 (`n=32`, `n=23`, `n=32`), with all six
 > negative controls `DETECTOR_OK`, complete analysis and export, and exact cleanup; M18
@@ -254,6 +261,7 @@ credentials. Real-account work happens outside the container, following that pro
 ## Documentation map
 
 **Start here**
+- [The rendered reports](https://kubixdesiney.github.io/chainbreak/) — a real AWS measurement and an apparatus check, in a browser
 - [ARCHITECTURE.md](https://github.com/KubixDesiney/chainbreak/blob/main/ARCHITECTURE.md) — components, boundaries, data flow, extension points
 - [docs/GLOSSARY.md](https://github.com/KubixDesiney/chainbreak/blob/main/docs/GLOSSARY.md) — precise meaning of every term used in this repo
 - [docs/CLAUDE_CODE_HANDOFF.md](https://github.com/KubixDesiney/chainbreak/blob/main/docs/CLAUDE_CODE_HANDOFF.md) — implementation contract and per-milestone prompts
@@ -273,6 +281,7 @@ credentials. Real-account work happens outside the container, following that pro
 - [EXPERIMENT_PROTOCOL.md](https://github.com/KubixDesiney/chainbreak/blob/main/EXPERIMENT_PROTOCOL.md) — step-by-step protocol per benchmark family
 - [TESTING.md](https://github.com/KubixDesiney/chainbreak/blob/main/TESTING.md) — four-layer test strategy
 - [REPRODUCIBILITY.md](https://github.com/KubixDesiney/chainbreak/blob/main/REPRODUCIBILITY.md) — what must be recorded for a run to be reproducible
+- [docs/site-provenance.md](https://github.com/KubixDesiney/chainbreak/blob/main/docs/site-provenance.md) — how the published site is produced and what was proved about every file on it
 
 **Project management**
 - [PROJECT_STATUS.md](https://github.com/KubixDesiney/chainbreak/blob/main/PROJECT_STATUS.md) — durable source of truth

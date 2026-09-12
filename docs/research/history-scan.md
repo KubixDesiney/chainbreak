@@ -62,3 +62,42 @@ contain zero matches. Temporary benchmark IAM cleanup completed 2026-09-01 with 
 verified clean. The final release gate completed on 2026-09-04; the annotated `v0.1.0` tag and
 GitHub release were published from the verified release commit. This scan records the scrubbed
 state that preceded publication.
+
+---
+
+## Addendum: archive-member scan, 2026-09-12
+
+The scan above covered the tracked tree and Git history **as text**. It did not look inside
+gzip members, and one live value was hiding there.
+
+Scan date: 2026-09-12, covering every file staged for the GitHub Pages site and every archive
+staged as a v0.1.0 release asset, using `scripts/verify_public_site_scrub.py` — which imports
+the exporter's own compiled patterns and walks `.tar.gz` members and HTML-entity-decoded text
+in addition to raw bytes. Values are deliberately omitted, as above.
+
+- **Finding.** `examples/reports/aws-m17-block04-excluded-scrubbed-sample.tar.gz` carried a live
+  `cb-` benchmark namespace in 67 places: `environment.json` (1) and `observations.jsonl` (66).
+  The archive was committed 2026-08-17 in `795d5c4`; `NAMESPACE_PATTERN` was added to
+  `chainbreak.evidence.export._scrub_text` on 2026-08-18 in `a72ce2c`. The archive therefore
+  predated namespace scrubbing by one day while being labelled scrubbed. Both artifacts are in
+  `_PUBLIC_ARTIFACTS` and would be scrubbed by the current exporter.
+- **Why the 2026-09-04 scan did not report it.** That scan searched the tracked tree and Git
+  diffs as text. The namespace was inside a gzip blob, which a text scan cannot see.
+- **Remediation.** Re-ran the current `_scrub_text` over every `_PUBLIC_ARTIFACTS` member and
+  repackaged, then re-asserted with the exporter's own `_assert_clean`. 67 identifiers stripped.
+  The archive's sha256 changed from `49c1c675…b5b097` to `4398ae44…7e6239`.
+- **Other archives.** `aws-m17-block07-scrubbed-sample.tar.gz`,
+  `aws-m17-valid-block01-scrubbed-sample.tar.gz` and
+  `apparatus-check-fake-scope-attenuation.tar.gz` were produced on or after 2026-08-18 and carry
+  only the `cb-00000000` redaction placeholder. No ARN, hostname, session name, policy document
+  or credential-shaped value was found in any scanned file, in any container.
+- **Integrity note, not a finding.** All four scrubbed archives fail `manifest.verify()`, with
+  mismatches confined to exactly the artifacts the scrub rewrote. This is inherent to scrubbing
+  after sealing and is why reading a published bundle requires `--allow-unsealed`; see
+  `docs/site-provenance.md`.
+
+### Release implication
+
+The site and the release assets are clean for the scanned classes as of 2026-09-12. The gate now
+runs in CI (`.github/workflows/pages.yml`) upstream of the upload step, and its exemptions are
+regression-tested against this exact finding in `tests/unit/test_public_site_scrub_gate.py`.
