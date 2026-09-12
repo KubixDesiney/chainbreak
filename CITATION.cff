@@ -1,0 +1,33 @@
+# This CITATION.cff file was generated to make CHAINBREAK citable.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: CHAINBREAK
+abstract: >-
+  An empirical benchmark for authorization behavior in delegated and agentic
+  cloud systems.
+version: 0.1.1
+date-released: 2026-09-10
+license: Apache-2.0
+repository-code: "https://github.com/KubixDesiney/chainbreak"
+url: "https://github.com/KubixDesiney/chainbreak"
+keywords:
+  - security
+  - iam
+  - authorization
+  - aws
+  - sts
+  - delegation
+  - benchmark
+authors:
+  - alias: KubixDesiney
+    orcid: "https://orcid.org/0009-0005-0826-0450"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22723886
+    description: "The concept DOI representing all versions of CHAINBREAK"
+  - type: doi
+    value: 10.5281/zenodo.22723887
+    description: "The version-specific DOI for v0.1.1"

@@ -1,5 +1,7 @@
 # CHAINBREAK
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22723886.svg)](https://doi.org/10.5281/zenodo.22723886)
+
 **An empirical benchmark for authorization behavior in delegated and agentic cloud systems.**
 
 CHAINBREAK measures the gap between the authority a security policy *intended* to grant
@@ -134,6 +136,121 @@ checkout.
 The `infra` and `--provider aws` workflows are real-account operations documented in
 [EXPERIMENT_PROTOCOL.md](https://github.com/KubixDesiney/chainbreak/blob/main/EXPERIMENT_PROTOCOL.md); they are not part of this offline quickstart.
 
+## Verify this release yourself
+
+Everything above asks you to trust a description. This section instead gives a reader who
+trusts nothing a path to the same conclusion, using only a downloaded wheel, a network
+connection, and no repository checkout, credentials, or AWS account.
+
+**1. Verify the wheel.** Download `chainbreak-<version>-py3-none-any.whl` from the
+[GitHub Release](https://github.com/KubixDesiney/chainbreak/releases) alongside its
+`SHA256SUMS`, and check the digest:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+For a release that also carries `provenance.sigstore.json`, verify the wheel was built by this
+repository's own release workflow from the tagged commit, not substituted or hand-built,
+before you install it:
+
+```bash
+gh attestation verify chainbreak-<version>-py3-none-any.whl --repo KubixDesiney/chainbreak
+```
+
+See [REPRODUCIBILITY §10](https://github.com/KubixDesiney/chainbreak/blob/main/REPRODUCIBILITY.md#10-release-provenance)
+for what each artifact proves and why no maintainer can publish one by hand.
+
+**2. Install into a clean venv, from an empty directory.**
+
+```bash
+mkdir verify-chainbreak && cd verify-chainbreak
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install /path/to/chainbreak-<version>-py3-none-any.whl
+```
+
+**3. Run a packaged scenario against the fake provider, analyze it, and report it** — the
+same offline quickstart above, run here against the *installed wheel* with nothing else on
+disk:
+
+```bash
+scenario=$(chainbreak scenario list | grep -i 'scope-attenuation.*basic\.yaml')
+chainbreak run "$scenario" --provider fake --seed 1729 --runs-root runs --run-id-file run-id.txt
+chainbreak analyze "$(cat run-id.txt)" --runs-root runs
+chainbreak report "$(cat run-id.txt)" --format html --runs-root runs -o report.html
+```
+
+If this completes, the wheel is not just present — it runs its whole offline pipeline
+end to end.
+
+**4. Reproduce a known-good analysis byte-for-byte.** Download this repository's
+[`examples/reports/verify-golden-scope-attenuation-fake-seed1729.tar.gz`](https://github.com/KubixDesiney/chainbreak/blob/main/examples/reports/verify-golden-scope-attenuation-fake-seed1729.tar.gz)
+and its sibling
+[`...findings.json`](https://github.com/KubixDesiney/chainbreak/blob/main/examples/reports/verify-golden-scope-attenuation-fake-seed1729.findings.json)
+— a sealed evidence bundle from the same scenario and seed as step 3, and the `findings.json`
+already computed from it — then analyze the bundle exactly as it was sealed and diff:
+
+```bash
+tar xzf verify-golden-scope-attenuation-fake-seed1729.tar.gz
+run_id=$(ls -d 01*/ | head -n1 | tr -d /)
+chainbreak analyze "$run_id" --runs-root .
+diff verify-golden-scope-attenuation-fake-seed1729.findings.json "$run_id/findings.json"
+```
+
+The diff is empty. This is REPRODUCIBILITY.md's
+[Level 1 — analytical reproducibility](https://github.com/KubixDesiney/chainbreak/blob/main/REPRODUCIBILITY.md#1-three-levels-of-reproducibility):
+given the same evidence bundle, `chainbreak analyze` is a pure function of its content, so
+re-running it reproduces `findings.json` byte for byte. That is a stronger, different claim
+than step 3 matching this bundle: every `chainbreak run` mints its own observation, event, and
+finding IDs at execution time, salted per run by design (`core/ids.py`), so two independent
+runs of the identical scenario and seed are never byte-identical to *each other* — only
+re-analyzing one fixed, already-sealed bundle is. (`chainbreak compare` is the tool for
+comparing two independent runs, and it reports `STRUCTURALLY_IDENTICAL`, never `IDENTICAL`,
+for exactly this reason.) The bundle is committed unscrubbed on purpose: the fake provider's
+account and namespace fields are already synthetic placeholders, so there is nothing in it to
+redact, and `tests/integration/test_readme_verification_golden_bundle.py` re-checks this exact
+pairing on every CI run.
+
+**What this does not verify.** This procedure reproduces the apparatus — the wheel's contents,
+its installation, and its analysis pipeline's determinism — not the AWS measurements in
+[docs/research/results-v0.1.md](https://github.com/KubixDesiney/chainbreak/blob/main/docs/research/results-v0.1.md).
+Those are measurements for one account, one region, and one point in time, made against
+infrastructure an operator provisions and destroys under
+[EXPERIMENT_PROTOCOL.md](https://github.com/KubixDesiney/chainbreak/blob/main/EXPERIMENT_PROTOCOL.md).
+Reproducing them takes a dedicated AWS account of your own, not this wheel alone — follow that
+protocol for that path.
+
+## Run it in a container
+
+Every tagged release publishes a container image to
+`ghcr.io/kubixdesiney/chainbreak`, tagged with both the release version (e.g. `v0.1.1`)
+and the commit SHA. It wraps the same offline, fake-provider path as the quickstart
+above and nothing else — no `boto3`, no `aws` extra, no credentials, no default account
+configuration (see the Dockerfile). Mount a directory for the run output and drive the
+CLI exactly as above:
+
+```bash
+mkdir -p out && chmod 0777 out   # the image runs as a fixed non-root uid, not your host user
+
+docker run --rm -v "$(pwd)/out:/home/chainbreak/runs" \
+  ghcr.io/kubixdesiney/chainbreak:v0.1.1 \
+  run scenarios/scope-attenuation/basic.yaml --provider fake --seed 1729 --runs-root runs
+
+docker run --rm -v "$(pwd)/out:/home/chainbreak/runs" \
+  ghcr.io/kubixdesiney/chainbreak:v0.1.1 \
+  analyze <run-id> --runs-root runs
+```
+
+Replace `v0.1.1` with the release you want, or pin to the commit-SHA tag; see
+[REPRODUCIBILITY §10](REPRODUCIBILITY.md#10-release-provenance) for how to verify an
+image against its build provenance.
+
+This container is scoped to the offline workflow only. `--provider aws` and `chainbreak
+infra` are real-account operations governed by
+[EXPERIMENT_PROTOCOL.md](https://github.com/KubixDesiney/chainbreak/blob/main/EXPERIMENT_PROTOCOL.md),
+and this image cannot run them — it has no AWS SDK installed and no way to accept
+credentials. Real-account work happens outside the container, following that protocol.
+
 ## Documentation map
 
 **Start here**
@@ -183,3 +300,34 @@ Apache-2.0 — the unmodified licence text is in [LICENSE](https://github.com/Ku
 informational statement of the authors' intended scope of use; it is not a licence term and
 modifies nothing. See [SECURITY.md](https://github.com/KubixDesiney/chainbreak/blob/main/SECURITY.md) for vulnerability reporting and the same scope
 of acceptable use stated at length.
+
+## How to cite
+
+If you use CHAINBREAK in published or reproducible research, please cite the software
+itself rather than only linking to the repository. Machine-readable metadata is in
+[CITATION.cff](https://github.com/KubixDesiney/chainbreak/blob/main/CITATION.cff) (use
+GitHub's "Cite this repository" button, or `cffconvert`, to derive other formats).
+
+Plain citation:
+
+> KubixDesiney. (2026). *CHAINBREAK* (Version 0.1.1) [Computer software].
+> https://github.com/KubixDesiney/chainbreak. DOI: [10.5281/zenodo.22723886](https://doi.org/10.5281/zenodo.22723886)
+
+BibTeX:
+
+```bibtex
+@software{chainbreak,
+  author  = {KubixDesiney},
+  title   = {{CHAINBREAK}: An empirical benchmark for authorization behavior in
+             delegated and agentic cloud systems},
+  year    = {2026},
+  version = {0.1.1},
+  url     = {https://github.com/KubixDesiney/chainbreak},
+  doi     = {10.5281/zenodo.22723886}
+}
+```
+
+The `doi` field above is the **concept DOI** (`10.5281/zenodo.22723886`), which always
+resolves to the latest archived version. The `v0.1.1` snapshot specifically is archived
+under its own version DOI, [10.5281/zenodo.22723887](https://doi.org/10.5281/zenodo.22723887);
+future archived versions will get their own version DOIs under the same concept DOI.

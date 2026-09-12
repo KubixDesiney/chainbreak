@@ -11,7 +11,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [{ name = "CHAINBREAK contributors" }]
+authors = [{ name = "KubixDesiney" }]
 keywords = ["security", "iam", "authorization", "aws", "sts", "delegation", "benchmark"]
 # No "License :: ..." classifier: the SPDX `license` expression above supersedes it,
 # and declaring both is an error under PEP 639.
