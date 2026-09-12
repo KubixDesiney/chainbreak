@@ -9,6 +9,9 @@ seven).
 
 from __future__ import annotations
 
+import re
+from itertools import pairwise
+
 import pytest
 
 from chainbreak.analysis.divergence import analyze_graph
@@ -21,6 +24,9 @@ from chainbreak.core.models import (
     StaleAuthorityMeasurement,
 )
 from chainbreak.reporting.figures import (
+    _MAX_UNROTATED_WIDTH,
+    _WIDTH,
+    _bar_group_chart,
     authorization_graph_figure,
     gain_loss_per_hop_figure,
     per_hop_authority_figure,
@@ -192,6 +198,108 @@ class TestRepeatabilityFigure:
         }
         figure = repeatability_figure(cells, provider=Provider.FAKE)
         assert "2/3" in figure.caption
+
+    def test_many_long_cells_rotate_instead_of_overlapping(self) -> None:
+        """Regression test for the reported bug: a real AWS bundle's 21
+        identity/capability cells (three identities x seven capabilities),
+        each with a long ``identity/capability`` label, rendered as a single
+        unreadable smear of overlapping text along the axis. The fix is
+        checked at the SVG-structure level here; the actual pixel-geometry
+        proof (zero bounding-box overlap in a real browser layout) is in
+        docs/site-provenance.md's verification record."""
+        identities = ("principal", "agent-a", "agent-b")
+        capabilities = (
+            "function.invoke",
+            "keyvalue.read",
+            "keyvalue.write",
+            "objectstore.write",
+            "objectstore.read",
+            "objectstore.list",
+            "identity.delegate",
+        )
+        cells = {
+            (identity, capability): (
+                OutcomeClass.ALLOWED,
+                OutcomeClass.ALLOWED,
+                OutcomeClass.ALLOWED,
+            )
+            for identity in identities
+            for capability in capabilities
+        }
+        figure = repeatability_figure(cells, provider=Provider.FAKE)
+        assert figure.applicable
+        # One rotated label per category -- none silently dropped, none
+        # doubled up.
+        assert figure.svg.count("rotate(-90") == len(cells)
+        for identity in identities:
+            for capability in capabilities:
+                assert f"{identity}/{capability}" in figure.svg
+
+
+class TestBarGroupChartLayout:
+    """``_bar_group_chart``'s own layout decision: few short categories are
+    centered horizontally at the original fixed size (unchanged behavior);
+    many and/or long categories are rotated vertical instead of being
+    centered into an overlapping pile -- the bug this module was fixed for."""
+
+    def _label_anchors(self, svg: str) -> list[float]:
+        """The x from each rotated label's own ``rotate(-90 x y)``."""
+        return [float(m.group(1)) for m in re.finditer(r"rotate\(-90 ([\d.]+) ", svg)]
+
+    def test_few_short_categories_stay_unrotated_at_default_size(self) -> None:
+        svg = _bar_group_chart("t", ["hop-1", "hop-2"], {"excess": [1.0, 0.0]})
+        assert "rotate(" not in svg
+        assert f'viewBox="0 0 {_WIDTH} ' in svg
+
+    def test_a_handful_of_longer_categories_still_fits_unrotated(self) -> None:
+        """Three categories whose labels are individually long (as in
+        per_hop_authority_figure's "principal (hop 0)" style) still fit
+        centered without rotation -- there simply aren't enough of them to
+        need it. Rotating here would be an unnecessary regression in its own
+        right for the charts that were already rendering correctly."""
+        categories = ["principal (hop 0)", "agent-a (hop 1)", "agent-b (hop 2)"]
+        svg = _bar_group_chart("t", categories, {"intended": [1.0, 2.0, 3.0]})
+        assert "rotate(" not in svg
+
+    def test_many_categories_rotate_and_each_label_gets_a_distinct_slot(self) -> None:
+        categories = [f"identity-{i}/capability-{i}" for i in range(21)]
+        svg = _bar_group_chart("t", categories, {"agreement": [1.0] * 21})
+        anchors = self._label_anchors(svg)
+        assert len(anchors) == 21
+        # Every label sits at its own x; two labels sharing an anchor would
+        # render on top of each other regardless of rotation.
+        assert len(set(anchors)) == 21
+        # Anchors are evenly spaced, in category order -- clusters are laid
+        # out left to right, not overlapping or reordered.
+        gaps = [b - a for a, b in pairwise(anchors)]
+        assert all(gap > 0 for gap in gaps)
+        assert max(gaps) - min(gaps) < 0.01
+
+    def test_chart_width_is_capped_even_with_many_categories(self) -> None:
+        """Width must grow enough to keep rotated labels legibly spaced, but
+        never past the point a report page can reasonably hold -- unbounded
+        growth would just trade one unreadable chart for a different one."""
+        categories = [f"identity-{i}/capability-{i}" for i in range(60)]
+        svg = _bar_group_chart("t", categories, {"agreement": [1.0] * 60})
+        match = re.search(r'viewBox="0 0 (\d+) (\d+)"', svg)
+        assert match is not None
+        width = int(match.group(1))
+        assert width <= _MAX_UNROTATED_WIDTH
+
+    def test_rotated_labels_are_not_clipped_by_the_svg_height(self) -> None:
+        """Every rotated label's own y anchor (and, since text runs upward
+        from it via rotate(-90) with text-anchor="end", the label's full
+        extent) must sit inside the viewBox -- an axis label a browser
+        simply cannot show is no more legible than one buried in overlap."""
+        categories = ["principal/objectstore.write-and-a-rather-long-capability-name"] * 3
+        svg = _bar_group_chart("t", categories, {"agreement": [1.0, 1.0, 1.0]})
+        assert "rotate(" in svg, "test premise: this many long labels must trigger rotation"
+        vb_match = re.search(r'viewBox="0 0 (\d+) (\d+)"', svg)
+        assert vb_match is not None
+        height = int(vb_match.group(2))
+        anchor_ys = [float(m) for m in re.findall(r'y="([\d.]+)" text-anchor="end"', svg)]
+        assert anchor_ys, "expected at least one rotated (text-anchor=end) label"
+        assert all(y < height for y in anchor_ys)
 
 
 class TestScenarioComparisonFigure:
