@@ -1,0 +1,53 @@
+name: Scenario or measurement question
+description: A question about a specific benchmark scenario, a measurement result, or how to interpret one — not a code bug.
+title: "question: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For questions about the five benchmark families (scope attenuation, delegation
+        drift, revocation propagation, stale authority, silent narrowing), a specific
+        `scenarios/*.yaml` file, a run's `analyze`/`report` output, or whether an observed
+        result reflects a real provider behavior vs. an artifact of the measurement.
+
+        If you believe a measurement points to a genuine defect in a cloud provider's
+        authorization behavior (not in CHAINBREAK), see
+        [SECURITY.md § Reporting a finding about a cloud provider](https://github.com/KubixDesiney/chainbreak/blob/main/SECURITY.md#reporting-a-finding-about-a-cloud-provider)
+        instead — that has its own process and should not go to the provider publicly
+        before they've had a chance to respond.
+
+  - type: input
+    id: scenario
+    attributes:
+      label: Scenario or benchmark family
+      placeholder: "e.g. scenarios/scope_attenuation/... , or 'revocation propagation' in general"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - fake
+        - aws
+        - not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you expected the scenario/measurement to show, and what you observed instead.
+    validations:
+      required: true
+
+  - type: input
+    id: run-id
+    attributes:
+      label: Run ID or evidence bundle (if you have one)
+      description: >-
+        If you can share it: a run ID, or a link to a bundle already scrubbed per
+        docs/site-provenance.md. Do not paste raw, unscrubbed evidence here.

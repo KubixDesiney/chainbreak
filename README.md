@@ -1,5 +1,11 @@
 # CHAINBREAK
 
+[![CI](https://github.com/KubixDesiney/chainbreak/actions/workflows/ci.yml/badge.svg)](https://github.com/KubixDesiney/chainbreak/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/KubixDesiney/chainbreak/blob/main/LICENSE)
+[![Python versions](https://img.shields.io/pypi/pyversions/chainbreak.svg)](https://pypi.org/project/chainbreak/)
+[![Latest release](https://img.shields.io/github/v/release/KubixDesiney/chainbreak)](https://github.com/KubixDesiney/chainbreak/releases/latest)
+[![PyPI](https://img.shields.io/pypi/v/chainbreak.svg)](https://pypi.org/project/chainbreak/)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KubixDesiney/chainbreak/badge)](https://scorecard.dev/viewer/?uri=github.com/KubixDesiney/chainbreak)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22723886.svg)](https://doi.org/10.5281/zenodo.22723886)
 
 **An empirical benchmark for authorization behavior in delegated and agentic cloud systems.**
