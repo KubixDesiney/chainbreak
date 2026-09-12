@@ -2322,8 +2322,23 @@ Resolved and retired from the active list: the AWS `run` path is implemented; pr
 fail-closed with only `GetCallerIdentity` before an account mismatch; cleanup enumerates the IAM
 blind spot; bundle provenance records region, commit, and dirty state; AWS sessions refresh and
 close with secret state scrubbed; stale-window population is wired; and P8
-`CONFIGURATION_ERROR` findings are wired through the preflight/analysis path. CI still does not
-run TFLint or a documentation-link job.
+`CONFIGURATION_ERROR` findings are wired through the preflight/analysis path. ~~CI still does not
+run TFLint or a documentation-link job.~~ **Resolved.** The `terraform` job now runs TFLint
+(`infra/terraform/.tflint.hcl`, the bundled `terraform` ruleset plus `tflint-ruleset-aws`)
+alongside, not instead of, the repository's own wildcard-resource guard — TFLint and Checkov are
+both general-purpose scanners that don't know about this project's one documented
+`sts:GetCallerIdentity` exception, so the guard stays. A new `docs` job runs
+`scripts/check_markdown_links.py`, which resolves every relative link and validates every
+`#fragment` anchor (via GitHub's own heading-slug algorithm, including its `-1`/`-2` duplicate
+suffixing) across the root markdown files and `docs/`, against whatever file the link actually
+points to, in or out of that scope. Run cold against the current tree it reported zero broken
+links or anchors. That's a real negative, not an untested script reporting all-clear by
+default: before trusting the clean result, the checker was run by hand against scratch fixtures
+covering a missing target file, a broken same-file anchor, a broken cross-file anchor, and a
+repeated heading's `-1`/`-2` GitHub-style suffix, and it failed on each planted defect with the
+right file:line before this pass was recorded as clean. No dedicated pytest file exists for it
+yet (unlike the repository's other `scripts/check_*.py` guards); adding one is a reasonable
+follow-up, not required for this pass.
 
 ## Historical known-issue ledger
 
@@ -2499,10 +2514,19 @@ Recorded now so it is deliberate rather than discovered later.
   denial already returns `DENIED_UNATTRIBUTED`, never a `trials[0]` guess — locked in by
   `test_mixed_denials_become_unattributed_no_exclusion`. The original note describing this as
   fragile predated that reading; nothing needed to change.
-- **JSON Schemas are generated but not yet diffed in CI.** The `schemas` job now runs
+- ~~**JSON Schemas are generated but not yet diffed in CI.** The `schemas` job now runs
   `python -m chainbreak.scenarios.export_schema schemas && git diff --exit-code schemas/` in
   every CI run; whether it correctly blocks a real drifted PR is unverified until GitHub
-  Actions runs it against a real drift, which has not happened yet.
+  Actions runs it against a real drift, which has not happened yet.~~ **Verified 2026-09-12.**
+  A scratch branch (`claude/schema-drift-ci-proof`, off `origin/main`) hand-edited
+  `schemas/detector-check.v1.schema.json`'s `description` so it no longer matched what
+  `export_schema` regenerates from the Pydantic model, opened as
+  [PR #13](https://github.com/KubixDesiney/chainbreak/pull/13), and the real `schemas` CI job
+  failed exactly at the `git diff --exit-code schemas/` step — [run
+  34709585291](https://github.com/KubixDesiney/chainbreak/actions/runs/34709585291/job/103595757610),
+  showing the drifted line versus the correctly-regenerated one, exit code 1 — while all nine
+  other jobs on that same run passed. The PR was closed without merging and the branch deleted;
+  the perturbation never reached `main` or any real schema file.
 - ~~**`docs/research/` has a lab log and nothing else.** `results-v0.1.md` arrives at M17.~~
   Resolved 2026-08-19: `docs/research/` now holds `lab-log.md`, `results-v0.1.md`,
   `m17-run-index.md` and `history-scan.md`.

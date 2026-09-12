@@ -62,8 +62,10 @@ infrastructure proves less ([EXPERIMENT_PROTOCOL §6](../../EXPERIMENT_PROTOCOL.
 ## Safety rules for every module
 
 1. **No `Resource: "*"`** except `sts:GetCallerIdentity`. CI enforces this with the repository
-   wildcard guard plus Checkov; TFLint was used for dedicated-account acceptance, not as a
-   current CI job. It is not a review convention.
+   wildcard guard (`scripts/check_terraform_no_wildcard.py`), which is the only check that
+   actually knows about this project's single documented exception; TFLint (config in
+   [`.tflint.hcl`](.tflint.hcl)) and Checkov also run in CI as general-purpose scanners, but
+   neither replaces the wildcard guard.
 2. **Every policy is namespace-scoped**, by explicit ARN or by a condition on
    `aws:ResourceTag/Namespace`.
 3. **`default_tags` on the provider** applies `Project=CHAINBREAK`, `Environment=benchmark`,
