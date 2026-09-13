@@ -171,7 +171,7 @@ before you install it:
 gh attestation verify chainbreak-<version>-py3-none-any.whl --repo KubixDesiney/chainbreak
 ```
 
-See [REPRODUCIBILITY §10](https://github.com/KubixDesiney/chainbreak/blob/main/REPRODUCIBILITY.md#10-release-provenance)
+See [REPRODUCIBILITY.md](https://github.com/KubixDesiney/chainbreak/blob/main/REPRODUCIBILITY.md)
 for what each artifact proves and why no maintainer can publish one by hand.
 
 **2. Install into a clean venv, from an empty directory.**
@@ -255,8 +255,8 @@ docker run --rm -v "$(pwd)/out:/home/chainbreak/runs" \
 ```
 
 Replace `v0.1.1` with the release you want, or pin to the commit-SHA tag; see
-[REPRODUCIBILITY §10](REPRODUCIBILITY.md#10-release-provenance) for how to verify an
-image against its build provenance.
+[REPRODUCIBILITY.md](REPRODUCIBILITY.md) for how to verify an image against its build
+provenance.
 
 This container is scoped to the offline workflow only. `--provider aws` and `chainbreak
 infra` are real-account operations governed by
